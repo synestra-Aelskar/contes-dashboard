@@ -1,0 +1,125 @@
+import { uid } from './util.js';
+import { campaignDate } from './campaign.js';
+
+const clone = (x) => JSON.parse(JSON.stringify(x));
+
+/** Nouveau brouillon de séance en cours. */
+export function makeDraft(state) {
+  const n = (state.sessions || []).length + 1;
+  return {
+    id: uid(),
+    title: 'Séance ' + n,
+    date: new Date().toLocaleDateString('fr-FR'),
+    aelDate: clone(campaignDate(state)),
+    summary: '',
+    participants: [],
+    xp: [],                 // { id, charId, amount, reason }
+    eventsTitle: 'Événements de la séance',
+    events: [],             // { id, description, charIds: [] }
+    consequences: [],       // { id, trigger, effect }
+    clocks: [],             // { id, title, kind, size, filled, note, deadlineAel }
+    reminders: []           // { id, text, kind }
+  };
+}
+
+/** Liste ce qui n'est pas rempli avant clôture (pour la confirmation). */
+export function sessionGaps(d) {
+  const g = [];
+  if (!d) return g;
+  if (!(d.title || '').trim()) g.push('Titre de la séance');
+  if (!(d.summary || '').trim()) g.push('Résumé MJ de la séance');
+  if (!(d.participants || []).length) g.push('Aucun participant coché');
+
+  (d.xp || []).forEach((r, i) => {
+    const empty = !r.charId && !String(r.amount ?? '').trim() && !(r.reason || '').trim();
+    if (empty) return;
+    if (!r.charId) g.push('Attribution XP, ligne ' + (i + 1) + ' : personnage non choisi');
+    if (!String(r.amount ?? '').trim()) g.push('Attribution XP, ligne ' + (i + 1) + ' : montant vide');
+    if (!(r.reason || '').trim()) g.push('Attribution XP, ligne ' + (i + 1) + ' : raison vide');
+  });
+
+  (d.events || []).forEach((e, i) => {
+    const empty = !(e.description || '').trim() && !(e.charIds || []).length;
+    if (empty) return;
+    if (!(e.description || '').trim()) g.push('Événement ' + (i + 1) + ' : description vide');
+    if (!(e.charIds || []).length) g.push('Événement ' + (i + 1) + ' : aucun personnage lié');
+  });
+
+  return g;
+}
+
+/**
+ * Mutation de clôture : pousse le brouillon dans le journal + sur les onglets
+ * personnages + conséquences / horloges / à ne pas oublier, puis vide le brouillon.
+ * Renvoie l'id de la séance créée (via le paramètre `out`).
+ */
+export function finishDraft(s, out) {
+  const d = s.sessionDraft;
+  if (!d) return;
+  const sid = d.id;
+  const findChar = (id) => (s.characters || []).find((c) => c.id === id);
+
+  // 1) séance dans le journal de campagne
+  s.sessions.push({
+    id: sid,
+    date: d.date || '',
+    aelDate: d.aelDate ? clone(d.aelDate) : null,
+    title: (d.title || '').trim() || 'Séance ' + (s.sessions.length + 1),
+    summary: d.summary || '',
+    participants: (d.participants || []).slice(),
+    events: (d.events || [])
+      .filter((e) => (e.description || '').trim() || (e.charIds || []).length)
+      .map((e) => ({ id: uid(), description: e.description || '', charIds: (e.charIds || []).slice() })),
+    fromDraft: true
+  });
+
+  // 2) XP -> personnages
+  (d.xp || []).forEach((r) => {
+    const c = findChar(r.charId);
+    if (!c) return;
+    if (!String(r.amount ?? '').trim() && !(r.reason || '').trim()) return;
+    c.xp = c.xp || [];
+    c.xp.push({ id: uid(), amount: String(r.amount ?? '').trim(), reason: (r.reason || '').trim(), sessionId: sid });
+  });
+
+  // 3) événements -> personnages liés
+  (d.events || []).forEach((e) => {
+    if (!(e.description || '').trim()) return;
+    (e.charIds || []).forEach((cid) => {
+      const c = findChar(cid);
+      if (!c) return;
+      c.events = c.events || [];
+      c.events.push({ id: uid(), description: e.description || '', sessionId: sid });
+    });
+  });
+
+  // 4) rappel du résumé MJ -> chaque participant
+  (d.participants || []).forEach((cid) => {
+    const c = findChar(cid);
+    if (!c) return;
+    c.recaps = c.recaps || [];
+    c.recaps.push({ id: uid(), summary: d.summary || '', sessionId: sid });
+  });
+
+  // 5) conséquences / horloges / à ne pas oublier
+  (d.consequences || []).forEach((x) => {
+    if (!(x.trigger || '').trim() && !(x.effect || '').trim()) return;
+    s.consequences.push({ id: uid(), trigger: (x.trigger || '').trim(), effect: (x.effect || '').trim(), done: false, sessionId: sid });
+  });
+  (d.clocks || []).forEach((x) => {
+    if (!(x.title || '').trim() && !(x.note || '').trim()) return;
+    s.clocks.push({
+      id: uid(), title: (x.title || '').trim(), kind: x.kind || 'timer',
+      size: x.size || 6, filled: x.filled || 0, note: x.note || '',
+      deadline: '', deadlineAel: x.deadlineAel || null, expired: false, sessionId: sid
+    });
+  });
+  (d.reminders || []).forEach((x) => {
+    if (!(x.text || '').trim()) return;
+    s.reminders.push({ id: uid(), text: (x.text || '').trim(), kind: (x.kind || '').trim() || 'Divers', sessionId: sid });
+  });
+
+  // 6) clôture
+  s.sessionDraft = null;
+  if (out) out.sessionId = sid;
+}

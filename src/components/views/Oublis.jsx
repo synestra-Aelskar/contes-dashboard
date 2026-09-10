@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { uid } from '../../lib/util.js';
 import { toast } from '../../lib/toast.js';
+import SessionLink from '../SessionLink.jsx';
 
 const KINDS = ['Promesse de PNJ', 'Objet mystérieux', 'Info glissée en passant', 'PNJ à revoir', 'Lieu à explorer'];
 
@@ -50,7 +51,7 @@ function RForm({ entry, onDone, mutate }) {
   );
 }
 
-export default function Oublis({ state, mutate }) {
+export default function Oublis({ state, mutate, goToSession }) {
   const [openId, setOpenId] = useState(undefined);
   const reminders = state.reminders || [];
   const adding = openId === null;
@@ -88,6 +89,9 @@ export default function Oublis({ state, mutate }) {
                     <span className="entry__marker" />
                     <div className="entry__main">
                       <p className="entry__body">{r.text || '—'}</p>
+                      {r.sessionId && (
+                        <SessionLink sessions={state.sessions} sessionId={r.sessionId} goToSession={goToSession} />
+                      )}
                       <div className="entry__actions">
                         <button className="tbtn" type="button" onClick={() => setOpenId(r.id)}>modifier</button>
                         <button

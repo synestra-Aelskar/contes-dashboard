@@ -16,7 +16,8 @@ export const EMPTY_STATE = {
     { id: 'rules', kind: 'rules', title: 'Règles maison', entries: [] },
     { id: 'data',  kind: 'data',  title: 'Banque de données', entries: [] }
   ],
-  sessions: [], consequences: [], clocks: [], secrets: [], reminders: [], epreuves: []
+  sessions: [], consequences: [], clocks: [], secrets: [], reminders: [], epreuves: [],
+  characters: [], sessionDraft: null
 };
 
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -28,9 +29,10 @@ function normalize(raw) {
   const out = { ...base, ...d };
   if (!Array.isArray(out.sections) || !out.sections.length) out.sections = base.sections;
   out.notes = Array.isArray(out.notes) ? out.notes.filter((x) => x && typeof x === 'object') : [];
-  ['sessions', 'consequences', 'clocks', 'secrets', 'reminders', 'epreuves'].forEach((k) => {
+  ['sessions', 'consequences', 'clocks', 'secrets', 'reminders', 'epreuves', 'characters'].forEach((k) => {
     if (!Array.isArray(out[k])) out[k] = [];
   });
+  if (!out.sessionDraft || typeof out.sessionDraft !== 'object') out.sessionDraft = null;
   if (typeof out.updated !== 'string') out.updated = '';
   if (typeof out.worldDate !== 'string') out.worldDate = '';
   return out;

@@ -5,12 +5,23 @@ export const VIEWS = [
   ['horloges', 'Horloges & fronts'],
   ['secrets', 'Secrets'],
   ['oublis', 'À ne pas oublier'],
-  ['epreuves', 'Épreuves & infos']
+  ['epreuves', 'Épreuves & infos'],
+  ['personnages', 'Personnages']
 ];
 
-export default function ViewBar({ view, setView }) {
+export default function ViewBar({ view, setView, hasDraft, onFinish }) {
   return (
     <div className="viewbar">
+      <button
+        type="button"
+        className={'viewbtn viewbtn--session' + (hasDraft ? ' is-live' : '')}
+        data-v="session"
+        aria-current={view === 'session'}
+        onClick={() => setView('session')}
+      >
+        {hasDraft ? '● Séance en cours' : 'Débuter la session'}
+      </button>
+
       {VIEWS.map(([v, label]) => (
         <button
           key={v}
@@ -23,6 +34,16 @@ export default function ViewBar({ view, setView }) {
           {label}
         </button>
       ))}
+
+      <button
+        type="button"
+        className="viewbtn viewbtn--terminer"
+        onClick={onFinish}
+        disabled={!hasDraft}
+        title={hasDraft ? 'Clôturer la séance en cours' : 'Aucune séance en cours'}
+      >
+        Terminer la session
+      </button>
     </div>
   );
 }

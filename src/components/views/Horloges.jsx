@@ -4,6 +4,7 @@ import { useSyncedField } from '../../lib/useSyncedField.js';
 import { aelValid, aelCompare, aelTextLine1 } from '../../lib/aelskar.js';
 import { campaignDate } from '../WorldDate.jsx';
 import AelPicker from '../AelPicker.jsx';
+import SessionLink from '../SessionLink.jsx';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 
@@ -15,7 +16,7 @@ export function clockExpired(state, c) {
   return false;
 }
 
-function ClockCard({ state, c, mutate }) {
+function ClockCard({ state, c, mutate, goToSession }) {
   const [title, setTitle, titleRef] = useSyncedField(c.title);
   const [note, setNote, noteRef] = useSyncedField(c.note);
   const [pickOpen, setPickOpen] = useState(false);
@@ -112,6 +113,10 @@ function ClockCard({ state, c, mutate }) {
         />
       </label>
 
+      {c.sessionId && (
+        <SessionLink sessions={state.sessions} sessionId={c.sessionId} goToSession={goToSession} />
+      )}
+
       <div className="card__actions">
         <button
           className="tbtn" type="button"
@@ -133,7 +138,7 @@ function ClockCard({ state, c, mutate }) {
   );
 }
 
-export default function Horloges({ state, mutate }) {
+export default function Horloges({ state, mutate, goToSession }) {
   const clocks = state.clocks || [];
   return (
     <section className="chapter">
@@ -161,7 +166,9 @@ export default function Horloges({ state, mutate }) {
         </p>
       ) : (
         <div className="cards">
-          {clocks.map((c) => <ClockCard key={c.id} state={state} c={c} mutate={mutate} />)}
+          {clocks.map((c) => (
+            <ClockCard key={c.id} state={state} c={c} mutate={mutate} goToSession={goToSession} />
+          ))}
         </div>
       )}
     </section>

@@ -4,10 +4,12 @@ import { useSyncedField } from '../../lib/useSyncedField.js';
 import { aelValid, aelTextLine1 } from '../../lib/aelskar.js';
 import { campaignDate } from '../WorldDate.jsx';
 import AelPicker from '../AelPicker.jsx';
+import CharToggles from '../CharToggles.jsx';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 
 function Pane({ state, sel, mutate }) {
+  const chars = state.characters || [];
   const [date, setDate, dateRef] = useSyncedField(sel.date);
   const [title, setTitle, titleRef] = useSyncedField(sel.title);
   const [summary, setSummary, summaryRef] = useSyncedField(sel.summary);
@@ -69,6 +71,42 @@ function Pane({ state, sel, mutate }) {
           onBlur={() => patch((x) => { x.summary = summary; })}
         />
       </label>
+
+      <div className="flabel">
+        <span>Participants<span className="count"> ({(sel.participants || []).length})</span></span>
+        <CharToggles
+          characters={chars}
+          selected={sel.participants}
+          onToggle={(cid) =>
+            patch((x) => {
+              x.participants = x.participants || [];
+              const i = x.participants.indexOf(cid);
+              if (i >= 0) x.participants.splice(i, 1); else x.participants.push(cid);
+            })
+          }
+        />
+      </div>
+
+      {Array.isArray(sel.events) && sel.events.length > 0 && (
+        <div className="flabel">
+          <span>Événements</span>
+          <ul className="chr__list">
+            {sel.events.map((ev) => (
+              <li key={ev.id}>
+                {ev.description || '—'}
+                {(ev.charIds || []).length ? (
+                  <span className="chr__muted">
+                    {' — '}
+                    {(ev.charIds || [])
+                      .map((id) => (chars.find((c) => c.id === id) || {}).name || '?')
+                      .join(', ')}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="card__actions">
         <button

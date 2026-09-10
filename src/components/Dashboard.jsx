@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { supabase } from '../supabase';
 import { useBoard } from '../lib/board.js';
 import { fmtDateLong, lsGet, lsSet } from '../lib/util.js';
+import { finishDraft } from '../lib/session.js';
 import WorldDate from './WorldDate.jsx';
 import ViewBar from './ViewBar.jsx';
 import Notes from './Notes.jsx';
+import FinishModal from './FinishModal.jsx';
 import Liens from './views/Liens.jsx';
 import Journal from './views/Journal.jsx';
 import Consequences from './views/Consequences.jsx';
@@ -12,6 +14,8 @@ import Horloges from './views/Horloges.jsx';
 import Secrets from './views/Secrets.jsx';
 import Oublis from './views/Oublis.jsx';
 import Epreuves from './views/Epreuves.jsx';
+import Personnages from './views/Personnages.jsx';
+import SessionEnCours from './views/SessionEnCours.jsx';
 
 const STATUS_TEXT = {
   loading: 'Chargement…',
@@ -21,26 +25,36 @@ const STATUS_TEXT = {
 };
 const STATUS_ON = { ready: '1', saving: 'saving', loading: 'saving', offline: '0' };
 
-const VIEW_COMPONENTS = {
-  liens: Liens,
-  journal: Journal,
-  consequences: Consequences,
-  horloges: Horloges,
-  secrets: Secrets,
-  oublis: Oublis,
-  epreuves: Epreuves
-};
-
 export default function Dashboard({ session }) {
   const { state, status, mutate } = useBoard(session);
   const [view, setViewRaw] = useState(lsGet('ccm.view') || 'liens');
+  const [finishOpen, setFinishOpen] = useState(false);
   const setView = (v) => { setViewRaw(v); lsSet('ccm.view', v); };
 
   if (!state) {
     return <div className="auth__boot">Chargement du repaire…</div>;
   }
 
-  const ViewComp = VIEW_COMPONENTS[view] || Liens;
+  const goToSession = (id) => { lsSet('ccm.session', id); setView('journal'); };
+  const hasDraft = !!state.sessionDraft;
+
+  function confirmFinish() {
+    const out = {};
+    mutate((s) => finishDraft(s, out));
+    setFinishOpen(false);
+    if (out.sessionId) goToSession(out.sessionId);
+  }
+
+  let ViewComp = Liens;
+  const shared = { state, mutate, goToSession };
+  if (view === 'session') ViewComp = SessionEnCours;
+  else if (view === 'journal') ViewComp = Journal;
+  else if (view === 'consequences') ViewComp = Consequences;
+  else if (view === 'horloges') ViewComp = Horloges;
+  else if (view === 'secrets') ViewComp = Secrets;
+  else if (view === 'oublis') ViewComp = Oublis;
+  else if (view === 'epreuves') ViewComp = Epreuves;
+  else if (view === 'personnages') ViewComp = Personnages;
 
   return (
     <main className="page">
@@ -76,11 +90,26 @@ export default function Dashboard({ session }) {
         <Notes state={state} mutate={mutate} />
       </div>
 
-      <ViewBar view={view} setView={setView} />
+      <ViewBar
+        view={view}
+        setView={setView}
+        hasDraft={hasDraft}
+        onFinish={() => { setView('session'); setFinishOpen(true); }}
+      />
 
       <div className={'view view--' + view}>
-        <ViewComp state={state} mutate={mutate} />
+        {view === 'session'
+          ? <SessionEnCours state={state} mutate={mutate} onFinish={() => setFinishOpen(true)} />
+          : <ViewComp {...shared} />}
       </div>
+
+      {finishOpen && hasDraft && (
+        <FinishModal
+          draft={state.sessionDraft}
+          onConfirm={confirmFinish}
+          onCancel={() => setFinishOpen(false)}
+        />
+      )}
 
       <footer className="foot">
         Dernière mise à jour · {state.updated ? fmtDateLong(state.updated) : '—'} — enregistrée à chaque modification.

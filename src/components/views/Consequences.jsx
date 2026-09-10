@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { uid } from '../../lib/util.js';
 import { toast } from '../../lib/toast.js';
+import SessionLink from '../SessionLink.jsx';
 
 function CForm({ entry, onDone, mutate }) {
   const [a, setA] = useState(entry ? entry.trigger || '' : '');
@@ -47,7 +48,7 @@ function CForm({ entry, onDone, mutate }) {
   );
 }
 
-export default function Consequences({ state, mutate }) {
+export default function Consequences({ state, mutate, goToSession }) {
   const [openId, setOpenId] = useState(undefined); // undefined = rien, null = ajout, id = edit
   const items = (state.consequences || []).slice().sort((x, y) => (x.done ? 1 : 0) - (y.done ? 1 : 0));
   const adding = openId === null;
@@ -82,6 +83,9 @@ export default function Consequences({ state, mutate }) {
                 <div className="arrow">↓</div>
                 <span className="card__label">Alors —</span>
                 <p className="card__text">{c.effect || '—'}</p>
+                {c.sessionId && (
+                  <SessionLink sessions={state.sessions} sessionId={c.sessionId} goToSession={goToSession} />
+                )}
                 <div className="card__actions">
                   <label className="fcheck">
                     <input

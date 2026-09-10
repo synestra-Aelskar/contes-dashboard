@@ -1,17 +1,9 @@
 import { useState } from 'react';
 import AelPicker from './AelPicker.jsx';
-import {
-  aelValid, aelToday, aelCompare, aelTextLine1, aelTextLine2, aelNumeric
-} from '../lib/aelskar.js';
+import { aelCompare, aelToday, aelTextLine1, aelTextLine2, aelNumeric } from '../lib/aelskar.js';
+import { campaignDate, lastSessionAel } from '../lib/campaign.js';
 
-export function campaignDate(state) {
-  return aelValid(state.aelPin) ? state.aelPin : aelToday();
-}
-export function lastSessionAel(state) {
-  const ss = state.sessions || [];
-  for (let i = ss.length - 1; i >= 0; i--) if (aelValid(ss[i].aelDate)) return ss[i].aelDate;
-  return aelToday();
-}
+export { campaignDate, lastSessionAel };
 
 export default function WorldDate({ state, mutate }) {
   const [open, setOpen] = useState(false);
