@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { uid, lsGet, lsSet } from '../lib/util.js';
+import { useSyncedField } from '../lib/useSyncedField.js';
 
 function Postit({ note, mutate }) {
-  const [text, setText] = useState(note.text || '');
-  const ref = useRef(null);
+  const [text, setText, ref] = useSyncedField(note.text);
 
   function commit() {
     const v = text.trim();

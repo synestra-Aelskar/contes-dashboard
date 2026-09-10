@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { uid } from '../../lib/util.js';
+import { useSyncedField } from '../../lib/useSyncedField.js';
 import { aelValid, aelCompare, aelTextLine1 } from '../../lib/aelskar.js';
 import { campaignDate } from '../WorldDate.jsx';
 import AelPicker from '../AelPicker.jsx';
@@ -15,8 +16,8 @@ export function clockExpired(state, c) {
 }
 
 function ClockCard({ state, c, mutate }) {
-  const [title, setTitle] = useState(c.title || '');
-  const [note, setNote] = useState(c.note || '');
+  const [title, setTitle, titleRef] = useSyncedField(c.title);
+  const [note, setNote, noteRef] = useSyncedField(c.note);
   const [pickOpen, setPickOpen] = useState(false);
 
   const patch = (fn) =>
@@ -30,6 +31,7 @@ function ClockCard({ state, c, mutate }) {
       {expired && <div className="clock__banner">⚠ Événement arrivé à échéance</div>}
 
       <input
+        ref={titleRef}
         className="finput clock__title" type="text" placeholder="Nom de l’horloge / du front"
         value={title} onChange={(e) => setTitle(e.target.value)}
         onBlur={() => patch((x) => { x.title = title.trim(); })}
@@ -102,6 +104,7 @@ function ClockCard({ state, c, mutate }) {
       <label className="flabel">
         Effet
         <textarea
+          ref={noteRef}
           className="finput finput--area"
           placeholder="Ce qui se passe / ce qui se déclenche à échéance…"
           value={note} onChange={(e) => setNote(e.target.value)}

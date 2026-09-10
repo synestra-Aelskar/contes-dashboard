@@ -106,8 +106,8 @@ input,textarea,button,select{ font:inherit; }
 .headrow{ display:flex; align-items:flex-start; justify-content:space-between; gap:20px 44px; flex-wrap:wrap; }
 .headrow__left{ min-width:0; }
 .eyebrow{ margin:0; font-family:var(--f-mono); font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--fg-dim); }
-.topright{ display:flex; align-items:flex-start; gap:22px; flex-shrink:0; }
-.status{ display:inline-flex; align-items:center; gap:7px; font-family:var(--f-mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--fg-dim); white-space:nowrap; margin-top:2px; background:none; border:none; }
+.topright{ display:flex; flex-direction:column; align-items:flex-end; gap:9px; flex-shrink:0; text-align:right; }
+.status{ display:inline-flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:4px 7px; font-family:var(--f-mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--fg-dim); background:none; border:none; }
 .status i{ width:6px; height:6px; border-radius:50%; background:var(--fg-dim); flex:none; }
 .status[data-on="1"] i{ background:var(--kind-data); }
 .status[data-on="0"] i{ background:var(--blood); }

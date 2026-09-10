@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { uid } from '../../lib/util.js';
+import { useSyncedField } from '../../lib/useSyncedField.js';
 
 function SecretCard({ s, mutate }) {
-  const [secret, setSecret] = useState(s.secret || '');
-  const [chars, setChars] = useState(s.chars || '');
-  const [players, setPlayers] = useState(s.players || '');
+  const [secret, setSecret, secretRef] = useSyncedField(s.secret);
+  const [chars, setChars, charsRef] = useSyncedField(s.chars);
+  const [players, setPlayers, playersRef] = useSyncedField(s.players);
 
   const patch = (fn) =>
     mutate((st) => { const x = st.secrets.find((y) => y.id === s.id); if (x) fn(x); });
@@ -14,6 +15,7 @@ function SecretCard({ s, mutate }) {
       <label className="flabel">
         Secret
         <textarea
+          ref={secretRef}
           className="finput finput--area" placeholder="Le secret…"
           value={secret} onChange={(e) => setSecret(e.target.value)}
           onBlur={() => patch((x) => { x.secret = secret; })}
@@ -22,6 +24,7 @@ function SecretCard({ s, mutate }) {
       <label className="flabel">
         Personnages au courant
         <input
+          ref={charsRef}
           className="finput" type="text" placeholder="PNJ / personnages au courant"
           value={chars} onChange={(e) => setChars(e.target.value)}
           onBlur={() => patch((x) => { x.chars = chars.trim(); })}
@@ -30,6 +33,7 @@ function SecretCard({ s, mutate }) {
       <label className="flabel">
         Joueur·euses qui savent vraiment
         <input
+          ref={playersRef}
           className="finput" type="text" placeholder="Joueur·euses qui le savent réellement"
           value={players} onChange={(e) => setPlayers(e.target.value)}
           onBlur={() => patch((x) => { x.players = players.trim(); })}

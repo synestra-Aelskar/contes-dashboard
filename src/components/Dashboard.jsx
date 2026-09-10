@@ -59,7 +59,7 @@ export default function Dashboard({ session }) {
             <span className="status" data-on={STATUS_ON[status] || '0'}>
               <i />
               <span>{STATUS_TEXT[status] || status}</span>
-              <span className="status__user"> · {session.user.email}</span>
+              <span className="status__user"> · {(session.user.email || '').split('@')[0]}</span>
               <button
                 className="status__logout" type="button"
                 onClick={() => supabase.auth.signOut()}

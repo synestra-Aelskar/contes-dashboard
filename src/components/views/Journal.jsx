@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { uid, lsGet, lsSet } from '../../lib/util.js';
+import { useSyncedField } from '../../lib/useSyncedField.js';
 import { aelValid, aelTextLine1 } from '../../lib/aelskar.js';
 import { campaignDate } from '../WorldDate.jsx';
 import AelPicker from '../AelPicker.jsx';
@@ -7,9 +8,9 @@ import AelPicker from '../AelPicker.jsx';
 const clone = (x) => JSON.parse(JSON.stringify(x));
 
 function Pane({ state, sel, mutate }) {
-  const [date, setDate] = useState(sel.date || '');
-  const [title, setTitle] = useState(sel.title || '');
-  const [summary, setSummary] = useState(sel.summary || '');
+  const [date, setDate, dateRef] = useSyncedField(sel.date);
+  const [title, setTitle, titleRef] = useSyncedField(sel.title);
+  const [summary, setSummary, summaryRef] = useSyncedField(sel.summary);
   const [pickOpen, setPickOpen] = useState(false);
 
   const patch = (fn) =>
@@ -21,6 +22,7 @@ function Pane({ state, sel, mutate }) {
         <label className="flabel">
           Date réelle
           <input
+            ref={dateRef}
             className="finput" type="text" placeholder="Date (monde ou réelle)"
             value={date} onChange={(e) => setDate(e.target.value)}
             onBlur={() => patch((x) => { x.date = date.trim(); })}
@@ -29,6 +31,7 @@ function Pane({ state, sel, mutate }) {
         <label className="flabel">
           Titre
           <input
+            ref={titleRef}
             className="finput" type="text" placeholder="Titre de la séance"
             value={title} onChange={(e) => setTitle(e.target.value)}
             onBlur={() => patch((x) => { x.title = title.trim(); })}
@@ -59,6 +62,7 @@ function Pane({ state, sel, mutate }) {
       <label className="flabel">
         Résumé
         <textarea
+          ref={summaryRef}
           className="finput finput--area journal__summary"
           placeholder="Résumé : ce qui a été fait, décidé, découvert ; PNJ rencontrés ; fils laissés en suspens…"
           value={summary} onChange={(e) => setSummary(e.target.value)}
