@@ -17,15 +17,17 @@ function XpRow({ char, row, mutate, sessions, goToSession }) {
     });
 
   return (
-    <div className="xprow">
+    <div className="xprow xprow--char">
       <input
-        ref={amountRef} className="field" type="text" inputMode="numeric" placeholder="XP"
-        value={amount} onChange={(e) => setAmount(e.target.value)}
+        ref={amountRef} className="field field--xp" type="text" inputMode="numeric" placeholder="XP"
+        value={amount}
+        onChange={(e) => { const v = e.target.value; setAmount(v); patch((r) => { r.amount = v; }); }}
         onBlur={() => patch((r) => { r.amount = amount.trim(); })}
       />
-      <input
-        ref={reasonRef} className="field" type="text" placeholder="Raison du gain"
-        value={reason} onChange={(e) => setReason(e.target.value)}
+      <textarea
+        ref={reasonRef} className="field field--area" rows={2} placeholder="Raison du gain"
+        value={reason}
+        onChange={(e) => { const v = e.target.value; setReason(v); patch((r) => { r.reason = v; }); }}
         onBlur={() => patch((r) => { r.reason = reason.trim(); })}
       />
       <div className="xprow__date">
@@ -75,7 +77,8 @@ function CharPane({ state, char, mutate, goToSession }) {
           Nom du personnage
           <input
             ref={nameRef} className="field" type="text" placeholder="Nom du personnage"
-            value={name} onChange={(e) => setName(e.target.value)}
+            value={name}
+            onChange={(e) => { const v = e.target.value; setName(v); patch((c) => { c.name = v; }); }}
             onBlur={() => patch((c) => { c.name = name.trim(); })}
           />
         </label>
@@ -83,7 +86,8 @@ function CharPane({ state, char, mutate, goToSession }) {
           Nom du joueur
           <input
             ref={playerRef} className="field" type="text" placeholder="Nom du joueur / de la joueuse"
-            value={player} onChange={(e) => setPlayer(e.target.value)}
+            value={player}
+            onChange={(e) => { const v = e.target.value; setPlayer(v); patch((c) => { c.player = v; }); }}
             onBlur={() => patch((c) => { c.player = player.trim(); })}
           />
         </label>
@@ -91,7 +95,8 @@ function CharPane({ state, char, mutate, goToSession }) {
           Note MJ
           <textarea
             ref={mjRef} className="notes" placeholder="Tout ce que le MJ garde en tête sur ce personnage…"
-            value={mjNote} onChange={(e) => setMjNote(e.target.value)}
+            value={mjNote}
+            onChange={(e) => { const v = e.target.value; setMjNote(v); patch((c) => { c.mjNote = v; }); }}
             onBlur={() => patch((c) => { c.mjNote = mjNote; })}
           />
         </label>
@@ -113,7 +118,8 @@ function CharPane({ state, char, mutate, goToSession }) {
           URL d’artwork
           <input
             ref={artRef} className="field field--mono" type="text" placeholder="https://…"
-            value={art} onChange={(e) => setArt(e.target.value)}
+            value={art}
+            onChange={(e) => { const v = e.target.value; setArt(v); patch((c) => { c.artUrl = v.trim(); }); }}
             onBlur={() => patch((c) => { c.artUrl = art.trim(); })}
           />
         </label>
@@ -141,8 +147,8 @@ function CharPane({ state, char, mutate, goToSession }) {
 
         <div className="chr__block">
           <h4 className="chr__h">XP<span className="count"> (total {totalXp})</span></h4>
-          <div className="xptable">
-            <div className="xptable__head"><span>XP</span><span>Raison</span><span>Date</span><span /></div>
+          <div className="xptable xptable--char">
+            <div className="xptable__head"><span>XP</span><span>Raison</span><span /></div>
             {xp.map((r) => (
               <XpRow
                 key={r.id} char={char} row={r} mutate={mutate}

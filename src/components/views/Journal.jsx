@@ -26,7 +26,8 @@ function Pane({ state, sel, mutate }) {
           <input
             ref={dateRef}
             className="finput" type="text" placeholder="Date (monde ou réelle)"
-            value={date} onChange={(e) => setDate(e.target.value)}
+            value={date}
+            onChange={(e) => { const v = e.target.value; setDate(v); patch((x) => { x.date = v; }); }}
             onBlur={() => patch((x) => { x.date = date.trim(); })}
           />
         </label>
@@ -35,7 +36,8 @@ function Pane({ state, sel, mutate }) {
           <input
             ref={titleRef}
             className="finput" type="text" placeholder="Titre de la séance"
-            value={title} onChange={(e) => setTitle(e.target.value)}
+            value={title}
+            onChange={(e) => { const v = e.target.value; setTitle(v); patch((x) => { x.title = v; }); }}
             onBlur={() => patch((x) => { x.title = title.trim(); })}
           />
         </label>
@@ -67,7 +69,8 @@ function Pane({ state, sel, mutate }) {
           ref={summaryRef}
           className="finput finput--area journal__summary"
           placeholder="Résumé : ce qui a été fait, décidé, découvert ; PNJ rencontrés ; fils laissés en suspens…"
-          value={summary} onChange={(e) => setSummary(e.target.value)}
+          value={summary}
+          onChange={(e) => { const v = e.target.value; setSummary(v); patch((x) => { x.summary = v; }); }}
           onBlur={() => patch((x) => { x.summary = summary; })}
         />
       </label>

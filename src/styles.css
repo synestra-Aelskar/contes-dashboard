@@ -397,16 +397,35 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 .chr__recap{ display:flex; flex-direction:column; gap:3px; margin-bottom:10px; }
 .chr__recaptxt{ margin:0; font-size:12.5px; line-height:1.5; color:var(--fg-dim); white-space:pre-wrap; }
 
-/* --- tableau XP --- */
-.xptable{ display:flex; flex-direction:column; gap:6px; }
-.xptable__head{ display:grid; grid-template-columns:70px 1fr 150px 24px; gap:8px; font-family:var(--f-mono); font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dim); }
-.xprow{ display:grid; grid-template-columns:70px 1fr 150px 24px; gap:8px; align-items:center; }
+/* --- tableau XP ---
+   XP = un chiffre (colonne étroite) ; Raison = souvent deux lignes de texte
+   (colonne large, zone qui s'agrandit). */
+.xptable{ display:flex; flex-direction:column; gap:8px; }
+.xptable__head{ display:grid; gap:8px; font-family:var(--f-mono); font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dim); }
+.xprow{ display:grid; gap:8px; align-items:start; }
 .xprow .field{ margin:0; }
 .xprow__date{ display:flex; flex-direction:column; gap:3px; min-width:0; }
+.field--xp{ text-align:center; }
+.field--area{ resize:vertical; min-height:50px; line-height:1.4; }
+
+/* Onglet personnage : colonne étroite (360px), pas la place pour 4
+   colonnes côte à côte — XP + Raison sur une ligne, la séance liée en
+   dessous sur toute la largeur. */
+.xptable--char .xptable__head{ grid-template-columns:56px 1fr 24px; }
+.xptable--char .xprow{ grid-template-columns:56px 1fr 24px; grid-template-rows:auto auto; }
+.xptable--char .xprow > input{ grid-column:1; grid-row:1; }
+.xptable--char .xprow > textarea{ grid-column:2; grid-row:1; }
+.xptable--char .xprow > button{ grid-column:3; grid-row:1; }
+.xptable--char .xprow > .xprow__date{ grid-column:1 / -1; grid-row:2; flex-direction:row; align-items:center; }
+.xptable--char .xprow__date select{ max-width:220px; }
+
+/* Vue Séance en cours : pleine largeur, 4 colonnes tiennent bien. */
+.xptable--session .xptable__head,
+.xptable--session .xprow{ grid-template-columns:150px 56px 1fr 24px; }
+
 @media (max-width:960px){
   .xptable__head{ display:none; }
-  .xprow{ grid-template-columns:1fr 1fr; grid-auto-rows:auto; }
-  .xprow__date{ grid-column:1 / -1; }
+  .xptable--session .xprow{ grid-template-columns:1fr; }
 }
 
 /* --- séance en cours --- */

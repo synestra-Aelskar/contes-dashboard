@@ -10,14 +10,17 @@ import CharToggles from '../CharToggles.jsx';
 const clone = (x) => JSON.parse(JSON.stringify(x));
 
 /* --- lignes réutilisables ---------------------------------------- */
+/* Chaque champ enregistre à CHAQUE frappe (pas seulement au blur) :
+   avec deux personnes qui remplissent la même séance en direct, l'autre
+   doit voir le texte arriver sans attendre qu'on clique ailleurs. */
 
-function XpLine({ draft, row, chars, mutate }) {
+function XpLine({ row, chars, mutate }) {
   const [amount, setAmount, aRef] = useSyncedField(row.amount);
   const [reason, setReason, rRef] = useSyncedField(row.reason);
   const patch = (fn) =>
     mutate((s) => { const r = s.sessionDraft.xp.find((x) => x.id === row.id); if (r) fn(r); });
   return (
-    <div className="xprow">
+    <div className="xprow xprow--session">
       <select
         className="field" value={row.charId || ''}
         onChange={(e) => patch((r) => { r.charId = e.target.value || null; })}
@@ -26,13 +29,15 @@ function XpLine({ draft, row, chars, mutate }) {
         {chars.map((c) => <option key={c.id} value={c.id}>{c.name || 'Sans nom'}</option>)}
       </select>
       <input
-        ref={aRef} className="field" type="text" inputMode="numeric" placeholder="XP"
-        value={amount} onChange={(e) => setAmount(e.target.value)}
+        ref={aRef} className="field field--xp" type="text" inputMode="numeric" placeholder="XP"
+        value={amount}
+        onChange={(e) => { const v = e.target.value; setAmount(v); patch((r) => { r.amount = v; }); }}
         onBlur={() => patch((r) => { r.amount = amount.trim(); })}
       />
-      <input
-        ref={rRef} className="field" type="text" placeholder="Raison du gain"
-        value={reason} onChange={(e) => setReason(e.target.value)}
+      <textarea
+        ref={rRef} className="field field--area" rows={2} placeholder="Raison du gain"
+        value={reason}
+        onChange={(e) => { const v = e.target.value; setReason(v); patch((r) => { r.reason = v; }); }}
         onBlur={() => patch((r) => { r.reason = reason.trim(); })}
       />
       <button
@@ -60,8 +65,9 @@ function EventLine({ row, chars, mutate }) {
       <CharToggles characters={chars} selected={row.charIds} onToggle={toggle} />
       <textarea
         ref={dRef} className="finput finput--area" placeholder="Ce qui s’est passé…"
-        value={desc} onChange={(e) => setDesc(e.target.value)}
-        onBlur={() => patch((e) => { e.description = desc; })}
+        value={desc}
+        onChange={(e) => { const v = e.target.value; setDesc(v); patch((e2) => { e2.description = v; }); }}
+        onBlur={() => patch((e2) => { e2.description = desc; })}
       />
       <button
         className="tbtn" type="button"
@@ -82,11 +88,15 @@ function ConseqLine({ row, mutate }) {
     <div className="stackline">
       <textarea
         ref={aRef} className="finput finput--area" placeholder="Si — ce que les joueur·euses ont fait…"
-        value={a} onChange={(e) => setA(e.target.value)} onBlur={() => patch((c) => { c.trigger = a; })}
+        value={a}
+        onChange={(e) => { const v = e.target.value; setA(v); patch((c) => { c.trigger = v; }); }}
+        onBlur={() => patch((c) => { c.trigger = a; })}
       />
       <textarea
         ref={bRef} className="finput finput--area" placeholder="Alors — ce que ça déclenchera…"
-        value={b} onChange={(e) => setB(e.target.value)} onBlur={() => patch((c) => { c.effect = b; })}
+        value={b}
+        onChange={(e) => { const v = e.target.value; setB(v); patch((c) => { c.effect = v; }); }}
+        onBlur={() => patch((c) => { c.effect = b; })}
       />
       <button
         className="tbtn" type="button"
@@ -109,7 +119,9 @@ function ClockLine({ state, row, mutate }) {
     <div className="stackline">
       <input
         ref={tRef} className="finput" type="text" placeholder="Nom de l’horloge / du front"
-        value={title} onChange={(e) => setTitle(e.target.value)} onBlur={() => patch((c) => { c.title = title.trim(); })}
+        value={title}
+        onChange={(e) => { const v = e.target.value; setTitle(v); patch((c) => { c.title = v; }); }}
+        onBlur={() => patch((c) => { c.title = title.trim(); })}
       />
       <div className="clock__kinds">
         {[['timer', 'Segments'], ['deadline', 'Date butoir']].map(([v, l]) => (
@@ -144,7 +156,9 @@ function ClockLine({ state, row, mutate }) {
       )}
       <textarea
         ref={nRef} className="finput finput--area" placeholder="Ce qui se déclenche à échéance…"
-        value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => patch((c) => { c.note = note; })}
+        value={note}
+        onChange={(e) => { const v = e.target.value; setNote(v); patch((c) => { c.note = v; }); }}
+        onBlur={() => patch((c) => { c.note = note; })}
       />
       <button
         className="tbtn" type="button"
@@ -160,18 +174,22 @@ const REM_KINDS = ['Promesse de PNJ', 'Objet mystérieux', 'Info glissée en pas
 
 function ReminderLine({ row, mutate }) {
   const [text, setText, tRef] = useSyncedField(row.text);
+  const [kind, setKind, kRef] = useSyncedField(row.kind);
   const patch = (fn) =>
     mutate((s) => { const r = s.sessionDraft.reminders.find((x) => x.id === row.id); if (r) fn(r); });
   return (
     <div className="remline">
       <input
         ref={tRef} className="finput" type="text" placeholder="Quoi ne pas oublier…"
-        value={text} onChange={(e) => setText(e.target.value)} onBlur={() => patch((r) => { r.text = text.trim(); })}
+        value={text}
+        onChange={(e) => { const v = e.target.value; setText(v); patch((r) => { r.text = v; }); }}
+        onBlur={() => patch((r) => { r.text = text.trim(); })}
       />
       <input
-        className="finput" type="text" list="ssn-rk" placeholder="Catégorie"
-        defaultValue={row.kind || ''}
-        onBlur={(e) => patch((r) => { r.kind = e.target.value.trim(); })}
+        ref={kRef} className="finput" type="text" list="ssn-rk" placeholder="Catégorie"
+        value={kind}
+        onChange={(e) => { const v = e.target.value; setKind(v); patch((r) => { r.kind = v; }); }}
+        onBlur={() => patch((r) => { r.kind = kind.trim(); })}
       />
       <button
         className="tbtn" type="button"
@@ -227,7 +245,8 @@ function Workspace({ state, mutate, onFinish }) {
             Titre
             <input
               ref={titleRef} className="finput" type="text"
-              value={title} onChange={(e) => setTitle(e.target.value)}
+              value={title}
+              onChange={(e) => { const v = e.target.value; setTitle(v); set((dr) => { dr.title = v; }); }}
               onBlur={() => set((dr) => { dr.title = title.trim(); })}
             />
           </label>
@@ -235,7 +254,8 @@ function Workspace({ state, mutate, onFinish }) {
             Date réelle
             <input
               ref={dateRef} className="finput" type="text"
-              value={date} onChange={(e) => setDate(e.target.value)}
+              value={date}
+              onChange={(e) => { const v = e.target.value; setDate(v); set((dr) => { dr.date = v; }); }}
               onBlur={() => set((dr) => { dr.date = date.trim(); })}
             />
           </label>
@@ -261,7 +281,8 @@ function Workspace({ state, mutate, onFinish }) {
         <textarea
           ref={sumRef} className="notes"
           placeholder="Ce qui a été fait, décidé, découvert ; PNJ rencontrés ; fils laissés en suspens…"
-          value={summary} onChange={(e) => setSummary(e.target.value)}
+          value={summary}
+          onChange={(e) => { const v = e.target.value; setSummary(v); set((dr) => { dr.summary = v; }); }}
           onBlur={() => set((dr) => { dr.summary = summary; })}
         />
       </div>
@@ -273,10 +294,10 @@ function Workspace({ state, mutate, onFinish }) {
 
       <div className="ssn-block">
         <h3 className="ssn-h">Attribution d’XP</h3>
-        <div className="xptable">
+        <div className="xptable xptable--session">
           <div className="xptable__head"><span>Personnage</span><span>XP</span><span>Raison</span><span /></div>
           {(d.xp || []).map((r) => (
-            <XpLine key={r.id} draft={d} row={r} chars={chars} mutate={mutate} />
+            <XpLine key={r.id} row={r} chars={chars} mutate={mutate} />
           ))}
           <button
             className="tbtn" type="button"
@@ -290,7 +311,8 @@ function Workspace({ state, mutate, onFinish }) {
       <div className="ssn-block">
         <input
           ref={etitleRef} className="finput ssn-h-input" type="text" placeholder="Titre du bloc événements"
-          value={etitle} onChange={(e) => setEtitle(e.target.value)}
+          value={etitle}
+          onChange={(e) => { const v = e.target.value; setEtitle(v); set((dr) => { dr.eventsTitle = v; }); }}
           onBlur={() => set((dr) => { dr.eventsTitle = etitle.trim(); })}
         />
         {(d.events || []).map((r) => (

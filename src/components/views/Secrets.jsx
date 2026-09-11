@@ -17,7 +17,8 @@ function SecretCard({ s, mutate }) {
         <textarea
           ref={secretRef}
           className="finput finput--area" placeholder="Le secret…"
-          value={secret} onChange={(e) => setSecret(e.target.value)}
+          value={secret}
+          onChange={(e) => { const v = e.target.value; setSecret(v); patch((x) => { x.secret = v; }); }}
           onBlur={() => patch((x) => { x.secret = secret; })}
         />
       </label>
@@ -26,7 +27,8 @@ function SecretCard({ s, mutate }) {
         <input
           ref={charsRef}
           className="finput" type="text" placeholder="PNJ / personnages au courant"
-          value={chars} onChange={(e) => setChars(e.target.value)}
+          value={chars}
+          onChange={(e) => { const v = e.target.value; setChars(v); patch((x) => { x.chars = v; }); }}
           onBlur={() => patch((x) => { x.chars = chars.trim(); })}
         />
       </label>
@@ -35,7 +37,8 @@ function SecretCard({ s, mutate }) {
         <input
           ref={playersRef}
           className="finput" type="text" placeholder="Joueur·euses qui le savent réellement"
-          value={players} onChange={(e) => setPlayers(e.target.value)}
+          value={players}
+          onChange={(e) => { const v = e.target.value; setPlayers(v); patch((x) => { x.players = v; }); }}
           onBlur={() => patch((x) => { x.players = players.trim(); })}
         />
       </label>

@@ -34,7 +34,8 @@ function ClockCard({ state, c, mutate, goToSession }) {
       <input
         ref={titleRef}
         className="finput clock__title" type="text" placeholder="Nom de l’horloge / du front"
-        value={title} onChange={(e) => setTitle(e.target.value)}
+        value={title}
+        onChange={(e) => { const v = e.target.value; setTitle(v); patch((x) => { x.title = v; }); }}
         onBlur={() => patch((x) => { x.title = title.trim(); })}
       />
 
@@ -108,7 +109,8 @@ function ClockCard({ state, c, mutate, goToSession }) {
           ref={noteRef}
           className="finput finput--area"
           placeholder="Ce qui se passe / ce qui se déclenche à échéance…"
-          value={note} onChange={(e) => setNote(e.target.value)}
+          value={note}
+          onChange={(e) => { const v = e.target.value; setNote(v); patch((x) => { x.note = v; }); }}
           onBlur={() => patch((x) => { x.note = note; })}
         />
       </label>

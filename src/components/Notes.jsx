@@ -25,7 +25,11 @@ function Postit({ note, mutate }) {
         className="postit__text"
         placeholder="Écris ta note…"
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          const v = e.target.value;
+          setText(v);
+          if (v.trim()) mutate((s) => { const n = s.notes.find((x) => x.id === note.id); if (n) n.text = v; });
+        }}
         onBlur={commit}
       />
     </div>
