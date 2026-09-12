@@ -15,6 +15,7 @@ import Secrets from './views/Secrets.jsx';
 import Oublis from './views/Oublis.jsx';
 import Epreuves from './views/Epreuves.jsx';
 import Personnages from './views/Personnages.jsx';
+import Zones from './views/Zones.jsx';
 import SessionEnCours from './views/SessionEnCours.jsx';
 
 const STATUS_TEXT = {
@@ -55,6 +56,7 @@ export default function Dashboard({ session }) {
   else if (view === 'oublis') ViewComp = Oublis;
   else if (view === 'epreuves') ViewComp = Epreuves;
   else if (view === 'personnages') ViewComp = Personnages;
+  else if (view === 'zones') ViewComp = Zones;
 
   return (
     <main className="page">

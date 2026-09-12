@@ -6,7 +6,8 @@ export const VIEWS = [
   ['secrets', 'Secrets'],
   ['oublis', 'À ne pas oublier'],
   ['epreuves', 'Épreuves & infos'],
-  ['personnages', 'Personnages']
+  ['personnages', 'Personnages'],
+  ['zones', 'Zone']
 ];
 
 export default function ViewBar({ view, setView, hasDraft, onFinish }) {
