@@ -39,7 +39,8 @@ function ZoneTreeNode({ node, selectedId, onSelect }) {
 /* --- liste aura / skybox -------------------------------------------- */
 
 function AuraRow({ node, row, mutate }) {
-  const [text, setText, ref] = useSyncedField(row.text);
+  const [name, setName, nameRef] = useSyncedField(row.name);
+  const [value, setValue, valueRef] = useSyncedField(row.value);
   const patch = (fn) =>
     mutate((s) => {
       mutateZoneNode(s.zones, node.id, (n) => {
@@ -50,10 +51,16 @@ function AuraRow({ node, row, mutate }) {
   return (
     <div className="aura-row">
       <input
-        ref={ref} className="finput" type="text" placeholder="Aura, ambiance, skybox…"
-        value={text}
-        onChange={(e) => { const v = e.target.value; setText(v); patch((r) => { r.text = v; }); }}
-        onBlur={() => patch((r) => { r.text = text.trim(); })}
+        ref={nameRef} className="finput" type="text" placeholder="Aura, ambiance, skybox…"
+        value={name}
+        onChange={(e) => { const v = e.target.value; setName(v); patch((r) => { r.name = v; }); }}
+        onBlur={() => patch((r) => { r.name = name.trim(); })}
+      />
+      <input
+        ref={valueRef} className="finput aura-row__val" type="text" inputMode="numeric" placeholder="Nombre"
+        value={value}
+        onChange={(e) => { const v = e.target.value; setValue(v); patch((r) => { r.value = v; }); }}
+        onBlur={() => patch((r) => { r.value = value.trim(); })}
       />
       <button
         className="tbtn" type="button" aria-label="retirer"
@@ -128,51 +135,55 @@ function ZonePane({ node, path, mutate, onSelect }) {
         </div>
       </div>
 
-      <label className="flabel">
-        Description
-        <textarea
-          ref={descRef} className="notes" placeholder="Ce qui caractérise cet endroit…"
-          value={desc}
-          onChange={(e) => { const v = e.target.value; setDesc(v); patch((n) => { n.description = v; }); }}
-          onBlur={() => patch((n) => { n.description = desc; })}
-        />
-      </label>
+      <div className="zone-grid">
+        <div className="zone-pane__main">
+          <label className="flabel">
+            Description
+            <textarea
+              ref={descRef} className="notes" placeholder="Ce qui caractérise cet endroit…"
+              value={desc}
+              onChange={(e) => { const v = e.target.value; setDesc(v); patch((n) => { n.description = v; }); }}
+              onBlur={() => patch((n) => { n.description = desc; })}
+            />
+          </label>
 
-      <label className="flabel">
-        Météo
-        <textarea
-          ref={meteoRef} className="notes notes--sm" placeholder="Climat, conditions habituelles ou notables…"
-          value={meteo}
-          onChange={(e) => { const v = e.target.value; setMeteo(v); patch((n) => { n.meteo = v; }); }}
-          onBlur={() => patch((n) => { n.meteo = meteo; })}
-        />
-      </label>
+          <label className="flabel">
+            Météo
+            <textarea
+              ref={meteoRef} className="notes notes--sm" placeholder="Climat, conditions habituelles ou notables…"
+              value={meteo}
+              onChange={(e) => { const v = e.target.value; setMeteo(v); patch((n) => { n.meteo = v; }); }}
+              onBlur={() => patch((n) => { n.meteo = meteo; })}
+            />
+          </label>
 
-      <div className="flabel">
-        <span>Aura / Skybox</span>
-        <div className="auralist">
-          {(node.auras || []).map((r) => <AuraRow key={r.id} node={node} row={r} mutate={mutate} />)}
-          <button
-            className="tbtn" type="button"
-            onClick={() => patch((n) => { n.auras = n.auras || []; n.auras.push({ id: uid(), text: '' }); })}
-          >
-            ＋ ajouter une entrée
-          </button>
+          {kids.length > 0 && (
+            <div className="zone-pane__kids">
+              <h4 className="chr__h">{(childKind && ZONE_LABELS[childKind]) || 'Contenu'}<span className="count"> ({kids.length})</span></h4>
+              <div className="chips">
+                {kids.map((k) => (
+                  <button key={k.id} type="button" className="chip" onClick={() => onSelect(k.id)}>
+                    {k.name || 'Sans nom'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      </div>
 
-      {kids.length > 0 && (
-        <div className="zone-pane__kids">
-          <h4 className="chr__h">{(childKind && ZONE_LABELS[childKind]) || 'Contenu'}<span className="count"> ({kids.length})</span></h4>
-          <div className="chips">
-            {kids.map((k) => (
-              <button key={k.id} type="button" className="chip" onClick={() => onSelect(k.id)}>
-                {k.name || 'Sans nom'}
-              </button>
-            ))}
+        <div className="zone-pane__side">
+          <h4 className="chr__h">Aura / Skybox<span className="count"> ({(node.auras || []).length})</span></h4>
+          <div className="auralist">
+            {(node.auras || []).map((r) => <AuraRow key={r.id} node={node} row={r} mutate={mutate} />)}
+            <button
+              className="tbtn" type="button"
+              onClick={() => patch((n) => { n.auras = n.auras || []; n.auras.push({ id: uid(), name: '', value: '' }); })}
+            >
+              ＋ ajouter une entrée
+            </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

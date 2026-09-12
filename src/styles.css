@@ -481,6 +481,12 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 .zone-pane__actions{ display:flex; gap:14px; flex-wrap:wrap; }
 .zone-pane__kids{ border-top:1px solid var(--rule); padding-top:12px; }
 
+/* Description/météo à gauche, liste Aura/Skybox à droite — elle peut devenir longue. */
+.zone-grid{ display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:34px; align-items:start; }
+@media (max-width:960px){ .zone-grid{ grid-template-columns:1fr; } }
+.zone-pane__main{ display:flex; flex-direction:column; gap:14px; min-width:0; }
+.zone-pane__side{ display:flex; flex-direction:column; gap:8px; }
+
 .auralist{ display:flex; flex-direction:column; gap:6px; }
-.aura-row{ display:flex; gap:8px; align-items:center; }
-.aura-row .finput{ flex:1; }
+.aura-row{ display:grid; grid-template-columns:1fr 64px 20px; gap:6px; align-items:center; }
+.aura-row__val{ text-align:center; }
