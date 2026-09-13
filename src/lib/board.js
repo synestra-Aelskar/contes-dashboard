@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase, BUCKET } from '../supabase';
+import { XP_DEFAULT_STATE, normalizeXpState } from './xpCalibreur.js';
 
 const ROW_ID = 'main';
 const SAVE_DEBOUNCE = 1000;
@@ -17,7 +18,8 @@ export const EMPTY_STATE = {
     { id: 'data',  kind: 'data',  title: 'Banque de données', entries: [] }
   ],
   sessions: [], consequences: [], clocks: [], secrets: [], reminders: [], epreuves: [],
-  characters: [], sessionDraft: null, zones: []
+  characters: [], sessionDraft: null, zones: [], sessionZero: { blocks: [] },
+  xpCalibreur: XP_DEFAULT_STATE
 };
 
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -33,6 +35,9 @@ function normalize(raw) {
     if (!Array.isArray(out[k])) out[k] = [];
   });
   if (!out.sessionDraft || typeof out.sessionDraft !== 'object') out.sessionDraft = null;
+  if (!out.sessionZero || typeof out.sessionZero !== 'object') out.sessionZero = { blocks: [] };
+  if (!Array.isArray(out.sessionZero.blocks)) out.sessionZero.blocks = [];
+  out.xpCalibreur = normalizeXpState(out.xpCalibreur);
   if (typeof out.updated !== 'string') out.updated = '';
   if (typeof out.worldDate !== 'string') out.worldDate = '';
   return out;
