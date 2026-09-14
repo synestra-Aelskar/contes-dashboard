@@ -10,16 +10,20 @@ import {
 const DEFAULT_ECO = { expPoolBase: 26, expPoolLvl: 2, expCapBase: 5, expCapLvl: 1 };
 const LOCAL_KEY = 'ccm.ddcalc.local';
 
+function validDdArray(a) { return Array.isArray(a) && a.length === PALIERS.length && a.every((n) => typeof n === 'number'); }
+
 function normEco(ddCalc) {
-  if (!ddCalc || !Array.isArray(ddCalc.dd) || ddCalc.dd.length !== PALIERS.length) {
-    return { dd: DEFAULT_DD.slice(), ...DEFAULT_ECO };
+  const savedDefaultDd = ddCalc && validDdArray(ddCalc.savedDefaultDd) ? ddCalc.savedDefaultDd : null;
+  if (!ddCalc || !validDdArray(ddCalc.dd)) {
+    return { dd: (savedDefaultDd || DEFAULT_DD).slice(), ...DEFAULT_ECO, savedDefaultDd };
   }
   return {
     dd: ddCalc.dd,
     expPoolBase: typeof ddCalc.expPoolBase === 'number' ? ddCalc.expPoolBase : DEFAULT_ECO.expPoolBase,
     expPoolLvl: typeof ddCalc.expPoolLvl === 'number' ? ddCalc.expPoolLvl : DEFAULT_ECO.expPoolLvl,
     expCapBase: typeof ddCalc.expCapBase === 'number' ? ddCalc.expCapBase : DEFAULT_ECO.expCapBase,
-    expCapLvl: typeof ddCalc.expCapLvl === 'number' ? ddCalc.expCapLvl : DEFAULT_ECO.expCapLvl
+    expCapLvl: typeof ddCalc.expCapLvl === 'number' ? ddCalc.expCapLvl : DEFAULT_ECO.expCapLvl,
+    savedDefaultDd
   };
 }
 
@@ -409,12 +413,30 @@ export default function Equilibrage({ state, mutate }) {
                   </tbody>
                 </table>
               </div>
-              <button
-                className="tbtn dd-reset" type="button"
-                onClick={() => mutate((s) => { s.ddCalc = normEco(s.ddCalc); s.ddCalc.dd = DEFAULT_DD.slice(); })}
-              >
-                Réinitialiser les DD
-              </button>
+              <div className="dd-ddactions">
+                <button
+                  className="tbtn dd-reset" type="button"
+                  onClick={() => mutate((s) => {
+                    s.ddCalc = normEco(s.ddCalc);
+                    s.ddCalc.dd = (s.ddCalc.savedDefaultDd || DEFAULT_DD).slice();
+                  })}
+                >
+                  Réinitialiser les DD
+                </button>
+                <button
+                  className="tbtn dd-reset" type="button"
+                  onClick={() => {
+                    if (!window.confirm('Enregistrer ces valeurs de DD comme nouvelles valeurs par défaut ?')) return;
+                    mutate((s) => {
+                      s.ddCalc = normEco(s.ddCalc);
+                      s.ddCalc.savedDefaultDd = s.ddCalc.dd.slice();
+                    });
+                  }}
+                >
+                  Enregistrer les nouveaux DD
+                </button>
+                <p className="dd-hint">Nos valeurs remplaceront donc celles par défaut : « Réinitialiser les DD » repartira de là.</p>
+              </div>
             </div>
           </div>
         </section>

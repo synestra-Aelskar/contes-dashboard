@@ -596,7 +596,9 @@ input[type=range]::-moz-range-thumb{ width:14px; height:14px; border-radius:50%;
 .dd-pill--crit{ color:var(--blood); border-color:var(--blood); }
 .dd-pill--mid{ color:var(--fg-dim); border-color:var(--rule); }
 
-.dd-reset{ margin-top:14px; }
+.dd-ddactions{ display:flex; flex-direction:column; align-items:flex-start; gap:8px; margin-top:14px; }
+.dd-ddactions .dd-reset{ margin-top:0; }
+.dd-ddactions .dd-hint{ margin:0; max-width:52ch; }
 
 .dd-subhead{ font-family:var(--f-mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dim); margin:0 0 10px; }
 .dd-heatscroll{ overflow-x:auto; }
