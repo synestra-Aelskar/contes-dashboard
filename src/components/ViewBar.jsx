@@ -8,24 +8,14 @@ export const VIEWS = [
   ['epreuves', 'Épreuves & infos'],
   ['personnages', 'Personnages'],
   ['zones', 'Zone'],
-  ['sessionzero', 'Session Zéro'],
+  ['fichetechnique', 'Fiche Technique'],
   ['xpcalibreur', "Calibreur d'XP"],
   ['equilibrage', 'Équilibrage DD']
 ];
 
-export default function ViewBar({ view, setView, hasDraft, onFinish }) {
+export default function ViewBar({ view, setView, hasDraft, onStart, onFinish }) {
   return (
     <div className="viewbar">
-      <button
-        type="button"
-        className={'viewbtn viewbtn--session' + (hasDraft ? ' is-live' : '')}
-        data-v="session"
-        aria-current={view === 'session'}
-        onClick={() => setView('session')}
-      >
-        {hasDraft ? '● Séance en cours' : 'Débuter la session'}
-      </button>
-
       {VIEWS.map(([v, label]) => (
         <button
           key={v}
@@ -41,12 +31,12 @@ export default function ViewBar({ view, setView, hasDraft, onFinish }) {
 
       <button
         type="button"
-        className="viewbtn viewbtn--terminer"
-        onClick={onFinish}
-        disabled={!hasDraft}
-        title={hasDraft ? 'Clôturer la séance en cours' : 'Aucune séance en cours'}
+        className={'viewbtn viewbtn--sessiontoggle' + (hasDraft ? ' viewbtn--terminer' : ' viewbtn--debuter')}
+        aria-current={view === 'session'}
+        onClick={hasDraft ? onFinish : onStart}
+        title={hasDraft ? 'Clôturer la séance en cours' : 'Démarrer une nouvelle séance'}
       >
-        Terminer la session
+        {hasDraft ? '⏹ Terminer la session' : '▶ Débuter la session'}
       </button>
     </div>
   );
