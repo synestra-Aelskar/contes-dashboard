@@ -1,12 +1,15 @@
-import { forwardRef, useState } from 'react';
+import { forwardRef, useEffect, useState } from 'react';
 import { uid } from '../../lib/util.js';
 import { useSyncedField } from '../../lib/useSyncedField.js';
 
 /**
- * SessionZero — document de conduite de séance zéro.
- * Contenu partagé (state.sessionZero.blocks), synchronisé en temps réel comme
- * le reste du tableau de bord. Le mode lecture et la modale H.S. restent des
- * préférences d'affichage locales à chaque personne.
+ * Fiche Technique — créateur de documents à blocs (PNJ, lieu, créature, règle
+ * spéciale, ce que tu veux). Anciennement le créateur « Session Zéro » à
+ * document unique ; il gère maintenant une liste de fiches (state.fichesTechniques),
+ * chacune avec son nom et ses blocs, créées/éditées/supprimées librement.
+ * Contenu partagé, synchronisé en temps réel comme le reste du tableau de
+ * bord. Le mode lecture et la modale H.S. restent des préférences
+ * d'affichage locales à chaque personne.
  */
 
 const MONO = "'IBM Plex Mono', ui-monospace, monospace";
@@ -20,9 +23,6 @@ const INK_FAINT = '#8c8375';
 const BG = '#14110d';
 const PANEL = '#1b1710';
 
-const TITLE = 'Session Zéro';
-const SUBTITLE = 'Les Contes Malveillants — Synstem v.11';
-const META = ['8 joueurs', '2 co-MJ', '≈ 2 h 30 d’enveloppe'];
 const LEADERS = ['Mène : MJ A', 'Mène : MJ B', 'Mènent : MJ A + MJ B'];
 const ACCENT = '#7a5c2e';
 
@@ -36,6 +36,8 @@ const emptyBlock = (leader) => ({
   points: [{ id: uid(), t: '', on: false }],
   parking: []
 });
+
+const emptyFiche = () => ({ id: uid(), nom: '', sousTitre: '', blocks: [] });
 
 const lighten = (hex) => {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
@@ -139,11 +141,15 @@ function Rule({ children }) {
 
 /* ---------- ligne (point / question de parking) ---------- */
 
-function ZeroRow({ blockId, listKey, row, mutate, size, font, read, placeholder }) {
+function ZeroRow({ blockId, listKey, row, mutate, read, size, font, placeholder }) {
   const [text, setText, textRef] = useSyncedField(row.t);
+  const findBlock = (s) => {
+    const f = s.fichesTechniques.find((x) => x.blocks.some((b) => b.id === blockId));
+    return f && f.blocks.find((x) => x.id === blockId);
+  };
   const patchRow = (fn) =>
     mutate((s) => {
-      const b = s.sessionZero.blocks.find((x) => x.id === blockId);
+      const b = findBlock(s);
       const r = b && b[listKey].find((y) => y.id === row.id);
       if (r) fn(r);
     });
@@ -162,7 +168,7 @@ function ZeroRow({ blockId, listKey, row, mutate, size, font, read, placeholder 
       {!read && (
         <button
           onClick={() => mutate((s) => {
-            const b = s.sessionZero.blocks.find((x) => x.id === blockId);
+            const b = findBlock(s);
             if (b) b[listKey] = b[listKey].filter((y) => y.id !== row.id);
           })}
           title="Supprimer"
@@ -252,7 +258,8 @@ function Block({ block, index, total, read, mutate, onRemove, onAskHS }) {
   const [limite, setLimite, limiteRef] = useSyncedField(block.limite);
 
   const patch = (fn) => mutate((s) => {
-    const b = s.sessionZero.blocks.find((x) => x.id === block.id);
+    const f = s.fichesTechniques.find((x) => x.blocks.some((b) => b.id === block.id));
+    const b = f && f.blocks.find((x) => x.id === block.id);
     if (b) fn(b);
   });
 
@@ -377,16 +384,35 @@ function Block({ block, index, total, read, mutate, onRemove, onAskHS }) {
   );
 }
 
-/* ---------- document ---------- */
+/* ---------- éditeur d'une fiche ---------- */
 
-export default function SessionZero({ state, mutate }) {
-  const blocks = state.sessionZero.blocks.length ? state.sessionZero.blocks : null;
-  const [read, setRead] = useState(false);
+function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead }) {
+  const blocks = fiche.blocks;
+  const [nom, setNom, nomRef] = useSyncedField(fiche.nom);
+  const [sousTitre, setSousTitre, sousTitreRef] = useSyncedField(fiche.sousTitre || '');
+  const [read, setRead] = useState(!!initialRead);
   const [hsFrom, setHsFrom] = useState(null);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape' && !hsFrom) onBack(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [hsFrom, onBack]);
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  const patchFiche = (fn) => mutate((s) => {
+    const f = s.fichesTechniques.find((x) => x.id === fiche.id);
+    if (f) fn(f);
+  });
 
   const addBlock = () => {
     const b = emptyBlock(LEADERS[0]);
-    mutate((s) => { s.sessionZero.blocks.push(b); });
+    patchFiche((f) => { f.blocks.push(b); });
     requestAnimationFrame(() => {
       const el = document.getElementById(`bloc-${b.id}`);
       if (!el) return;
@@ -397,16 +423,16 @@ export default function SessionZero({ state, mutate }) {
 
   const removeBlock = (id) => {
     if (!window.confirm('Supprimer ce bloc et son contenu ?')) return;
-    mutate((s) => { s.sessionZero.blocks = s.sessionZero.blocks.filter((b) => b.id !== id); });
+    patchFiche((f) => { f.blocks = f.blocks.filter((b) => b.id !== id); });
   };
 
   const sendHS = (targetId, q) =>
-    mutate((s) => {
-      const b = s.sessionZero.blocks.find((x) => x.id === targetId);
+    patchFiche((f) => {
+      const b = f.blocks.find((x) => x.id === targetId);
       if (b) b.parking.push({ id: uid(), t: q, on: false });
     });
 
-  const list = blocks || [];
+  const list = blocks;
   let total = 0, done = 0;
   list.forEach((b) => b.points.forEach((p) => { if (p.t.trim()) { total++; if (p.on) done++; } }));
   const progress = `${done} / ${total} traité${done > 1 ? 's' : ''}`;
@@ -421,33 +447,63 @@ export default function SessionZero({ state, mutate }) {
 
   return (
     <div
+      onMouseDown={(e) => e.target === e.currentTarget && onBack()}
       style={{
-        ...vars,
-        background: `radial-gradient(120% 80% at 50% 0%, #1d1913 0%, ${BG} 60%)`,
-        color: INK,
-        fontFamily: SERIF,
-        WebkitFontSmoothing: 'antialiased',
-        margin: '0 -20px',
-        padding: '0 20px 80px'
+        position: 'fixed', inset: 0, zIndex: 55,
+        background: 'rgba(8,6,4,0.74)', backdropFilter: 'blur(4px)',
+        display: 'flex', justifyContent: 'center',
+        padding: '28px 16px', overflowY: 'auto'
       }}
     >
+      <div
+        style={{
+          ...vars,
+          width: '100%', maxWidth: 1040, height: 'fit-content', margin: 'auto 0',
+          background: `radial-gradient(120% 80% at 50% 0%, #1d1913 0%, ${BG} 60%)`,
+          color: INK,
+          fontFamily: SERIF,
+          WebkitFontSmoothing: 'antialiased',
+          borderRadius: 8,
+          border: '1px solid rgba(201,160,90,0.25)',
+          boxShadow: '0 40px 120px rgba(0,0,0,0.65)',
+          padding: '0 32px 60px'
+        }}
+      >
       <div style={{ maxWidth: 980, margin: '0 auto' }}>
-        <header style={{ padding: '48px 0 40px', borderBottom: '1px solid rgba(201,160,90,0.22)' }}>
-          <div style={{ ...label('var(--sz-acc-ink)'), fontSize: 12, letterSpacing: '0.22em', marginBottom: 22 }}>
-            Document de conduite de séance · à suivre à la lettre
+        <header style={{ padding: '32px 0 40px', borderBottom: '1px solid rgba(201,160,90,0.22)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 22 }}>
+            <button onClick={onBack} style={{ ...ghostBtn, padding: '9px 14px' }}>← Fiche Technique</button>
+            <button onClick={onDelete} style={{ ...ghostBtn, color: '#c9857e', borderColor: 'rgba(201,133,126,0.4)' }}>Supprimer cette fiche</button>
           </div>
-          <h1 style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 'clamp(40px,7vw,74px)', lineHeight: 1.02, margin: '0 0 18px', letterSpacing: '-0.01em' }}>
-            {TITLE}
-          </h1>
-          <p style={{ fontFamily: DISPLAY, fontStyle: 'italic', fontSize: 'clamp(20px,3vw,28px)', color: INK_DIM, margin: '0 0 30px', lineHeight: 1.3 }}>
-            {SUBTITLE}
-          </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-            {META.map((m) => (
-              <span key={m} style={{ ...label('#cfc6b4'), fontSize: 11.5, letterSpacing: '0.1em', border: '1px solid rgba(201,160,90,0.3)', borderRadius: 2, padding: '7px 12px' }}>
-                {m}
-              </span>
-            ))}
+          <div style={{ ...label('var(--sz-acc-ink)'), fontSize: 12, letterSpacing: '0.22em', marginBottom: 22 }}>
+            Fiche technique
+          </div>
+          <input
+            ref={nomRef}
+            value={nom}
+            readOnly={read}
+            placeholder="Nom de la fiche"
+            onChange={(e) => { const v = e.target.value; setNom(v); patchFiche((f) => { f.nom = v; }); }}
+            onBlur={() => patchFiche((f) => { f.nom = nom.trim(); })}
+            style={{
+              width: '100%', background: 'transparent', border: 0, outline: 'none', padding: 0,
+              color: INK, fontFamily: DISPLAY, fontWeight: 600, fontSize: 'clamp(40px,7vw,74px)', lineHeight: 1.02,
+              letterSpacing: '-0.01em', borderBottom: read ? 'none' : '1px dashed rgba(201,160,90,0.3)'
+            }}
+          />
+          <input
+            ref={sousTitreRef}
+            value={sousTitre}
+            readOnly={read}
+            placeholder="Sous-titre (optionnel)"
+            onChange={(e) => { const v = e.target.value; setSousTitre(v); patchFiche((f) => { f.sousTitre = v; }); }}
+            onBlur={() => patchFiche((f) => { f.sousTitre = sousTitre.trim(); })}
+            style={{
+              width: '100%', background: 'transparent', border: 0, outline: 'none', padding: 0, marginTop: 10,
+              color: INK_DIM, fontFamily: DISPLAY, fontStyle: 'italic', fontSize: 'clamp(18px,2.4vw,24px)', lineHeight: 1.3
+            }}
+          />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 22 }}>
             <span style={{ ...label(BG), fontSize: 11.5, letterSpacing: '0.1em', background: 'var(--sz-acc-ink)', border: '1px solid var(--sz-acc-ink)', borderRadius: 2, padding: '7px 12px' }}>
               {progress}
             </span>
@@ -457,7 +513,7 @@ export default function SessionZero({ state, mutate }) {
         {list.length > 0 && (
           <nav style={{ padding: '40px 0 0' }}>
             <h2 style={{ ...label('var(--sz-acc-ink)'), fontSize: 11.5, letterSpacing: '0.2em', margin: '0 0 20px', fontWeight: 500 }}>
-              À l'ordre du jour
+              Sommaire
             </h2>
             <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 2 }}>
               {list.map((b, i) => (
@@ -500,10 +556,10 @@ export default function SessionZero({ state, mutate }) {
           </div>
         )}
 
-        {list.length > 0 && <Rule>fin du document</Rule>}
+        {list.length > 0 && <Rule>fin de la fiche</Rule>}
 
         {list.length > 0 && (
-          <div style={{ padding: '38px 0 0', display: 'flex', justifyContent: 'center' }}>
+          <div style={{ padding: '10px 0 0', display: 'flex', justifyContent: 'center' }}>
             <button onClick={() => setRead((r) => !r)} style={{ ...ghostBtn, color: INK_DIM, fontSize: 11, letterSpacing: '0.18em', padding: '13px 22px' }}>
               {read ? 'Repasser en édition' : 'En mode lecture'}
             </button>
@@ -511,13 +567,136 @@ export default function SessionZero({ state, mutate }) {
         )}
 
         <p style={{ margin: '28px 0 0', fontSize: 15, color: INK_FAINT, fontStyle: 'italic', textAlign: 'center' }}>
-          Ce document est partagé entre les deux MJ : les modifications de l'un apparaissent chez l'autre en direct.
+          Cette fiche est partagée entre les deux MJ : les modifications de l'un apparaissent chez l'autre en direct.
         </p>
       </div>
 
       {hsFrom && (
         <HSModal blocks={list} defaultTarget={hsFrom} onSend={sendHS} onClose={() => setHsFrom(null)} />
       )}
+      </div>
     </div>
+  );
+}
+
+/* ---------- vue principale : liste des fiches ---------- */
+
+function DeleteConfirm({ nom, onConfirm, onCancel }) {
+  return (
+    <div className="modal" role="dialog" aria-modal="true" onClick={onCancel}>
+      <div className="modal__card" onClick={(e) => e.stopPropagation()}>
+        <h3 className="modal__title">Supprimer « {nom || 'Sans nom'} » ?</h3>
+        <p className="modal__lead">Voulez-vous vraiment supprimer cette fiche technique ? Tout son contenu (blocs, points, notes) sera perdu.</p>
+        <div className="modal__actions">
+          <button className="tbtn" type="button" onClick={onCancel}>Non</button>
+          <button className="btn-primary btn-primary--stop" type="button" onClick={onConfirm}>Oui, supprimer</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function FicheTechnique({ state, mutate }) {
+  const fiches = state.fichesTechniques || [];
+  // { id, mode: 'read' | 'edit' } — le bouton « Lecture » ou « Édition » de la
+  // liste fixe l'état d'ouverture ; le bouton en bas du panneau permet ensuite
+  // de basculer librement de l'un à l'autre sans refermer la fiche.
+  const [openState, setOpenState] = useState(null);
+  const [deleteId, setDeleteId] = useState(null);
+  const open = (openState && fiches.find((f) => f.id === openState.id)) || null;
+  const toDelete = fiches.find((f) => f.id === deleteId) || null;
+
+  const createFiche = () => {
+    const f = emptyFiche();
+    mutate((s) => { s.fichesTechniques.push(f); });
+    setOpenState({ id: f.id, mode: 'edit' });
+  };
+
+  const deleteFiche = (id) => {
+    mutate((s) => { s.fichesTechniques = s.fichesTechniques.filter((f) => f.id !== id); });
+    setDeleteId(null);
+    if (openState && openState.id === id) setOpenState(null);
+  };
+
+  if (open) {
+    return (
+      <>
+        <FicheEditor
+          key={open.id}
+          fiche={open}
+          mutate={mutate}
+          initialRead={openState.mode === 'read'}
+          onBack={() => setOpenState(null)}
+          onDelete={() => setDeleteId(open.id)}
+        />
+        {toDelete && (
+          <DeleteConfirm
+            nom={toDelete.nom.trim()}
+            onConfirm={() => deleteFiche(toDelete.id)}
+            onCancel={() => setDeleteId(null)}
+          />
+        )}
+      </>
+    );
+  }
+
+  return (
+    <section className="chapter">
+      <div className="chapter__head">
+        <h2>Fiche Technique<span className="count"> ({fiches.length})</span></h2>
+      </div>
+
+      {!fiches.length ? (
+        <p className="empty">
+          Aucune fiche technique pour l'instant — PNJ, lieu, créature, règle spéciale… Crée-en une pour
+          commencer : elle s'ouvre en plein cadre, avec un nom et des blocs libres, modifiables et
+          supprimables à volonté.
+        </p>
+      ) : (
+        <div className="fiche-list">
+          {fiches.map((f) => (
+            <div key={f.id} className="fiche-row">
+              <button type="button" className="fiche-row__name" onClick={() => setOpenState({ id: f.id, mode: 'edit' })}>
+                {f.nom.trim() || 'Sans nom'}
+                <span className="count"> · {f.blocks.length} bloc{f.blocks.length > 1 ? 's' : ''}</span>
+              </button>
+              <div className="fiche-row__group">
+                <div className="fiche-row__actions">
+                  <button type="button" onClick={() => setOpenState({ id: f.id, mode: 'read' })}>Lecture</button>
+                  <button type="button" onClick={() => setOpenState({ id: f.id, mode: 'edit' })}>Édition</button>
+                </div>
+                <button
+                  className="fiche-row__del" type="button" title="Supprimer"
+                  aria-label={`Supprimer ${f.nom.trim() || 'cette fiche'}`}
+                  onClick={() => setDeleteId(f.id)}
+                >
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                    <path d="M10 11v6" />
+                    <path d="M14 11v6" />
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: fiches.length ? 22 : 6 }}>
+        <button className="btn-primary" type="button" onClick={createFiche} style={{ fontSize: 13, padding: '16px 30px' }}>
+          ＋ Nouvelle fiche technique
+        </button>
+      </div>
+
+      {toDelete && (
+        <DeleteConfirm
+          nom={toDelete.nom.trim()}
+          onConfirm={() => deleteFiche(toDelete.id)}
+          onCancel={() => setDeleteId(null)}
+        />
+      )}
+    </section>
   );
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase, BUCKET } from '../supabase';
 import { XP_DEFAULT_STATE, normalizeXpState } from './xpCalibreur.js';
+import { uid } from './util.js';
 
 const ROW_ID = 'main';
 const SAVE_DEBOUNCE = 1000;
@@ -18,7 +19,7 @@ export const EMPTY_STATE = {
     { id: 'data',  kind: 'data',  title: 'Banque de données', entries: [] }
   ],
   sessions: [], consequences: [], clocks: [], secrets: [], reminders: [], epreuves: [],
-  characters: [], sessionDraft: null, zones: [], sessionZero: { blocks: [] },
+  characters: [], sessionDraft: null, zones: [], sessionZero: { blocks: [] }, fichesTechniques: [],
   xpCalibreur: XP_DEFAULT_STATE, ddCalc: null
 };
 
@@ -37,6 +38,23 @@ function normalize(raw) {
   if (!out.sessionDraft || typeof out.sessionDraft !== 'object') out.sessionDraft = null;
   if (!out.sessionZero || typeof out.sessionZero !== 'object') out.sessionZero = { blocks: [] };
   if (!Array.isArray(out.sessionZero.blocks)) out.sessionZero.blocks = [];
+  if (!Array.isArray(out.fichesTechniques)) out.fichesTechniques = [];
+  out.fichesTechniques.forEach((f) => {
+    if (typeof f.nom !== 'string') f.nom = '';
+    if (typeof f.sousTitre !== 'string') f.sousTitre = '';
+    if (!Array.isArray(f.blocks)) f.blocks = [];
+  });
+  // Migration ponctuelle : l'ancien document unique « Session Zéro » devient la
+  // première fiche technique, pour ne pas perdre le contenu déjà écrit.
+  if (!out.fichesTechniques.length && out.sessionZero.blocks.length) {
+    out.fichesTechniques = [{
+      id: uid(),
+      nom: 'Session Zéro',
+      sousTitre: 'Les Contes Malveillants — Synstem v.11',
+      blocks: out.sessionZero.blocks
+    }];
+    out.sessionZero = { blocks: [] }; // migré : on vide la source pour ne pas la ressusciter si la fiche est supprimée
+  }
   out.xpCalibreur = normalizeXpState(out.xpCalibreur);
   if (typeof out.updated !== 'string') out.updated = '';
   if (typeof out.worldDate !== 'string') out.worldDate = '';

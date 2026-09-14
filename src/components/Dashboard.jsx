@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../supabase';
 import { useBoard } from '../lib/board.js';
 import { fmtDateLong, lsGet, lsSet } from '../lib/util.js';
-import { finishDraft } from '../lib/session.js';
+import { makeDraft, finishDraft } from '../lib/session.js';
 import WorldDate from './WorldDate.jsx';
 import ViewBar from './ViewBar.jsx';
 import Notes from './Notes.jsx';
@@ -16,7 +16,7 @@ import Oublis from './views/Oublis.jsx';
 import Epreuves from './views/Epreuves.jsx';
 import Personnages from './views/Personnages.jsx';
 import Zones from './views/Zones.jsx';
-import SessionZero from './views/SessionZero.jsx';
+import FicheTechnique from './views/FicheTechnique.jsx';
 import XpCalibreur from './views/XpCalibreur.jsx';
 import Equilibrage from './views/Equilibrage.jsx';
 import SessionEnCours from './views/SessionEnCours.jsx';
@@ -42,6 +42,11 @@ export default function Dashboard({ session }) {
   const goToSession = (id) => { lsSet('ccm.session', id); setView('journal'); };
   const hasDraft = !!state.sessionDraft;
 
+  function startSession() {
+    mutate((s) => { if (!s.sessionDraft) s.sessionDraft = makeDraft(s); });
+    setView('session');
+  }
+
   function confirmFinish() {
     const out = {};
     mutate((s) => finishDraft(s, out));
@@ -60,7 +65,7 @@ export default function Dashboard({ session }) {
   else if (view === 'epreuves') ViewComp = Epreuves;
   else if (view === 'personnages') ViewComp = Personnages;
   else if (view === 'zones') ViewComp = Zones;
-  else if (view === 'sessionzero') ViewComp = SessionZero;
+  else if (view === 'fichetechnique') ViewComp = FicheTechnique;
   else if (view === 'xpcalibreur') ViewComp = XpCalibreur;
   else if (view === 'equilibrage') ViewComp = Equilibrage;
 
@@ -102,6 +107,7 @@ export default function Dashboard({ session }) {
         view={view}
         setView={setView}
         hasDraft={hasDraft}
+        onStart={startSession}
         onFinish={() => { setView('session'); setFinishOpen(true); }}
       />
 

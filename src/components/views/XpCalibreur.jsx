@@ -8,17 +8,25 @@ import { BUDGET_BRANCHES, BRANCH_ORDER, XP_DEFAULT_STATE } from '../../lib/xpCal
  * (state.xpCalibreur), synchronisé en temps réel comme le reste du tableau
  * de bord : chaque champ texte/numérique utilise le motif « brouillon local
  * + patch immédiat » pour rester réactif pendant la frappe.
+ *
+ * Même architecture visuelle que l'Équilibrage DD (voir Equilibrage.jsx et
+ * les classes .xp-* / .dd-* de styles.css) : pas de style isolé ici, tout
+ * passe par les jetons partagés du tableau de bord (--kind-xp, --surface,
+ * --rule, --f-display/--f-mono…).
  */
 
-const PROFILE_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#4a3aa7'];
 const BRANCH_LABELS = { trame: 'Trame', secondaire: 'Secondaire', exploration: 'Exploration', combat: 'Combat', speciale: 'Spéciale' };
+// Chaque branche emprunte un jeton de couleur déjà utilisé ailleurs dans le
+// tableau de bord, pour rester cohérente avec la palette (et s'adapter au
+// thème sombre gratuitement) plutôt que d'inventer de nouvelles teintes.
 const BRANCH_VARS = {
-  trame: '--branch-trame',
-  secondaire: '--branch-secondaire',
-  exploration: '--branch-exploration',
-  combat: '--branch-combat',
-  speciale: '--branch-speciale'
+  trame: '--kind-xp',
+  secondaire: '--kind-oubli',
+  exploration: '--kind-zone',
+  combat: '--blood',
+  speciale: '--kind-secret'
 };
+const PROFILE_COLOR_VARS = ['--kind-tools', '--kind-music', '--kind-data', '--kind-wip', '--kind-clock', '--kind-epreuve'];
 
 function deepClone(o) { return JSON.parse(JSON.stringify(o)); }
 
@@ -107,7 +115,7 @@ function deriveResults(st, levels, T, cost, cum, total) {
       sessionsAt,
       totalSessions,
       years: totalSessions / 52,
-      color: PROFILE_COLORS[idx % PROFILE_COLORS.length]
+      colorVar: PROFILE_COLOR_VARS[idx % PROFILE_COLOR_VARS.length]
     };
   });
 
@@ -192,270 +200,6 @@ function computeExtendedTo50(state) {
   return deriveResults(state, 50, T2, cost, cum, total50);
 }
 
-// ---------- styles (scopés sous .xp-calibreur-root, aucun effet de bord) ----------
-
-const XP_CALIBREUR_CSS = `
-.xp-calibreur-root{
-  color-scheme: light;
-  --page:#f8f7f4;
-  --surface:#ffffff;
-  --surface-2:#fcfcfb;
-  --ink:#14130f;
-  --ink-secondary:#52514e;
-  --ink-muted:#898781;
-  --border: rgba(20,19,15,0.10);
-  --border-strong: rgba(20,19,15,0.16);
-  --gridline:#e1e0d9;
-  --accent:#2a78d6;
-  --accent-ink:#ffffff;
-  --branch-trame:#2a78d6;
-  --branch-exploration:#eb6834;
-  --branch-combat:#1baf7a;
-  --branch-secondaire:#eda100;
-  --branch-speciale:#4a3aa7;
-  --warn:#fab219;
-  --warn-ink:#5c4300;
-  --good:#0ca30c;
-  --shadow: 0 1px 2px rgba(20,19,15,0.05), 0 1px 1px rgba(20,19,15,0.04);
-  background:var(--page);
-  color:var(--ink);
-  font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  padding: 28px 16px 64px;
-}
-@media (prefers-color-scheme: dark){
-  .xp-calibreur-root:not([data-theme="light"]){
-    color-scheme: dark;
-    --page:#0d0d0c;
-    --surface:#171715;
-    --surface-2:#1a1a19;
-    --ink:#ffffff;
-    --ink-secondary:#c3c2b7;
-    --ink-muted:#898781;
-    --border: rgba(255,255,255,0.10);
-    --border-strong: rgba(255,255,255,0.16);
-    --gridline:#2c2c2a;
-    --accent:#3987e5;
-    --accent-ink:#ffffff;
-    --branch-trame:#3987e5;
-    --branch-exploration:#d95926;
-    --branch-combat:#199e70;
-    --branch-secondaire:#c98500;
-    --branch-speciale:#9085e9;
-    --warn:#fab219;
-    --warn-ink:#2b1f00;
-    --good:#0ca30c;
-    --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 1px 1px rgba(0,0,0,0.3);
-  }
-}
-.xp-calibreur-root[data-theme="dark"]{
-  color-scheme: dark;
-  --page:#0d0d0c;
-  --surface:#171715;
-  --surface-2:#1a1a19;
-  --ink:#ffffff;
-  --ink-secondary:#c3c2b7;
-  --ink-muted:#898781;
-  --border: rgba(255,255,255,0.10);
-  --border-strong: rgba(255,255,255,0.16);
-  --gridline:#2c2c2a;
-  --accent:#3987e5;
-  --accent-ink:#ffffff;
-  --branch-trame:#3987e5;
-  --branch-exploration:#d95926;
-  --branch-combat:#199e70;
-  --branch-secondaire:#c98500;
-  --branch-speciale:#9085e9;
-  --warn:#fab219;
-  --warn-ink:#2b1f00;
-  --good:#0ca30c;
-  --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 1px 1px rgba(0,0,0,0.3);
-}
-
-.xp-calibreur-root *{ box-sizing:border-box; }
-
-.xp-calibreur-root .wrap{ max-width: 1080px; margin:0 auto; display:flex; flex-direction:column; gap:22px; }
-
-.xp-calibreur-root .num{ font-family:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
-.xp-calibreur-root .tab-num{ font-variant-numeric: tabular-nums; }
-
-.xp-calibreur-root header.top{ display:flex; flex-direction:column; gap:6px; }
-.xp-calibreur-root header.top h1{
-  margin:0; font-size: 1.7rem; font-weight:700; letter-spacing:-0.01em;
-  text-wrap: balance;
-}
-.xp-calibreur-root header.top p{ margin:0; color:var(--ink-secondary); font-size:0.94rem; max-width:62ch; line-height:1.5; }
-
-.xp-calibreur-root .panel{
-  background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:14px;
-  padding:18px 20px;
-  box-shadow: var(--shadow);
-}
-.xp-calibreur-root .panel h2{
-  margin:0 0 3px; font-size:0.78rem; font-weight:600;
-  text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-muted);
-}
-.xp-calibreur-root .panel .sub{ margin:0 0 14px; font-size:0.85rem; color:var(--ink-secondary); }
-
-.xp-calibreur-root .grid2{ display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap:16px; }
-.xp-calibreur-root .curve-fields-stack{ display:flex; flex-direction:column; gap:16px; max-width:420px; }
-.xp-calibreur-root .field{ display:flex; flex-direction:column; gap:6px; }
-.xp-calibreur-root .field label{ font-size:0.8rem; color:var(--ink-secondary); font-weight:500; }
-.xp-calibreur-root .field .hint{ font-size:0.74rem; color:var(--ink-muted); }
-.xp-calibreur-root input[type="number"], .xp-calibreur-root input[type="text"]{
-  font: inherit; font-size:0.95rem; color:var(--ink);
-  background:var(--page); border:1px solid var(--border-strong); border-radius:8px;
-  padding:8px 10px; width:100%;
-}
-.xp-calibreur-root input[type="number"]{ font-family:"IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
-.xp-calibreur-root input:focus-visible, .xp-calibreur-root button:focus-visible, .xp-calibreur-root select:focus-visible{
-  outline: 2px solid var(--accent); outline-offset:2px;
-}
-.xp-calibreur-root input[type="range"]{ width:100%; accent-color:var(--accent); }
-
-.xp-calibreur-root .exp-row{ display:flex; align-items:center; gap:12px; }
-.xp-calibreur-root .exp-row .exp-badge{
-  font-size:0.78rem; font-weight:600; color:var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  padding:3px 9px; border-radius:999px; white-space:nowrap;
-}
-
-.xp-calibreur-root .ratio-row{ display:flex; gap:14px; flex-wrap:wrap; align-items:stretch; }
-.xp-calibreur-root .ratio-field{ flex:1 1 140px; }
-.xp-calibreur-root .ratio-swatch{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px; }
-.xp-calibreur-root .ratio-auto-box{
-  background:var(--page); border:1px solid var(--border-strong); border-radius:8px;
-  padding:8px 10px;
-}
-.xp-calibreur-root .ratio-auto-pct{ display:block; font-size:1.15rem; font-weight:700; color:var(--ink); }
-.xp-calibreur-root .ratio-auto-sub{ display:block; font-size:0.72rem; color:var(--ink-muted); margin-top:2px; }
-.xp-calibreur-root .btn{
-  font: inherit; font-size:0.82rem; font-weight:600; cursor:pointer;
-  border-radius:8px; padding:8px 13px; border:1px solid var(--border-strong);
-  background:var(--surface); color:var(--ink);
-}
-.xp-calibreur-root .btn:hover{ background:var(--page); }
-.xp-calibreur-root .btn.primary{ background:var(--accent); color:var(--accent-ink); border-color:transparent; }
-.xp-calibreur-root .btn.primary:hover{ filter:brightness(1.06); }
-.xp-calibreur-root .btn.ghost{ border-color:transparent; color:var(--ink-secondary); }
-.xp-calibreur-root .btn.small{ padding:5px 9px; font-size:0.76rem; }
-.xp-calibreur-root .actions-row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; align-items:center; }
-
-.xp-calibreur-root .bareme-grid{ display:flex; flex-direction:column; gap:16px; }
-.xp-calibreur-root .bareme-group{ border:1px solid var(--border); border-radius:12px; padding:14px 16px; background:var(--page); }
-.xp-calibreur-root .bareme-group-title{ display:flex; align-items:center; gap:7px; font-weight:600; font-size:0.9rem; margin-bottom:10px; }
-.xp-calibreur-root table.results.bareme-table{ font-size:0.82rem; min-width:0; table-layout:fixed; width:100%; }
-.xp-calibreur-root table.results.bareme-table th, .xp-calibreur-root table.results.bareme-table td{ padding:6px 6px; white-space:normal; overflow-wrap:break-word; }
-.xp-calibreur-root table.results.bareme-table td:nth-child(1), .xp-calibreur-root table.results.bareme-table th:nth-child(1){ position:static; box-shadow:none; background:transparent; }
-.xp-calibreur-root table.results.bareme-table th:nth-child(1), .xp-calibreur-root table.results.bareme-table td:nth-child(1){ width:24px; text-align:center; padding-left:2px; padding-right:2px; }
-.xp-calibreur-root table.results.bareme-table th:nth-child(2), .xp-calibreur-root table.results.bareme-table td:nth-child(2){ width:auto; text-align:left; }
-.xp-calibreur-root table.results.bareme-table th:nth-child(3), .xp-calibreur-root table.results.bareme-table td:nth-child(3){ width:58px; text-align:left; }
-.xp-calibreur-root table.results.bareme-table th:nth-child(4), .xp-calibreur-root table.results.bareme-table td:nth-child(4){ width:64px; text-align:right; }
-.xp-calibreur-root table.results.bareme-table th:nth-child(5), .xp-calibreur-root table.results.bareme-table td:nth-child(5){ width:34px; text-align:center; padding-left:2px; padding-right:2px; }
-.xp-calibreur-root table.results.bareme-table input[type="text"], .xp-calibreur-root table.results.bareme-table input[type="number"]{ font-size:0.82rem; padding:6px 6px; width:100%; box-sizing:border-box; }
-.xp-calibreur-root table.results.bareme-table .completions-cell{ font-family:"IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; white-space:nowrap; }
-.xp-calibreur-root table.results.bareme-table .btn.small{ padding:5px 6px; }
-.xp-calibreur-root .bareme-grip{ display:block; cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none; color:var(--ink-muted); font-size:1rem; line-height:1; text-align:center; }
-.xp-calibreur-root .bareme-grip:active{ cursor:grabbing; }
-.xp-calibreur-root table.results.bareme-table tbody tr.bareme-row-dragging{ opacity:0.35; }
-.xp-calibreur-root table.results.bareme-table tbody tr.bareme-drop-before td{ box-shadow: inset 0 2px 0 0 var(--accent); }
-.xp-calibreur-root table.results.bareme-table tbody tr.bareme-drop-after td{ box-shadow: inset 0 -2px 0 0 var(--accent); }
-.xp-calibreur-root table.results.bareme-table tfoot td{ border-top:2px solid var(--border-strong); border-bottom:none; }
-.xp-calibreur-root table.results.bareme-table tfoot td:nth-child(3){ text-align:right; }
-
-.xp-calibreur-root .profiles-list{ display:flex; flex-direction:column; gap:10px; }
-.xp-calibreur-root .profile-row{
-  display:grid; grid-template-columns: 1fr 120px auto; gap:10px; align-items:center;
-}
-.xp-calibreur-root .profile-swatch{ width:12px; height:12px; border-radius:50%; flex:0 0 auto; }
-.xp-calibreur-root .profile-name-wrap{ display:flex; align-items:center; gap:8px; }
-
-.xp-calibreur-root .stat-tiles{ display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap:14px; }
-.xp-calibreur-root .stat-tile{
-  background:var(--surface); border:1px solid var(--border); border-radius:14px;
-  padding:16px 18px; box-shadow:var(--shadow); border-top:3px solid var(--tile-color, var(--accent));
-}
-.xp-calibreur-root .stat-tile .label{ font-size:0.78rem; color:var(--ink-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.05em; }
-.xp-calibreur-root .stat-tile .value{ font-size:1.55rem; font-weight:700; margin-top:6px; letter-spacing:-0.01em; }
-.xp-calibreur-root .stat-tile .sub{ font-size:0.82rem; color:var(--ink-secondary); margin-top:2px; }
-
-.xp-calibreur-root .legend{ display:flex; gap:16px; flex-wrap:wrap; margin-bottom:10px; }
-.xp-calibreur-root .legend-item{ display:flex; align-items:center; gap:7px; font-size:0.82rem; color:var(--ink-secondary); }
-.xp-calibreur-root .legend-swatch{ width:12px; height:12px; border-radius:3px; flex:0 0 auto; }
-
-.xp-calibreur-root .chart-scroll{ overflow-x:auto; padding-bottom:4px; }
-.xp-calibreur-root .chart-holder{ position:relative; }
-.xp-calibreur-root svg.chart{ display:block; }
-.xp-calibreur-root .chart-tooltip{
-  position:absolute; pointer-events:none; background:var(--ink); color:var(--page);
-  font-size:0.78rem; padding:8px 10px; border-radius:8px; line-height:1.5;
-  white-space:nowrap; box-shadow:0 4px 14px rgba(0,0,0,0.25); z-index:5;
-}
-.xp-calibreur-root .chart-tooltip .row{ display:flex; align-items:center; gap:6px; }
-.xp-calibreur-root .chart-tooltip .dot{ width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
-.xp-calibreur-root .chart-tooltip .tt-title{ font-weight:600; margin-bottom:3px; }
-
-.xp-calibreur-root .table-wrap{ overflow-x:auto; border:1px solid var(--border); border-radius:12px; }
-.xp-calibreur-root table.results{ border-collapse:collapse; width:100%; font-size:0.85rem; min-width:640px; }
-.xp-calibreur-root table.results th, .xp-calibreur-root table.results td{
-  padding:8px 12px; text-align:right; border-bottom:1px solid var(--border); white-space:nowrap;
-}
-.xp-calibreur-root table.results th:first-child, .xp-calibreur-root table.results td:first-child{ text-align:left; }
-.xp-calibreur-root table.results thead th{
-  position:sticky; top:0; background:var(--surface-2); font-size:0.72rem; text-transform:uppercase;
-  letter-spacing:0.04em; color:var(--ink-muted); font-weight:600; border-bottom:1px solid var(--border-strong);
-  z-index:2;
-}
-.xp-calibreur-root table.results th:first-child, .xp-calibreur-root table.results td:first-child{
-  position:sticky; left:0; z-index:1; box-shadow: 1px 0 0 var(--border-strong);
-}
-.xp-calibreur-root table.results td:first-child{ background:var(--surface); font-weight:600; }
-.xp-calibreur-root table.results th:first-child{ z-index:3; }
-.xp-calibreur-root table.results tbody tr:hover{ background: color-mix(in srgb, var(--accent) 6%, transparent); }
-.xp-calibreur-root table.results tbody tr:hover td:first-child{ background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
-.xp-calibreur-root table.results td.branch-trame{ color:var(--branch-trame); }
-.xp-calibreur-root table.results td.branch-exploration{ color:var(--branch-exploration); }
-.xp-calibreur-root table.results td.branch-combat{ color:var(--branch-combat); }
-.xp-calibreur-root table.results td.branch-secondaire{ color:var(--branch-secondaire); }
-.xp-calibreur-root table.results td.branch-speciale{ color:var(--branch-speciale); }
-.xp-calibreur-root table.results th.branch-trame{ color:var(--branch-trame); }
-.xp-calibreur-root table.results th.branch-exploration{ color:var(--branch-exploration); }
-.xp-calibreur-root table.results th.branch-combat{ color:var(--branch-combat); }
-.xp-calibreur-root table.results th.branch-secondaire{ color:var(--branch-secondaire); }
-.xp-calibreur-root table.results th.branch-speciale{ color:var(--branch-speciale); }
-.xp-calibreur-root table.results tr.final td{ font-weight:700; }
-
-.xp-calibreur-root .combat-grid{ display:grid; grid-template-columns: minmax(220px,1fr) 2fr; gap:20px; align-items:start; }
-.xp-calibreur-root .combat-out{ display:flex; flex-direction:column; gap:8px; }
-.xp-calibreur-root .combat-out .big{ font-size:1.7rem; font-weight:700; }
-.xp-calibreur-root .ref-table{ width:100%; border-collapse:collapse; font-size:0.82rem; }
-.xp-calibreur-root .ref-table th, .xp-calibreur-root .ref-table td{ padding:6px 10px; border-bottom:1px solid var(--border); text-align:right; }
-.xp-calibreur-root .ref-table th:first-child, .xp-calibreur-root .ref-table td:first-child{ text-align:left; }
-.xp-calibreur-root .ref-table thead th{ color:var(--ink-muted); font-weight:600; font-size:0.72rem; text-transform:uppercase; }
-.xp-calibreur-root .combat-calc-frame{ border:1px solid var(--border-strong); border-radius:10px; padding:14px 16px; margin-top:14px; background:var(--surface); }
-.xp-calibreur-root .combat-calc-title{ font-weight:600; font-size:0.85rem; margin-bottom:4px; }
-.xp-calibreur-root .combat-calc-frame .hint{ margin-bottom:10px; }
-
-.xp-calibreur-root select{
-  font: inherit; font-size:0.9rem; background:var(--page); color:var(--ink);
-  border:1px solid var(--border-strong); border-radius:8px; padding:7px 9px;
-}
-
-.xp-calibreur-root .badge-speciale{
-  display:inline-flex; align-items:center; gap:6px; font-size:0.8rem; color:var(--branch-speciale);
-  background: color-mix(in srgb, var(--branch-speciale) 14%, transparent); padding:5px 10px; border-radius:999px;
-}
-
-.xp-calibreur-root footer.note{ font-size:0.78rem; color:var(--ink-muted); text-align:center; padding-top:6px; }
-
-@media (max-width:560px){
-  .xp-calibreur-root .profile-row{ grid-template-columns: 1fr; }
-  .xp-calibreur-root .combat-grid{ grid-template-columns: 1fr; }
-  .xp-calibreur-root table.results th, .xp-calibreur-root table.results td{ padding:7px 8px; }
-}
-`;
-
 // ---------- sous-composants ----------
 
 function BaremeItemRow({ item, idx, branchKey, cumTotal, onChangeItem, onRemove, disabled, rowRef, dragHandlers }) {
@@ -468,7 +212,7 @@ function BaremeItemRow({ item, idx, branchKey, cumTotal, onChangeItem, onRemove,
     <tr ref={rowRef}>
       <td>
         <span
-          className="bareme-grip"
+          className="xp-grip"
           title="Glisser pour réordonner"
           aria-label={`Réordonner ${item.name}`}
           {...dragHandlers}
@@ -476,7 +220,7 @@ function BaremeItemRow({ item, idx, branchKey, cumTotal, onChangeItem, onRemove,
       </td>
       <td>
         <input
-          type="text"
+          className="finput" type="text"
           value={name}
           aria-label={`Type d'événement (${branchKey})`}
           onChange={(e) => { const v = e.target.value; setName(v); onChangeItem(idx, 'name', v); }}
@@ -484,19 +228,18 @@ function BaremeItemRow({ item, idx, branchKey, cumTotal, onChangeItem, onRemove,
       </td>
       <td>
         <input
-          type="number"
-          min="0"
-          step="1"
+          className="finput finput--num" type="number"
+          min="0" step="1"
           value={xp}
           aria-label={`XP par complétion pour ${item.name}`}
           onChange={(e) => { const v = Number(e.target.value) || 0; setXp(v); onChangeItem(idx, 'xp', v); }}
         />
       </td>
-      <td className="num tab-num completions-cell" title={`${fmt(totalCompletions)} complétions au total`}>
+      <td className="num tab-num" title={`${fmt(totalCompletions)} complétions au total`}>
         {fmt(totalCompletions)}
       </td>
       <td>
-        <button className="btn small ghost" aria-label={`Retirer ${item.name}`} disabled={disabled} onClick={() => onRemove(idx)}>✕</button>
+        <button className="tbtn" type="button" aria-label={`Retirer ${item.name}`} disabled={disabled} onClick={() => onRemove(idx)}>✕</button>
       </td>
     </tr>
   );
@@ -511,7 +254,7 @@ function BaremeTable({ branchKey, label, colorVar, items, cumTotal, onChangeItem
 
   const clearIndicators = useCallback(() => {
     rowRefs.current.forEach((r) => {
-      if (r) r.classList.remove('bareme-drop-before', 'bareme-drop-after');
+      if (r) r.classList.remove('drop-before', 'drop-after');
     });
   }, []);
 
@@ -520,7 +263,7 @@ function BaremeTable({ branchKey, label, colorVar, items, cumTotal, onChangeItem
     ev.preventDefault();
     dragRef.current = { pointerId: ev.pointerId, startIndex: idx, overIndex: idx, before: true };
     const row = rowRefs.current[idx];
-    if (row) row.classList.add('bareme-row-dragging');
+    if (row) row.classList.add('is-dragging');
     try { ev.currentTarget.setPointerCapture(ev.pointerId); } catch (e) {}
   };
 
@@ -545,7 +288,7 @@ function BaremeTable({ branchKey, label, colorVar, items, cumTotal, onChangeItem
     drag.before = before;
     const target = rows[targetIdx];
     const draggedRow = rows[drag.startIndex];
-    if (target && target !== draggedRow) target.classList.add(before ? 'bareme-drop-before' : 'bareme-drop-after');
+    if (target && target !== draggedRow) target.classList.add(before ? 'drop-before' : 'drop-after');
   };
 
   const endDrag = (idx) => (ev) => {
@@ -553,7 +296,7 @@ function BaremeTable({ branchKey, label, colorVar, items, cumTotal, onChangeItem
     if (!drag || drag.pointerId !== ev.pointerId) return;
     clearIndicators();
     const row = rowRefs.current[drag.startIndex];
-    if (row) row.classList.remove('bareme-row-dragging');
+    if (row) row.classList.remove('is-dragging');
     try { ev.currentTarget.releasePointerCapture(ev.pointerId); } catch (e) {}
 
     const from = drag.startIndex, to = drag.overIndex, before = drag.before;
@@ -569,12 +312,12 @@ function BaremeTable({ branchKey, label, colorVar, items, cumTotal, onChangeItem
   const totalCompl = sumXp > 0 ? Math.ceil(cumTotal / sumXp) : null;
 
   return (
-    <div className="bareme-group">
-      <div className="bareme-group-title">
-        <span className="ratio-swatch" style={{ background: `var(${colorVar})` }}></span>{label}
+    <div className="xp-bareme-group">
+      <div className="xp-bareme-title">
+        <span className="xp-swatch" style={{ background: `var(${colorVar})` }}></span>{label}
       </div>
-      <div className="table-wrap">
-        <table className="results bareme-table">
+      <div className="xp-table-wrap">
+        <table className="xp-table xp-bareme-table">
           <thead>
             <tr>
               <th></th>
@@ -611,7 +354,7 @@ function BaremeTable({ branchKey, label, colorVar, items, cumTotal, onChangeItem
               <td>Total</td>
               <td className="num tab-num">{fmt(sumXp)}</td>
               <td
-                className="num tab-num completions-cell"
+                className="num tab-num"
                 title={totalCompl != null ? `${fmt(totalCompl)} fois l'ensemble des types ci-dessus combinés (${fmt(sumXp)} XP) pour boucler toute la courbe` : ''}
               >
                 {totalCompl != null ? fmt(totalCompl) : '–'}
@@ -621,8 +364,8 @@ function BaremeTable({ branchKey, label, colorVar, items, cumTotal, onChangeItem
           </tfoot>
         </table>
       </div>
-      <button className="btn small ghost" onClick={onAdd} disabled={items.length >= 10}>+ Ajouter un type</button>
-      {footnote ? <p className="hint" style={{ marginTop: 8 }}>{footnote}</p> : null}
+      <button className="tbtn" type="button" onClick={onAdd} disabled={items.length >= 10} style={{ marginTop: 8 }}>+ Ajouter un type</button>
+      {footnote ? <p className="xp-hint" style={{ marginTop: 8 }}>{footnote}</p> : null}
       {extra || null}
     </div>
   );
@@ -641,53 +384,51 @@ function CombatCalcFrame({ combat, onChangeField }) {
   const out = combat.mode === 'groupe' ? soloVal / 2 : soloVal;
 
   return (
-    <div className="combat-calc-frame">
-      <div className="combat-calc-title">Référence — calculateur de combat</div>
-      <p className="hint">
-        Le mob "supérieur" suit une formule à part (2 + écart²) : teste un écart de niveau, une constante
-        et un exposant pour voir l'XP que ça donnerait, et compare avec le tableau de référence.
+    <div className="xp-combat-frame" style={{ marginTop: 12 }}>
+      <div className="xp-combat-title">Référence — calculateur de combat</div>
+      <p className="xp-hint">
+        Le mob « supérieur » suit une formule à part (base + écart^exposant) : teste un écart de niveau,
+        une constante et un exposant pour voir l'XP que ça donnerait, et compare avec le tableau de référence.
       </p>
-      <div className="combat-grid">
+      <div className="xp-combat">
         <div>
-          <div className="grid2" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            <div className="field">
-              <label htmlFor="in-cb-e">Écart de niveau (E)</label>
+          <div className="xp-fieldgrid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            <label className="flabel xp-field" htmlFor="in-cb-e">
+              Écart de niveau (E)
               <input
-                type="number" id="in-cb-e" min="0" max="30" step="1" value={E}
+                className="finput finput--num" type="number" id="in-cb-e" min="0" max="30" step="1" value={E}
                 onChange={(e) => { const v = Number(e.target.value) || 0; setE(v); onChangeField('E', v); }}
               />
-            </div>
-            <div className="field">
-              <label htmlFor="in-cb-mode">Mode</label>
-              <select id="in-cb-mode" value={combat.mode} onChange={(e) => onChangeField('mode', e.target.value)}>
+            </label>
+            <label className="flabel xp-field" htmlFor="in-cb-mode">
+              Mode
+              <select className="finput" id="in-cb-mode" value={combat.mode} onChange={(e) => onChangeField('mode', e.target.value)}>
                 <option value="solo">Solo</option>
                 <option value="groupe">Groupe (÷2)</option>
               </select>
-            </div>
-            <div className="field">
-              <label htmlFor="in-cb-base">Constante de base</label>
+            </label>
+            <label className="flabel xp-field" htmlFor="in-cb-base">
+              Constante de base
               <input
-                type="number" id="in-cb-base" min="0" step="1" value={base}
+                className="finput finput--num" type="number" id="in-cb-base" min="0" step="1" value={base}
                 onChange={(e) => { const v = Number(e.target.value) || 0; setBase(v); onChangeField('base', v); }}
               />
-            </div>
-            <div className="field">
-              <label htmlFor="in-cb-exp">Exposant</label>
+            </label>
+            <label className="flabel xp-field" htmlFor="in-cb-exp">
+              Exposant
               <input
-                type="number" id="in-cb-exp" min="1" max="4" step="1" value={exp}
+                className="finput finput--num" type="number" id="in-cb-exp" min="1" max="4" step="1" value={exp}
                 onChange={(e) => { const v = Number(e.target.value) || 0; setExp(v); onChangeField('exp', v); }}
               />
-            </div>
+            </label>
           </div>
-          <div className="combat-out">
-            <div>
-              <div className="hint">XP pour ce mob "supérieur"</div>
-              <div className="big num tab-num">{fmtUp(out)}</div>
-            </div>
+          <div className="xp-combat-out">
+            <p className="xp-hint" style={{ marginBottom: 2 }}>XP pour ce mob « supérieur »</p>
+            <div className="xp-combat-big num tab-num">{fmtUp(out)}</div>
           </div>
         </div>
-        <div>
-          <table className="ref-table">
+        <div className="xp-table-wrap">
+          <table className="xp-table">
             <thead><tr><th>Type de mob</th><th>XP solo</th><th>XP groupe</th></tr></thead>
             <tbody>
               <tr><td>Niveau inférieur</td><td className="num tab-num">1</td><td className="num tab-num">1</td></tr>
@@ -726,6 +467,7 @@ function BranchChart({ data }) {
 
   const baseY = yFor(0);
   const labelStep = T <= 25 ? 1 : (T <= 50 ? 5 : 10);
+  const axisTextStyle = { fill: 'var(--fg-dim)', fontFamily: 'var(--f-mono)' };
 
   function showTip(t, evt) {
     if (!holderRef.current) return;
@@ -737,16 +479,16 @@ function BranchChart({ data }) {
   for (let t = 1; t <= T; t++) {
     const x0 = marginLeft + (t - 1) * (barW + gap);
     const order = [
-      { key: 'trame', val: data.branchCost.trame[t], v: '--branch-trame' },
-      { key: 'secondaire', val: data.branchCost.secondaire[t], v: '--branch-secondaire' },
-      { key: 'exploration', val: data.branchCost.exploration[t], v: '--branch-exploration' },
-      { key: 'combat', val: data.branchCost.combat[t], v: '--branch-combat' }
+      { key: 'trame', val: data.branchCost.trame[t], v: BRANCH_VARS.trame },
+      { key: 'secondaire', val: data.branchCost.secondaire[t], v: BRANCH_VARS.secondaire },
+      { key: 'exploration', val: data.branchCost.exploration[t], v: BRANCH_VARS.exploration },
+      { key: 'combat', val: data.branchCost.combat[t], v: BRANCH_VARS.combat }
     ];
     let yCursor = baseY;
     order.forEach((seg, i) => {
       const h = (seg.val / niceMax) * drawH;
       if (h > 0.15) {
-        bars.push(<rect key={`${t}-${seg.key}`} x={x0} y={yCursor - h} width={barW} height={h} fill={`var(${seg.v})`} rx="2" />);
+        bars.push(<rect key={`${t}-${seg.key}`} x={x0} y={yCursor - h} width={barW} height={h} style={{ fill: `var(${seg.v})` }} rx="2" />);
         yCursor -= h;
         if (i < order.length - 1) yCursor -= 2;
       }
@@ -761,7 +503,7 @@ function BranchChart({ data }) {
     );
     if (t % labelStep === 0 || t === T || t === 1) {
       bars.push(
-        <text key={`${t}-lbl`} x={x0 + barW / 2} y={marginTop + drawH + 18} textAnchor="middle" fontSize="10" fill="var(--ink-muted)" fontFamily="IBM Plex Mono, monospace">
+        <text key={`${t}-lbl`} x={x0 + barW / 2} y={marginTop + drawH + 18} textAnchor="middle" fontSize="10" style={axisTextStyle}>
           {t + 1}
         </text>
       );
@@ -769,28 +511,28 @@ function BranchChart({ data }) {
   }
 
   return (
-    <div className="chart-scroll">
-      <div className="chart-holder" ref={holderRef}>
-        <svg className="chart" width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} role="img" aria-label="Coût XP par palier, réparti par branche">
+    <div className="xp-scroll">
+      <div className="xp-chart-holder" ref={holderRef}>
+        <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} role="img" aria-label="Coût XP par palier, réparti par branche">
           {ticks.map((tv) => (
             <g key={`grid-${tv}`}>
-              <line x1={marginLeft} y1={yFor(tv)} x2={marginLeft + drawW} y2={yFor(tv)} stroke="var(--gridline)" strokeWidth="1" />
-              <text x={marginLeft - 8} y={yFor(tv) + 3} textAnchor="end" fontSize="10.5" fill="var(--ink-muted)" fontFamily="IBM Plex Mono, monospace">{fmt(tv)}</text>
+              <line x1={marginLeft} y1={yFor(tv)} x2={marginLeft + drawW} y2={yFor(tv)} stroke="var(--rule)" strokeWidth="1" />
+              <text x={marginLeft - 8} y={yFor(tv) + 3} textAnchor="end" fontSize="10.5" style={axisTextStyle}>{fmt(tv)}</text>
             </g>
           ))}
-          <line x1={marginLeft} y1={baseY} x2={marginLeft + drawW} y2={baseY} stroke="var(--border-strong)" strokeWidth="1" />
+          <line x1={marginLeft} y1={baseY} x2={marginLeft + drawW} y2={baseY} stroke="var(--rule)" strokeWidth="1" />
           {bars}
         </svg>
         {tooltip ? (
           <div
-            className="chart-tooltip"
-            style={{ left: tooltip.left, top: tooltip.top, opacity: 1, transform: 'translate(-50%, calc(-100% - 10px))' }}
+            className="xp-chart-tip"
+            style={{ left: tooltip.left, top: tooltip.top, transform: 'translate(-50%, calc(-100% - 10px))' }}
           >
             <div className="tt-title">Niveau {tooltip.t} → {tooltip.t + 1} · {fmt(data.cost[tooltip.t])} XP</div>
-            <div className="row"><span className="dot" style={{ background: 'var(--branch-trame)' }}></span>Trame {fmt(data.branchCost.trame[tooltip.t])}</div>
-            <div className="row"><span className="dot" style={{ background: 'var(--branch-secondaire)' }}></span>Secondaire {fmt(data.branchCost.secondaire[tooltip.t])}</div>
-            <div className="row"><span className="dot" style={{ background: 'var(--branch-exploration)' }}></span>Exploration {fmt(data.branchCost.exploration[tooltip.t])}</div>
-            <div className="row"><span className="dot" style={{ background: 'var(--branch-combat)' }}></span>Combat {fmt(data.branchCost.combat[tooltip.t])}</div>
+            <div className="row"><span className="dot" style={{ background: `var(${BRANCH_VARS.trame})` }}></span>Trame {fmt(data.branchCost.trame[tooltip.t])}</div>
+            <div className="row"><span className="dot" style={{ background: `var(${BRANCH_VARS.secondaire})` }}></span>Secondaire {fmt(data.branchCost.secondaire[tooltip.t])}</div>
+            <div className="row"><span className="dot" style={{ background: `var(${BRANCH_VARS.exploration})` }}></span>Exploration {fmt(data.branchCost.exploration[tooltip.t])}</div>
+            <div className="row"><span className="dot" style={{ background: `var(${BRANCH_VARS.combat})` }}></span>Combat {fmt(data.branchCost.combat[tooltip.t])}</div>
           </div>
         ) : null}
       </div>
@@ -802,12 +544,15 @@ function ProgressionTable({ data }) {
   const rows = [];
   for (let t = 1; t <= data.T; t++) rows.push(t);
   return (
-    <div className="table-wrap">
-      <table className="results">
+    <div className="xp-table-wrap">
+      <table className="xp-table">
         <thead>
           <tr>
             <th>Niveau</th><th>XP requis</th><th>XP cumulé</th>
-            <th>Trame</th><th>Secondaire</th><th>Exploration</th><th>Combat</th>
+            <th className="xp-branch-trame">Trame</th>
+            <th className="xp-branch-secondaire">Secondaire</th>
+            <th className="xp-branch-exploration">Exploration</th>
+            <th className="xp-branch-combat">Combat</th>
             {data.profileResults.map((pr) => <th key={pr.name}>{pr.name}</th>)}
           </tr>
         </thead>
@@ -817,10 +562,10 @@ function ProgressionTable({ data }) {
               <td className="num tab-num">{t + 1}</td>
               <td className="num tab-num">{fmt(data.cost[t])}</td>
               <td className="num tab-num">{fmt(data.cum[t])}</td>
-              <td className="num tab-num branch-trame">{fmt(data.branchCum.trame[t])}</td>
-              <td className="num tab-num branch-secondaire">{fmt(data.branchCum.secondaire[t])}</td>
-              <td className="num tab-num branch-exploration">{fmt(data.branchCum.exploration[t])}</td>
-              <td className="num tab-num branch-combat">{fmt(data.branchCum.combat[t])}</td>
+              <td className="num tab-num xp-branch-trame">{fmt(data.branchCum.trame[t])}</td>
+              <td className="num tab-num xp-branch-secondaire">{fmt(data.branchCum.secondaire[t])}</td>
+              <td className="num tab-num xp-branch-exploration">{fmt(data.branchCum.exploration[t])}</td>
+              <td className="num tab-num xp-branch-combat">{fmt(data.branchCum.combat[t])}</td>
               {data.profileResults.map((pr) => <td key={pr.name} className="num tab-num">{fmt(pr.sessionsAt[t])}</td>)}
             </tr>
           ))}
@@ -830,17 +575,17 @@ function ProgressionTable({ data }) {
   );
 }
 
-function BaremeLevelTable({ data, fromT, toT }) {
+function BaremeLevelTable({ data, fromT, toT, capped }) {
   const rows = [];
   for (let t = fromT; t <= toT; t++) rows.push(t);
   return (
-    <div className="table-wrap">
-      <table className="results">
+    <div className={'xp-table-wrap' + (capped ? ' xp-table-wrap--capped' : '')}>
+      <table className="xp-table">
         <thead>
           <tr>
             <th>Niveau</th><th>XP requis</th><th>XP cumulé</th>
             {data.baremeResults.map((br, i) => (
-              <th key={i} className={`branch-${br.branch}`} title={`${br.name} — ${fmtUp(br.xp)} XP`}>{br.name}</th>
+              <th key={i} className={`xp-branch-${br.branch}`} title={`${br.name} — ${fmtUp(br.xp)} XP`}>{br.name}</th>
             ))}
           </tr>
         </thead>
@@ -851,7 +596,7 @@ function BaremeLevelTable({ data, fromT, toT }) {
               <td className="num tab-num">{fmt(data.cost[t])}</td>
               <td className="num tab-num">{fmt(data.cum[t])}</td>
               {data.baremeResults.map((br, i) => (
-                <td key={i} className={`num tab-num branch-${br.branch}`}>{fmt(br.completionsAt[t])}</td>
+                <td key={i} className={`num tab-num xp-branch-${br.branch}`}>{fmt(br.completionsAt[t])}</td>
               ))}
             </tr>
           ))}
@@ -861,9 +606,30 @@ function BaremeLevelTable({ data, fromT, toT }) {
   );
 }
 
+function ProfileRow({ p, idx, setProfileField, removeProfile, disabled }) {
+  const [name, setName] = useSyncedField(p.name);
+  const [xpVal, setXpVal] = useSyncedField(p.xp);
+  return (
+    <div className="xp-profile-row">
+      <div className="xp-profile-name">
+        <span className="xp-profile-swatch" style={{ background: `var(${PROFILE_COLOR_VARS[idx % PROFILE_COLOR_VARS.length]})` }}></span>
+        <input
+          className="finput" type="text" value={name} aria-label={`Nom du profil ${idx + 1}`}
+          onChange={(e) => { const v = e.target.value; setName(v); setProfileField(idx, 'name', v); }}
+        />
+      </div>
+      <input
+        className="finput finput--num" type="number" min="0.1" step="0.5" value={xpVal} aria-label={`XP moyen par session pour ${p.name}`}
+        onChange={(e) => { const v = Number(e.target.value) || 0; setXpVal(v); setProfileField(idx, 'xp', v); }}
+      />
+      <button className="tbtn" disabled={disabled} onClick={() => removeProfile(idx)}>Retirer</button>
+    </div>
+  );
+}
+
 // ---------- composant principal ----------
 
-export default function XpCalibreur({ state, mutate, theme }) {
+export default function XpCalibreur({ state, mutate }) {
   const xp = state.xpCalibreur;
 
   const [total, setTotal] = useSyncedField(xp.total);
@@ -931,75 +697,73 @@ export default function XpCalibreur({ state, mutate, theme }) {
 
   const cumTotal = data.cum[data.T];
 
-  const rootProps = { className: 'xp-calibreur-root' };
-  if (theme === 'light' || theme === 'dark') rootProps['data-theme'] = theme;
-
   return (
-    <div {...rootProps}>
-      <style>{XP_CALIBREUR_CSS}</style>
+    <section className="chapter">
+      <div className="chapter__head">
+        <h2>Calibreur d'XP</h2>
+        <span className="xp-sub">
+          Total d'XP, forme de croissance et barème par branche : la courbe est découpée automatiquement,
+          et le temps de jeu nécessaire estimé selon différents rythmes de session.
+        </span>
+      </div>
 
-      <div className="wrap">
-        <header className="top">
-          <h1>Calibreur d'XP</h1>
-          <p>
-            Fixe un total d'XP pour le niveau 25, une forme de croissance et une répartition par branche :
-            le calibreur découpe automatiquement la courbe, et estime le temps de jeu nécessaire selon
-            différents rythmes de session.
-          </p>
-        </header>
-
-        <section className="panel">
-          <h2>Courbe &amp; budget total</h2>
-          <p className="sub">Le total est réparti sur les niveaux selon la forme de croissance choisie — la somme des paliers retombe toujours exactement sur ce total.</p>
-          <div className="curve-fields-stack">
-            <div className="field">
-              <label htmlFor="in-total">XP total (niveau 1 → niveau max)</label>
+      <div className="xp-grid">
+        <section className="xp-card xp-span-2">
+          <h3 className="xp-h2">Courbe &amp; budget total</h3>
+          <p className="xp-cardsub">Le total est réparti sur les niveaux selon la forme de croissance choisie — la somme des paliers retombe toujours exactement sur ce total.</p>
+          <div className="xp-fieldgrid">
+            <label className="flabel xp-field" htmlFor="in-total">
+              XP total (niveau 1 → niveau max)
               <input
-                type="number" id="in-total" min="1" step="1" value={total}
+                className="finput finput--num" type="number" id="in-total" min="1" step="1" value={total}
                 onChange={(e) => { const v = Number(e.target.value) || 0; setTotal(v); setField('total', v); }}
               />
-            </div>
-            <div className="field">
-              <label htmlFor="in-levels">Niveau maximum</label>
+            </label>
+            <label className="flabel xp-field" htmlFor="in-levels">
+              Niveau maximum
               <input
-                type="number" id="in-levels" min="2" max="60" step="1" value={levels}
+                className="finput finput--num" type="number" id="in-levels" min="2" max="60" step="1" value={levels}
                 onChange={(e) => { const v = Number(e.target.value) || 25; setLevels(v); setField('levels', v); }}
               />
-            </div>
-            <div className="field">
-              <label htmlFor="in-total50">XP total visé — niveau 50</label>
+            </label>
+            <label className="flabel xp-field" htmlFor="in-total50">
+              XP total visé — niveau 50
               <input
-                type="number" id="in-total50" min="1" step="1" value={total50}
+                className="finput finput--num" type="number" id="in-total50" min="1" step="1" value={total50}
                 onChange={(e) => { const v = Number(e.target.value) || 0; setTotal50(v); setField('total50', v); }}
               />
-              <p className="hint">Le niveau maximum sépare la progression des joueurs (1 → max) de la suite réservée aux PNJ de lore (max → 50, détaillée plus bas).</p>
-            </div>
+            </label>
           </div>
-          <div className="field" style={{ marginTop: 16 }}>
-            <label htmlFor="in-exp">Forme de croissance <span className="num exp-badge">{expLabel(Number(xp.exponent))}</span></label>
-            <div className="exp-row">
-              <span className="hint num">0.2</span>
+          <p className="xp-hint">Le niveau maximum sépare la progression des joueurs (1 → max) de la suite réservée aux PNJ de lore (max → 50, détaillée plus bas).</p>
+
+          <label className="flabel xp-field" htmlFor="in-exp" style={{ marginTop: 14 }}>
+            <span className="xp-labelrow">
+              <span>Forme de croissance</span>
+              <span className="xp-pill xp-pill--mid">{expLabel(Number(xp.exponent))}</span>
+            </span>
+            <div className="xp-exp-row">
+              <span className="xp-hint num" style={{ margin: 0 }}>0.2</span>
               <input
                 type="range" id="in-exp" min="0.2" max="3" step="0.1" value={xp.exponent}
                 onChange={(e) => setField('exponent', Number(e.target.value))}
               />
-              <span className="hint num">3.0</span>
+              <span className="xp-hint num" style={{ margin: 0 }}>3.0</span>
             </div>
-            <p className="hint">Plus bas = paliers presque égaux du début à la fin. Plus haut = les derniers niveaux coûtent bien plus cher que les premiers.</p>
-          </div>
+            <p className="xp-hint">Plus bas = paliers presque égaux du début à la fin. Plus haut = les derniers niveaux coûtent bien plus cher que les premiers.</p>
+          </label>
         </section>
 
-        <section className="panel">
-          <h2>Barème d'XP par type d'événement</h2>
-          <p className="sub">
+        <section className="xp-card xp-span-4 xp-rowspan-4">
+          <h3 className="xp-h2">Barème d'XP par type d'événement</h3>
+          <p className="xp-cardsub">
             Le détail concret de ce qui rapporte de l'XP dans chaque branche — types librement éditables,
             ajoute ou retire ce qu'il te faut, et fais glisser la poignée à gauche pour les réordonner.
             Chaque type affiche le nombre de complétions nécessaires pour boucler toute la courbe jusqu'au
-            niveau maximum configuré ; la ligne "Total" en bas de chaque tableau additionne l'XP de tous
+            niveau maximum configuré ; la ligne « Total » en bas de chaque tableau additionne l'XP de tous
             les types de la branche et indique combien de fois il faudrait combiner un exemplaire de chacun
             pour boucler la courbe.
           </p>
-          <div className="bareme-grid">
+          <div className="xp-bareme-grid">
             <BaremeTable
               branchKey="trame" label={BRANCH_LABELS.trame} colorVar={BRANCH_VARS.trame}
               items={xp.bareme.trame} cumTotal={cumTotal}
@@ -1045,147 +809,116 @@ export default function XpCalibreur({ state, mutate, theme }) {
           </div>
         </section>
 
-        <section className="panel">
-          <h2>Complétions de barème par niveau</h2>
-          <p className="sub">
-            Pour chaque type du barème ci-dessus, combien de complétions il faut pour passer d'un niveau au
-            suivant. Le premier tableau va du niveau 1 au niveau maximum configuré ; le second reprend à
-            partir de ce niveau maximum jusqu'au niveau 50.
-          </p>
-          <div className="bareme-group-title">Niveau 1 → {data.levels}</div>
-          <BaremeLevelTable data={data} fromT={1} toT={data.T} />
-          <div className="bareme-group-title" style={{ marginTop: 20 }}>Niveau {data.levels} → 50</div>
-          {data50 ? (
-            <BaremeLevelTable data={data50} fromT={data.T + 1} toT={49} />
-          ) : (
-            <p className="hint">Le niveau maximum configuré ci-dessus ({data.levels}) atteint déjà le niveau 50 — pas de suite à afficher.</p>
-          )}
-        </section>
-
-        <section className="panel">
-          <h2>Répartition par branche</h2>
-          <p className="sub">
-            Calculée automatiquement à partir du barème ci-dessus : plus les types d'une branche pèsent
+        <section className="xp-card xp-span-2">
+          <h3 className="xp-h2">Répartition par branche</h3>
+          <p className="xp-cardsub">
+            Calculée automatiquement à partir du barème ci-contre : plus les types d'une branche pèsent
             lourd en XP, plus cette branche prend une part importante du budget total. La branche Spéciale
             reste un bonus à part, hors de ce calcul.
           </p>
-          <div className="ratio-row">
+          <div className="xp-fieldgrid" style={{ gridTemplateColumns: '1fr' }}>
             {BUDGET_BRANCHES.map((key, i) => (
-              <div className="field ratio-field" key={key}>
-                <label><span className="ratio-swatch" style={{ background: `var(${BRANCH_VARS[key]})` }}></span>{BRANCH_LABELS[key]}</label>
-                <div className="ratio-auto-box">
-                  <span className="ratio-auto-pct num tab-num">{ratio.pcts[i]}%</span>
-                  <span className="ratio-auto-sub">{fmt(ratio.sums[i])} XP de barème</span>
-                </div>
+              <div className="xp-field" key={key}>
+                <span className="xp-labelrow">
+                  <span><span className="xp-swatch" style={{ background: `var(${BRANCH_VARS[key]})` }}></span>{BRANCH_LABELS[key]}</span>
+                  <span className="xp-val">{ratio.pcts[i]}%</span>
+                </span>
+                <div className="xp-meter"><i style={{ width: ratio.pcts[i] + '%', background: `var(${BRANCH_VARS[key]})` }} /></div>
+                <span className="xp-hint" style={{ margin: 0 }}>{fmt(ratio.sums[i])} XP de barème</span>
               </div>
             ))}
           </div>
-          <div className="actions-row">
-            <span className="badge-speciale">Spéciale — bonus brut, hors budget</span>
+          <div className="xp-actions">
+            <span className="xp-pill" style={{ color: `var(${BRANCH_VARS.speciale})`, borderColor: `var(${BRANCH_VARS.speciale})` }}>
+              Spéciale — bonus brut, hors budget
+            </span>
           </div>
         </section>
 
-        <section className="panel">
-          <h2>Profils de rythme</h2>
-          <p className="sub">Chaque profil = un rythme de jeu, exprimé en XP moyen gagné par session. Ajoute, renomme ou supprime des profils librement.</p>
-          <div className="profiles-list">
+        <section className="xp-card xp-span-2">
+          <h3 className="xp-h2">Profils de rythme</h3>
+          <p className="xp-cardsub">Chaque profil = un rythme de jeu, exprimé en XP moyen gagné par session. Ajoute, renomme ou supprime des profils librement.</p>
+          <div className="xp-profiles">
             {xp.profiles.map((p, idx) => (
               <ProfileRow key={idx} p={p} idx={idx} setProfileField={setProfileField} removeProfile={removeProfile} disabled={xp.profiles.length <= 1} />
             ))}
           </div>
-          <div className="actions-row">
-            <button className="btn small" onClick={addProfile} disabled={xp.profiles.length >= 6}>+ Ajouter un profil</button>
-            <button className="btn small ghost" onClick={resetAll}>Réinitialiser tout le calibreur</button>
+          <div className="xp-actions">
+            <button className="tbtn" onClick={addProfile} disabled={xp.profiles.length >= 6}>+ Ajouter un profil</button>
+            <button className="tbtn" onClick={resetAll}>Réinitialiser tout le calibreur</button>
           </div>
         </section>
 
-        <section className="stat-tiles">
-          {data.profileResults.map((pr) => {
-            const yearsUp = Math.ceil(pr.years);
-            const yearsTxt = pr.years >= 1 ? `${fmtUp(pr.years)} an${yearsUp > 1 ? 's' : ''}` : `${Math.ceil(pr.years * 12)} mois`;
-            return (
-              <div className="stat-tile" key={pr.name} style={{ '--tile-color': pr.color }}>
-                <div className="label">{pr.name}</div>
-                <div className="value num tab-num">{fmt(pr.totalSessions)} sessions</div>
-                <div className="sub">≈ {yearsTxt} · {fmtUp(pr.xp)} XP / session</div>
-              </div>
-            );
-          })}
-        </section>
-
-        <section className="panel">
-          <h2>Composition de la courbe par branche</h2>
-          <p className="sub">Coût XP de chaque palier, empilé par branche. Survole une barre pour le détail.</p>
-          <div className="legend">
-            <span className="legend-item"><span className="legend-swatch" style={{ background: 'var(--branch-trame)' }}></span>Trame</span>
-            <span className="legend-item"><span className="legend-swatch" style={{ background: 'var(--branch-secondaire)' }}></span>Secondaire</span>
-            <span className="legend-item"><span className="legend-swatch" style={{ background: 'var(--branch-exploration)' }}></span>Exploration</span>
-            <span className="legend-item"><span className="legend-swatch" style={{ background: 'var(--branch-combat)' }}></span>Combat</span>
-          </div>
-          <BranchChart data={data} />
-        </section>
-
-        <section className="panel">
-          <h2>Progression niveau par niveau</h2>
-          <p className="sub">XP requis et cumulé par palier, détail par branche, et session estimée d'obtention par profil de rythme.</p>
-          <ProgressionTable data={data} />
-        </section>
-
-        <section className="panel">
-          <h2>Projection jusqu'au niveau 50</h2>
-          <p className="sub">
-            Au-delà du niveau maximum configuré dans "Courbe &amp; budget total" plus haut, mêmes ratios de
-            branche, mêmes profils et barème — le total d'XP visé au niveau 50 (réglable là-haut) est réparti
-            sur ce segment selon la même forme de croissance.
-          </p>
-          {!data50 ? (
-            <p className="hint">Le niveau maximum configuré ci-dessus ({data.levels}) atteint déjà le niveau 50 — pas de prolongement à afficher.</p>
-          ) : (
-            <div>
-              <div className="stat-tiles" style={{ marginBottom: 16 }}>
-                <div className="stat-tile">
-                  <div className="label">XP total — niveau 50</div>
-                  <div className="value num tab-num">{fmt(data50.total)} XP</div>
-                  <div className="sub">fixé manuellement</div>
+        <section className="xp-card xp-span-2">
+          <h3 className="xp-h2">Sessions estimées par profil</h3>
+          <div className="xp-tiles" style={{ marginTop: 6, gridTemplateColumns: '1fr' }}>
+            {data.profileResults.map((pr) => {
+              const yearsUp = Math.ceil(pr.years);
+              const yearsTxt = pr.years >= 1 ? `${fmtUp(pr.years)} an${yearsUp > 1 ? 's' : ''}` : `${Math.ceil(pr.years * 12)} mois`;
+              return (
+                <div className="xp-tile" key={pr.name} style={{ '--tile-color': `var(${pr.colorVar})` }}>
+                  <div className="xp-tile-label">{pr.name}</div>
+                  <div className="xp-tile-value num tab-num">{fmt(pr.totalSessions)} sessions</div>
+                  <div className="xp-tile-sub">≈ {yearsTxt} · {fmtUp(pr.xp)} XP / session</div>
                 </div>
-              </div>
-              <div className="legend">
-                <span className="legend-item"><span className="legend-swatch" style={{ background: 'var(--branch-trame)' }}></span>Trame</span>
-                <span className="legend-item"><span className="legend-swatch" style={{ background: 'var(--branch-secondaire)' }}></span>Secondaire</span>
-                <span className="legend-item"><span className="legend-swatch" style={{ background: 'var(--branch-exploration)' }}></span>Exploration</span>
-                <span className="legend-item"><span className="legend-swatch" style={{ background: 'var(--branch-combat)' }}></span>Combat</span>
-              </div>
-              <BranchChart data={data50} />
-              <div style={{ marginTop: 16 }}>
-                <ProgressionTable data={data50} />
-              </div>
-            </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="xp-card xp-span-6">
+          <h3 className="xp-h2">Complétions de barème par niveau</h3>
+          <p className="xp-cardsub" style={{ marginBottom: 0 }}>
+            Pour chaque type du barème ci-dessus, combien de complétions il faut pour passer d'un niveau au
+            suivant. Le premier tableau va du niveau 1 au niveau maximum configuré ; le second reprend à
+            partir de ce niveau maximum jusqu'au niveau 50.
+          </p>
+        </section>
+
+        <section className="xp-card xp-span-3">
+          <p className="xp-subhead">Niveau 1 → {data.levels}</p>
+          <BaremeLevelTable data={data} fromT={1} toT={data.T} capped />
+        </section>
+
+        <section className="xp-card xp-span-3">
+          <p className="xp-subhead">Niveau {data.levels} → 50</p>
+          {data50 ? (
+            <BaremeLevelTable data={data50} fromT={data.T + 1} toT={49} capped />
+          ) : (
+            <p className="xp-hint">Le niveau maximum configuré ci-dessus ({data.levels}) atteint déjà le niveau 50 — pas de suite à afficher.</p>
           )}
         </section>
 
-        <footer className="note">Tout est recalculé en direct et partagé entre les deux MJ.</footer>
+        <section className="xp-card xp-span-6">
+          <h3 className="xp-h2">Projection jusqu'au niveau 50</h3>
+          <p className="xp-cardsub">
+            Coût XP de chaque palier, détail par branche, et session estimée d'obtention par profil de
+            rythme — du niveau 1 au niveau maximum configuré dans « Courbe &amp; budget total » plus haut,
+            prolongé jusqu'au niveau 50 (même barème, même forme de croissance, XP total visé réglable là-haut).
+          </p>
+          {data50 ? (
+            <div className="xp-tiles" style={{ marginBottom: 16 }}>
+              <div className="xp-tile">
+                <div className="xp-tile-label">XP total — niveau 50</div>
+                <div className="xp-tile-value num tab-num">{fmt(data50.total)} XP</div>
+                <div className="xp-tile-sub">fixé manuellement</div>
+              </div>
+            </div>
+          ) : (
+            <p className="xp-hint">Le niveau maximum configuré ci-dessus ({data.levels}) atteint déjà le niveau 50 — pas de prolongement, la courbe s'arrête là.</p>
+          )}
+          <div className="xp-legend">
+            <span className="xp-legend-item"><span className="xp-swatch" style={{ background: `var(${BRANCH_VARS.trame})` }}></span>Trame</span>
+            <span className="xp-legend-item"><span className="xp-swatch" style={{ background: `var(${BRANCH_VARS.secondaire})` }}></span>Secondaire</span>
+            <span className="xp-legend-item"><span className="xp-swatch" style={{ background: `var(${BRANCH_VARS.exploration})` }}></span>Exploration</span>
+            <span className="xp-legend-item"><span className="xp-swatch" style={{ background: `var(${BRANCH_VARS.combat})` }}></span>Combat</span>
+          </div>
+          <BranchChart data={data50 || data} />
+          <div style={{ marginTop: 16 }}>
+            <ProgressionTable data={data50 || data} />
+          </div>
+        </section>
       </div>
-    </div>
-  );
-}
-
-function ProfileRow({ p, idx, setProfileField, removeProfile, disabled }) {
-  const [name, setName] = useSyncedField(p.name);
-  const [xpVal, setXpVal] = useSyncedField(p.xp);
-  return (
-    <div className="profile-row">
-      <div className="profile-name-wrap">
-        <span className="profile-swatch" style={{ background: PROFILE_COLORS[idx % PROFILE_COLORS.length] }}></span>
-        <input
-          type="text" value={name} aria-label={`Nom du profil ${idx + 1}`}
-          onChange={(e) => { const v = e.target.value; setName(v); setProfileField(idx, 'name', v); }}
-        />
-      </div>
-      <input
-        type="number" min="0.1" step="0.5" value={xpVal} aria-label={`XP moyen par session pour ${p.name}`}
-        onChange={(e) => { const v = Number(e.target.value) || 0; setXpVal(v); setProfileField(idx, 'xp', v); }}
-      />
-      <button className="btn small ghost" disabled={disabled} onClick={() => removeProfile(idx)}>Retirer</button>
-    </div>
+    </section>
   );
 }
