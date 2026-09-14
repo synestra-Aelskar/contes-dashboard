@@ -9,7 +9,8 @@ export const VIEWS = [
   ['personnages', 'Personnages'],
   ['zones', 'Zone'],
   ['sessionzero', 'Session Zéro'],
-  ['xpcalibreur', "Calibreur d'XP"]
+  ['xpcalibreur', "Calibreur d'XP"],
+  ['equilibrage', 'Équilibrage DD']
 ];
 
 export default function ViewBar({ view, setView, hasDraft, onFinish }) {

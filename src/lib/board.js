@@ -19,7 +19,7 @@ export const EMPTY_STATE = {
   ],
   sessions: [], consequences: [], clocks: [], secrets: [], reminders: [], epreuves: [],
   characters: [], sessionDraft: null, zones: [], sessionZero: { blocks: [] },
-  xpCalibreur: XP_DEFAULT_STATE
+  xpCalibreur: XP_DEFAULT_STATE, ddCalc: null
 };
 
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);

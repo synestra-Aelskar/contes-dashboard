@@ -18,6 +18,7 @@ import Personnages from './views/Personnages.jsx';
 import Zones from './views/Zones.jsx';
 import SessionZero from './views/SessionZero.jsx';
 import XpCalibreur from './views/XpCalibreur.jsx';
+import Equilibrage from './views/Equilibrage.jsx';
 import SessionEnCours from './views/SessionEnCours.jsx';
 
 const STATUS_TEXT = {
@@ -61,6 +62,7 @@ export default function Dashboard({ session }) {
   else if (view === 'zones') ViewComp = Zones;
   else if (view === 'sessionzero') ViewComp = SessionZero;
   else if (view === 'xpcalibreur') ViewComp = XpCalibreur;
+  else if (view === 'equilibrage') ViewComp = Equilibrage;
 
   return (
     <main className="page">
