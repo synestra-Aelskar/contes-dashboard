@@ -444,20 +444,45 @@ function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead }) {
 
   const vars = { '--sz-acc': ACCENT, '--sz-acc-ink': lighten(ACCENT) };
 
+  // Distance du bord droit de la carte au bord droit de la fenêtre : la
+  // carte fait min(1040px, 100vw - 32px) de large (32 = le padding
+  // horizontal de l'overlay) et reste centrée, donc cette distance vaut
+  // (100vw - largeur carte) / 2. La croix s'accroche à cette distance
+  // (moins sa propre largeur + une marge) pour rester collée au bord de la
+  // carte plutôt qu'au bord de l'écran ; `max(10px, …)` évite qu'elle sorte
+  // de l'écran sur mobile, où il n'y a plus de place à côté de la carte.
+  const cardEdgeGap = 'max(10px, calc((100vw - min(1040px, 100vw - 32px)) / 2 - 46px))';
+
   return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, zIndex: 55,
-        background: 'rgba(8,6,4,0.74)', backdropFilter: 'blur(4px)',
-        display: 'flex', justifyContent: 'center',
-        padding: '28px 16px', overflowY: 'auto'
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, margin: 'auto 0', width: '100%' }}>
+    <>
+      {/* Rendue en dehors de l'overlay : son backdrop-filter + overflow
+          créent un containing block pour les descendants `position: fixed`,
+          ce qui ferait défiler la croix avec le contenu si elle était dedans. */}
+      <button
+        onClick={onBack}
+        title="Fermer la fiche"
+        aria-label="Fermer la fiche"
+        style={{
+          position: 'fixed', top: 22, right: cardEdgeGap, zIndex: 56,
+          width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(20,17,13,0.75)', border: '1px solid rgba(201,160,90,0.35)', borderRadius: '50%',
+          color: INK_SOFT, fontSize: 20, lineHeight: 1, cursor: 'pointer'
+        }}
+      >
+        ×
+      </button>
+      <div
+        style={{
+          position: 'fixed', inset: 0, zIndex: 55,
+          background: 'rgba(8,6,4,0.74)', backdropFilter: 'blur(4px)',
+          display: 'flex', justifyContent: 'center',
+          padding: '28px 16px', overflowY: 'auto'
+        }}
+      >
       <div
         style={{
           ...vars,
-          width: '100%', maxWidth: 1040, height: 'fit-content',
+          width: '100%', maxWidth: 1040, height: 'fit-content', margin: 'auto 0',
           background: `radial-gradient(120% 80% at 50% 0%, #1d1913 0%, ${BG} 60%)`,
           color: INK,
           fontFamily: SERIF,
@@ -574,21 +599,8 @@ function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead }) {
         <HSModal blocks={list} defaultTarget={hsFrom} onSend={sendHS} onClose={() => setHsFrom(null)} />
       )}
       </div>
-      <button
-        onClick={onBack}
-        title="Fermer la fiche"
-        aria-label="Fermer la fiche"
-        style={{
-          position: 'sticky', top: 16, flex: '0 0 auto',
-          width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(20,17,13,0.75)', border: '1px solid rgba(201,160,90,0.35)', borderRadius: '50%',
-          color: INK_SOFT, fontSize: 20, lineHeight: 1, cursor: 'pointer'
-        }}
-      >
-        ×
-      </button>
-      </div>
     </div>
+    </>
   );
 }
 
