@@ -445,31 +445,14 @@ function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead }) {
   const vars = { '--sz-acc': ACCENT, '--sz-acc-ink': lighten(ACCENT) };
 
   return (
-    <>
-      {/* Bouton fermer : rendu hors du panneau (backdrop-filter + overflow
-          plus haut créent un nouveau containing block pour `position: fixed`,
-          ce qui ferait défiler la croix avec le contenu si elle était dedans). */}
-      <button
-        onClick={onBack}
-        title="Fermer la fiche"
-        aria-label="Fermer la fiche"
-        style={{
-          position: 'fixed', top: 22, right: 22, zIndex: 56,
-          width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(20,17,13,0.6)', border: '1px solid rgba(201,160,90,0.35)', borderRadius: '50%',
-          color: INK_SOFT, fontSize: 20, lineHeight: 1, cursor: 'pointer'
-        }}
-      >
-        ×
-      </button>
-      <div
-        style={{
-          position: 'fixed', inset: 0, zIndex: 55,
-          background: 'rgba(8,6,4,0.74)', backdropFilter: 'blur(4px)',
-          display: 'flex', justifyContent: 'center',
-          padding: '28px 16px', overflowY: 'auto'
-        }}
-      >
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 55,
+        background: 'rgba(8,6,4,0.74)', backdropFilter: 'blur(4px)',
+        display: 'flex', justifyContent: 'center',
+        padding: '28px 16px', overflowY: 'auto'
+      }}
+    >
       <div
         style={{
           ...vars,
@@ -484,6 +467,23 @@ function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead }) {
           padding: '0 32px 60px'
         }}
       >
+      {/* Croix collée à la carte elle-même (sticky par rapport au scroll de
+          l'overlay) plutôt qu'au viewport, pour rester à proximité de la
+          fiche même sur les grands écrans où la carte est loin du bord. */}
+      <div style={{ position: 'sticky', top: 16, height: 0, overflow: 'visible', display: 'flex', justifyContent: 'flex-end', zIndex: 6 }}>
+        <button
+          onClick={onBack}
+          title="Fermer la fiche"
+          aria-label="Fermer la fiche"
+          style={{
+            width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(20,17,13,0.75)', border: '1px solid rgba(201,160,90,0.35)', borderRadius: '50%',
+            color: INK_SOFT, fontSize: 20, lineHeight: 1, cursor: 'pointer'
+          }}
+        >
+          ×
+        </button>
+      </div>
       <div style={{ maxWidth: 980, margin: '0 auto' }}>
         <header style={{ padding: '32px 0 40px', borderBottom: '1px solid rgba(201,160,90,0.22)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 22 }}>
@@ -591,7 +591,6 @@ function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead }) {
       )}
       </div>
     </div>
-    </>
   );
 }
 
