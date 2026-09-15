@@ -445,14 +445,10 @@ function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead }) {
   const vars = { '--sz-acc': ACCENT, '--sz-acc-ink': lighten(ACCENT) };
 
   return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, zIndex: 55,
-        background: 'rgba(8,6,4,0.74)', backdropFilter: 'blur(4px)',
-        display: 'flex', justifyContent: 'center',
-        padding: '28px 16px', overflowY: 'auto'
-      }}
-    >
+    <>
+      {/* Bouton fermer : rendu hors du panneau (backdrop-filter + overflow
+          plus haut créent un nouveau containing block pour `position: fixed`,
+          ce qui ferait défiler la croix avec le contenu si elle était dedans). */}
       <button
         onClick={onBack}
         title="Fermer la fiche"
@@ -466,6 +462,14 @@ function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead }) {
       >
         ×
       </button>
+      <div
+        style={{
+          position: 'fixed', inset: 0, zIndex: 55,
+          background: 'rgba(8,6,4,0.74)', backdropFilter: 'blur(4px)',
+          display: 'flex', justifyContent: 'center',
+          padding: '28px 16px', overflowY: 'auto'
+        }}
+      >
       <div
         style={{
           ...vars,
@@ -587,6 +591,7 @@ function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead }) {
       )}
       </div>
     </div>
+    </>
   );
 }
 
