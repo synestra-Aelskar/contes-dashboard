@@ -416,7 +416,7 @@ function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead }) {
     requestAnimationFrame(() => {
       const el = document.getElementById(`bloc-${b.id}`);
       if (!el) return;
-      window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 24, behavior: 'smooth' });
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       el.querySelector('input')?.focus({ preventScroll: true });
     });
   };
@@ -439,15 +439,13 @@ function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead }) {
 
   const goTo = (e, id) => {
     e.preventDefault();
-    const el = document.getElementById(`bloc-${id}`);
-    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 24, behavior: 'smooth' });
+    document.getElementById(`bloc-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const vars = { '--sz-acc': ACCENT, '--sz-acc-ink': lighten(ACCENT) };
 
   return (
     <div
-      onMouseDown={(e) => e.target === e.currentTarget && onBack()}
       style={{
         position: 'fixed', inset: 0, zIndex: 55,
         background: 'rgba(8,6,4,0.74)', backdropFilter: 'blur(4px)',
@@ -455,6 +453,19 @@ function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead }) {
         padding: '28px 16px', overflowY: 'auto'
       }}
     >
+      <button
+        onClick={onBack}
+        title="Fermer la fiche"
+        aria-label="Fermer la fiche"
+        style={{
+          position: 'fixed', top: 22, right: 22, zIndex: 56,
+          width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(20,17,13,0.6)', border: '1px solid rgba(201,160,90,0.35)', borderRadius: '50%',
+          color: INK_SOFT, fontSize: 20, lineHeight: 1, cursor: 'pointer'
+        }}
+      >
+        ×
+      </button>
       <div
         style={{
           ...vars,
