@@ -453,10 +453,11 @@ function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead }) {
         padding: '28px 16px', overflowY: 'auto'
       }}
     >
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, margin: 'auto 0', width: '100%' }}>
       <div
         style={{
           ...vars,
-          width: '100%', maxWidth: 1040, height: 'fit-content', margin: 'auto 0',
+          width: '100%', maxWidth: 1040, height: 'fit-content',
           background: `radial-gradient(120% 80% at 50% 0%, #1d1913 0%, ${BG} 60%)`,
           color: INK,
           fontFamily: SERIF,
@@ -467,23 +468,6 @@ function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead }) {
           padding: '0 32px 60px'
         }}
       >
-      {/* Croix collée à la carte elle-même (sticky par rapport au scroll de
-          l'overlay) plutôt qu'au viewport, pour rester à proximité de la
-          fiche même sur les grands écrans où la carte est loin du bord. */}
-      <div style={{ position: 'sticky', top: 16, height: 0, overflow: 'visible', display: 'flex', justifyContent: 'flex-end', zIndex: 6 }}>
-        <button
-          onClick={onBack}
-          title="Fermer la fiche"
-          aria-label="Fermer la fiche"
-          style={{
-            width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(20,17,13,0.75)', border: '1px solid rgba(201,160,90,0.35)', borderRadius: '50%',
-            color: INK_SOFT, fontSize: 20, lineHeight: 1, cursor: 'pointer'
-          }}
-        >
-          ×
-        </button>
-      </div>
       <div style={{ maxWidth: 980, margin: '0 auto' }}>
         <header style={{ padding: '32px 0 40px', borderBottom: '1px solid rgba(201,160,90,0.22)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 22 }}>
@@ -589,6 +573,20 @@ function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead }) {
       {hsFrom && (
         <HSModal blocks={list} defaultTarget={hsFrom} onSend={sendHS} onClose={() => setHsFrom(null)} />
       )}
+      </div>
+      <button
+        onClick={onBack}
+        title="Fermer la fiche"
+        aria-label="Fermer la fiche"
+        style={{
+          position: 'sticky', top: 16, flex: '0 0 auto',
+          width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(20,17,13,0.75)', border: '1px solid rgba(201,160,90,0.35)', borderRadius: '50%',
+          color: INK_SOFT, fontSize: 20, lineHeight: 1, cursor: 'pointer'
+        }}
+      >
+        ×
+      </button>
       </div>
     </div>
   );
