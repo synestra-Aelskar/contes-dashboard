@@ -162,38 +162,36 @@ function SessionPane({ quete, session, mutate, xpCalibreur, onSelect }) {
         </div>
       </div>
 
-      <div className="prep-grid">
-        <div className="zone-pane__main">
-          <label className="flabel">
-            Description
-            <textarea
-              ref={descRef} className="notes" placeholder="Ce qui se passe dans cette séance…"
-              value={desc}
-              onChange={(e) => { const v = e.target.value; setDesc(v); patch((s) => { s.description = v; }); }}
-              onBlur={() => patch((s) => { s.description = desc; })}
-            />
-          </label>
-        </div>
+      <div className="prep-stack">
+        <label className="flabel">
+          Description
+          <textarea
+            ref={descRef} className="notes" placeholder="Ce qui se passe dans cette séance…"
+            value={desc}
+            onChange={(e) => { const v = e.target.value; setDesc(v); patch((s) => { s.description = v; }); }}
+            onBlur={() => patch((s) => { s.description = desc; })}
+          />
+        </label>
 
-        <div className="zone-pane__side">
+        <div className="prep-xpzone">
           <div className="prep-total">
             <span className="prep-total__label">Total XP de la séance</span>
             <span className="prep-total__value">{total}</span>
           </div>
-          <div className="prep-blocklist">
+          <div className="prep-blockgrid">
             {session.xpBlocks.map((b) => (
               <XpBlockRow
                 key={b.id} quete={quete} session={session} block={b} mutate={mutate}
                 options={options} xpCalibreur={xpCalibreur}
               />
             ))}
-            <button
-              className="tbtn" type="button"
-              onClick={() => patch((s) => { s.xpBlocks.push(makeXpBlock()); })}
-            >
-              ＋ ajouter un bloc
-            </button>
           </div>
+          <button
+            className="tbtn" type="button"
+            onClick={() => patch((s) => { s.xpBlocks.push(makeXpBlock()); })}
+          >
+            ＋ ajouter un bloc
+          </button>
         </div>
       </div>
     </div>

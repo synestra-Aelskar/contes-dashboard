@@ -763,12 +763,15 @@ input[type=range]::-moz-range-thumb{ width:14px; height:14px; border-radius:50%;
 .xp-chart-tip .dot{ width:7px; height:7px; border-radius:50%; flex:0 0 auto; }
 
 /* --- vue Prep Session (sommaire quête > session) --- */
-.prep-grid{ display:grid; grid-template-columns:minmax(0,1fr) 420px; gap:34px; align-items:start; }
-@media (max-width:960px){ .prep-grid{ grid-template-columns:1fr; } }
-.prep-total{ display:flex; flex-direction:column; gap:2px; border:1px solid var(--rule); border-radius:6px; padding:12px 14px; background:var(--bg); }
+.prep-stack{ display:flex; flex-direction:column; gap:28px; }
+.prep-xpzone{ display:flex; flex-direction:column; gap:14px; }
+.prep-total{ display:flex; flex-direction:column; gap:2px; border:1px solid var(--rule); border-radius:6px; padding:12px 14px; background:var(--bg); width:fit-content; }
 .prep-total__label{ font-family:var(--f-mono); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dim); }
 .prep-total__value{ font-family:var(--f-mono); font-size:26px; color:var(--kind,var(--gilt)); }
-.prep-blocklist{ display:flex; flex-direction:column; gap:12px; }
+.prep-blockgrid{ display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:14px; }
+@media (max-width:1400px){ .prep-blockgrid{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
+@media (max-width:960px){ .prep-blockgrid{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
+@media (max-width:560px){ .prep-blockgrid{ grid-template-columns:1fr; } }
 .prep-block{
   display:flex; flex-direction:column; gap:8px; border-radius:6px; padding:12px; background:var(--surface);
   --prep-branch:var(--rule);
