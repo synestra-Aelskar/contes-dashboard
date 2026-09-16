@@ -20,7 +20,7 @@ export const EMPTY_STATE = {
   ],
   sessions: [], consequences: [], clocks: [], secrets: [], reminders: [], epreuves: [],
   characters: [], sessionDraft: null, zones: [], sessionZero: { blocks: [] }, fichesTechniques: [],
-  xpCalibreur: XP_DEFAULT_STATE, ddCalc: null
+  xpCalibreur: XP_DEFAULT_STATE, ddCalc: null, prepSessions: []
 };
 
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -32,8 +32,17 @@ function normalize(raw) {
   const out = { ...base, ...d };
   if (!Array.isArray(out.sections) || !out.sections.length) out.sections = base.sections;
   out.notes = Array.isArray(out.notes) ? out.notes.filter((x) => x && typeof x === 'object') : [];
-  ['sessions', 'consequences', 'clocks', 'secrets', 'reminders', 'epreuves', 'characters', 'zones'].forEach((k) => {
+  ['sessions', 'consequences', 'clocks', 'secrets', 'reminders', 'epreuves', 'characters', 'zones', 'prepSessions'].forEach((k) => {
     if (!Array.isArray(out[k])) out[k] = [];
+  });
+  out.prepSessions.forEach((q) => {
+    if (typeof q.name !== 'string') q.name = '';
+    if (!Array.isArray(q.sessions)) q.sessions = [];
+    q.sessions.forEach((s) => {
+      if (typeof s.title !== 'string') s.title = '';
+      if (typeof s.description !== 'string') s.description = '';
+      if (!Array.isArray(s.xpBlocks)) s.xpBlocks = [];
+    });
   });
   if (!out.sessionDraft || typeof out.sessionDraft !== 'object') out.sessionDraft = null;
   if (!out.sessionZero || typeof out.sessionZero !== 'object') out.sessionZero = { blocks: [] };

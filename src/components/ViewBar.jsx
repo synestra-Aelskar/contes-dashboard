@@ -10,7 +10,8 @@ export const VIEWS = [
   ['zones', 'Zone'],
   ['fichetechnique', 'Fiche Technique'],
   ['xpcalibreur', "Calibreur d'XP"],
-  ['equilibrage', 'Équilibrage DD']
+  ['equilibrage', 'Équilibrage DD'],
+  ['prepsession', 'Prep Session']
 ];
 
 export default function ViewBar({ view, setView, hasDraft, onStart, onFinish }) {

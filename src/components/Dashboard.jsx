@@ -19,6 +19,7 @@ import Zones from './views/Zones.jsx';
 import FicheTechnique from './views/FicheTechnique.jsx';
 import XpCalibreur from './views/XpCalibreur.jsx';
 import Equilibrage from './views/Equilibrage.jsx';
+import PrepSession from './views/PrepSession.jsx';
 import SessionEnCours from './views/SessionEnCours.jsx';
 
 const STATUS_TEXT = {
@@ -68,6 +69,7 @@ export default function Dashboard({ session }) {
   else if (view === 'fichetechnique') ViewComp = FicheTechnique;
   else if (view === 'xpcalibreur') ViewComp = XpCalibreur;
   else if (view === 'equilibrage') ViewComp = Equilibrage;
+  else if (view === 'prepsession') ViewComp = PrepSession;
 
   return (
     <main className="page">
