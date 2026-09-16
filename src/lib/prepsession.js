@@ -3,6 +3,15 @@ import { uid } from './util.js';
 export const BRANCH_LABELS = { trame: 'Trame', secondaire: 'Secondaire', exploration: 'Exploration', combat: 'Combat', speciale: 'Spéciale' };
 export const BRANCH_ORDER = ['trame', 'secondaire', 'exploration', 'combat', 'speciale'];
 
+/** Même mapping branche -> couleur que .xp-branch-* dans styles.css (Calibreur d'XP). */
+export const BRANCH_KIND_VAR = {
+  trame: 'var(--kind-xp)',
+  secondaire: 'var(--kind-oubli)',
+  exploration: 'var(--kind-zone)',
+  combat: 'var(--blood)',
+  speciale: 'var(--kind-secret)'
+};
+
 export function makeQuete() {
   return { id: uid(), name: 'Nouvelle quête', sessions: [] };
 }

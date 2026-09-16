@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { lsGet, lsSet } from '../../lib/util.js';
 import { useSyncedField } from '../../lib/useSyncedField.js';
 import {
-  makeQuete, makeSession, makeXpBlock, allBaremeOptions, resolveBlockXp, sessionTotal
+  makeQuete, makeSession, makeXpBlock, allBaremeOptions, resolveBlockXp, sessionTotal, BRANCH_KIND_VAR
 } from '../../lib/prepsession.js';
 
 const LOCAL_KEY = 'ccm.prep';
@@ -64,9 +64,10 @@ function XpBlockRow({ quete, session, block, mutate, options, xpCalibreur }) {
 
   const selIdx = options.findIndex((o) => o.branchKey === block.branchKey && o.itemName === block.itemName);
   const value = resolveBlockXp(block, xpCalibreur);
+  const branchColor = BRANCH_KIND_VAR[block.branchKey];
 
   return (
-    <div className="prep-block">
+    <div className="prep-block" style={branchColor ? { '--prep-branch': branchColor } : undefined}>
       <input
         ref={titreRef} className="finput" type="text" placeholder="Intitulé du bloc"
         value={titre}
@@ -74,7 +75,7 @@ function XpBlockRow({ quete, session, block, mutate, options, xpCalibreur }) {
         onBlur={() => patch((b) => { b.titre = titre.trim(); })}
       />
       <textarea
-        ref={descRef} className="finput finput--area" placeholder="Description…"
+        ref={descRef} className="finput finput--area prep-block__desc" placeholder="Description…"
         value={desc}
         onChange={(e) => { const v = e.target.value; setDesc(v); patch((b) => { b.description = v; }); }}
         onBlur={() => patch((b) => { b.description = desc; })}
@@ -161,7 +162,7 @@ function SessionPane({ quete, session, mutate, xpCalibreur, onSelect }) {
         </div>
       </div>
 
-      <div className="zone-grid">
+      <div className="prep-grid">
         <div className="zone-pane__main">
           <label className="flabel">
             Description
