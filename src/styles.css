@@ -688,6 +688,12 @@ input[type=range]::-moz-range-thumb{ width:14px; height:14px; border-radius:50%;
 .xp-table-wrap{ overflow-x:auto; border:1px solid var(--rule); border-radius:6px; }
 .xp-table-wrap--capped{ max-height:520px; overflow-y:auto; }
 .xp-table{ border-collapse:collapse; width:100%; min-width:560px; font-size:12.5px; }
+/* Colonnes de même largeur sur tous les tableaux d'un même groupe (ex : un
+   tableau par branche dans « Barème ajusté par période ») — les largeurs
+   sont posées en % sur les <th> (même valeurs partout) et table-layout:fixed
+   les fait respecter au lieu de suivre le contenu de chaque tableau. */
+.xp-preview-table{ table-layout:fixed; }
+.xp-preview-table td:first-child, .xp-preview-table th:first-child{ white-space:normal; }
 .xp-table th, .xp-table td{ padding:7px 10px; text-align:right; border-bottom:1px solid var(--rule); font-family:var(--f-mono); white-space:nowrap; }
 .xp-table th:first-child, .xp-table td:first-child{ text-align:left; font-family:var(--f-body); }
 .xp-table thead th{
@@ -728,7 +734,6 @@ input[type=range]::-moz-range-thumb{ width:14px; height:14px; border-radius:50%;
 .xp-combat-out{ margin-top:10px; }
 .xp-combat-big{ font-family:var(--f-mono); font-size:22px; font-weight:700; color:var(--fg); }
 @media (max-width:700px){ .xp-combat{ grid-template-columns:1fr; } }
-
 .xp-profiles{ display:flex; flex-direction:column; gap:8px; }
 .xp-profile-row{ display:grid; grid-template-columns:1fr 110px auto; gap:10px; align-items:center; }
 .xp-profile-swatch{ width:11px; height:11px; border-radius:50%; flex:0 0 auto; display:inline-block; }

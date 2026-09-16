@@ -2,14 +2,31 @@ export const BUDGET_BRANCHES = ['trame', 'secondaire', 'exploration', 'combat'];
 export const BRANCH_ORDER = ['trame', 'secondaire', 'exploration', 'combat', 'speciale'];
 
 export const XP_DEFAULT_STATE = {
-  total: 6809,
-  levels: 25,
-  exponent: 1,
-  total50: 27803,
+  // Le calibreur part des DURÉES cibles, pas d'un budget d'XP : le budget
+  // total est un résultat du calcul, pas une entrée. Voir
+  // computeCampaignCurve dans XpCalibreur.jsx pour le détail des formules
+  // (w(n), coefficient K calibré sur la première période, etc.).
+  startLevel: 5,
+  levels: 25, // niveau maximal
+  exponent: 1, // forme de croissance : w(n) = n^exponent
+  sessionsPerYear: 48,
+  refXpPerSession: 250, // XP moyenne/session pendant la première période (calibrage)
+  // Jalons : chacun fixe un niveau cible et le nombre de SESSIONS CUMULÉES
+  // depuis le niveau de départ pour l'atteindre. Le dernier jalon est
+  // toujours forcé sur le niveau maximal (invariant garanti dans l'UI).
+  jalons: [
+    { targetLevel: 15, cumSessions: 48 },
+    { targetLevel: 25, cumSessions: 96 }
+  ],
+  // Suivi réel optionnel (section 6) : comparer, à nombre de sessions égal,
+  // l'XP réellement gagnée à l'XP attendue selon le calibrage ci-dessus.
+  tracking: { sessionsSoFar: 0, xpSoFar: 0 },
+  // Profils de SIMULATION (pas de calibrage) : rythmes plus lents/rapides que
+  // la référence, comparés aux mêmes seuils déjà calculés, sans jamais
+  // recalibrer la courbe.
   profiles: [
-    { name: 'Modéré', xp: 10 },
-    { name: 'Actif', xp: 17 },
-    { name: 'Intense', xp: 25 }
+    { name: 'Rythme prudent', xp: 180 },
+    { name: 'Rythme soutenu', xp: 320 }
   ],
   combat: { E: 2, base: 2, exp: 2, mode: 'solo' },
   bareme: {
@@ -44,10 +61,13 @@ const clone = (o) => (typeof structuredClone === 'function' ? structuredClone(o)
 export function normalizeXpState(raw) {
   const merged = clone(XP_DEFAULT_STATE);
   const parsed = raw && typeof raw === 'object' ? raw : {};
-  if (typeof parsed.total === 'number') merged.total = parsed.total;
+  if (typeof parsed.startLevel === 'number') merged.startLevel = parsed.startLevel;
   if (typeof parsed.levels === 'number') merged.levels = parsed.levels;
   if (typeof parsed.exponent === 'number') merged.exponent = parsed.exponent;
-  if (typeof parsed.total50 === 'number') merged.total50 = parsed.total50;
+  if (typeof parsed.sessionsPerYear === 'number') merged.sessionsPerYear = parsed.sessionsPerYear;
+  if (typeof parsed.refXpPerSession === 'number') merged.refXpPerSession = parsed.refXpPerSession;
+  if (Array.isArray(parsed.jalons) && parsed.jalons.length) merged.jalons = parsed.jalons;
+  if (parsed.tracking) merged.tracking = Object.assign({}, merged.tracking, parsed.tracking);
   if (Array.isArray(parsed.profiles) && parsed.profiles.length) merged.profiles = parsed.profiles;
   if (parsed.combat) merged.combat = Object.assign({}, merged.combat, parsed.combat);
   if (parsed.bareme) {

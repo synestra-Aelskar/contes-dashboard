@@ -3,11 +3,14 @@ import { useSyncedField } from '../../lib/useSyncedField.js';
 import { BUDGET_BRANCHES, BRANCH_ORDER, XP_DEFAULT_STATE } from '../../lib/xpCalibreur.js';
 
 /**
- * Calibreur d'XP — courbe de progression, barème par branche (glisser-déposer),
- * profils de rythme, calculateur de combat, graphiques. Contenu partagé
- * (state.xpCalibreur), synchronisé en temps réel comme le reste du tableau
- * de bord : chaque champ texte/numérique utilise le motif « brouillon local
- * + patch immédiat » pour rester réactif pendant la frappe.
+ * Calibreur d'XP — calibrage par DURÉES CIBLES : on renseigne le niveau de
+ * départ, le niveau maximal, le rythme de sessions par an, l'XP moyenne de
+ * référence pour la première période et une liste de jalons (niveau cible +
+ * session cumulée depuis le départ). Le budget d'XP de chaque montée de
+ * niveau, le budget total et l'XP moyenne à distribuer par période sont des
+ * RÉSULTATS du calcul, pas des entrées — voir computeCampaignCurve plus bas
+ * pour le détail des formules (w(n) = n^exponent, coefficient K calibré sur
+ * la seule première période puis appliqué tel quel à toute la courbe).
  *
  * Même architecture visuelle que l'Équilibrage DD (voir Equilibrage.jsx et
  * les classes .xp-* / .dd-* de styles.css) : pas de style isolé ici, tout
@@ -39,6 +42,12 @@ function fmt(n) {
 function fmtUp(n) {
   if (!isFinite(n)) return '–';
   return Math.ceil(n).toLocaleString('fr-FR');
+}
+// Affichage à une décimale — les sessions fractionnaires sont conservées en
+// calcul (voir section 7 du cahier des charges), seul l'affichage arrondit.
+function fmt1(n) {
+  if (!isFinite(n)) return '–';
+  return n.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 
 function niceStep(maxVal, ticks) {
@@ -73,7 +82,10 @@ function expLabel(e) {
 function deriveResults(st, levels, T, cost, cum, total) {
   // La répartition par branche découle automatiquement du poids XP de
   // chaque branche dans le barème (somme des types Trame / Secondaire /
-  // Exploration / Combat). Spéciale reste hors de ce calcul.
+  // Exploration / Combat). Spéciale reste hors de ce calcul. NB (cahier des
+  // charges §5) : cette somme pondère par les valeurs unitaires, pas par
+  // leur fréquence réelle en jeu — voir le caveat affiché dans la carte
+  // « Répartition par branche ».
   const n = BUDGET_BRANCHES.length;
   const rawSums = BUDGET_BRANCHES.map((key) => branchXpSum(st, key));
   const sumR = rawSums.reduce((a, b) => a + b, 0);
@@ -104,6 +116,8 @@ function deriveResults(st, levels, T, cost, cum, total) {
     });
   }
 
+  // Profils = SIMULATIONS (cahier des charges §6) : lues sur les seuils déjà
+  // calculés (cum[]), jamais recalibrées pour chaque profil.
   const profileResults = (st.profiles || []).map((p, idx) => {
     const xp = Math.max(0.01, Number(p.xp) || 0.01);
     const sessionsAt = new Array(T + 1).fill(0);
@@ -138,69 +152,174 @@ function deriveResults(st, levels, T, cost, cum, total) {
   return { levels, total, T, cost, cum, branchCost, branchCum, profileResults, baremeResults };
 }
 
-function computeAll(st) {
-  const levels = clamp(Math.round(Number(st.levels) || 25), 2, 60);
-  const total = Math.max(0, Math.round(Number(st.total) || 0));
-  const exponent = clamp(Number(st.exponent) || 1, 0.1, 4);
-  const T = levels - 1;
+// Courbe de campagne calibrée par durées cibles (cahier des charges §1-3).
+//
+// w(n)  = poids positif de la montée du niveau n vers n+1 = n^exponent
+// K     = coefficient unique, calibré UNIQUEMENT sur la première période :
+//         K = budgetReference / somme(w(n), n = startLevel..premierJalon-1)
+//         avec budgetReference = sessionsPériode1 × refXpPerSession
+// cout(n) = K × w(n), appliqué tel quel jusqu'au niveau maximal (et au-delà
+//           pour la suite PNJ jusqu'au niveau 50, séparément, sans jamais
+//           recalibrer K) — aucune période n'est renormalisée sur son propre
+//           budget, aucun jalon ne remet la courbe à zéro.
+function computeCampaignCurve(xp) {
+  const startLevel = clamp(Math.round(Number(xp.startLevel) || 5), 1, 58);
+  const maxLevel = clamp(Math.round(Number(xp.levels) || 25), startLevel + 1, 60);
+  const exponent = clamp(Number(xp.exponent) || 1, 0.1, 4);
+  const sessionsPerYear = Math.max(1, Number(xp.sessionsPerYear) || 48);
+  const refRate = Math.max(0.01, Number(xp.refXpPerSession) || 250);
 
-  const weights = new Array(T + 1).fill(0);
-  for (let t = 1; t <= T; t++) weights[t] = Math.pow(t, exponent);
-  const prefix = new Array(T + 1).fill(0);
-  for (let t = 1; t <= T; t++) prefix[t] = prefix[t - 1] + weights[t];
-  const sumAll = prefix[T] || 1;
+  const capLevel = Math.max(maxLevel, 50);
+  const T = maxLevel - startLevel;
+  const Tcap = capLevel - startLevel;
 
-  const cum = new Array(T + 1).fill(0);
-  for (let t = 1; t <= T; t++) cum[t] = Math.round(total * prefix[t] / sumAll);
-  cum[T] = total;
+  // w[t] = poids de la montée du niveau (startLevel+t-1) vers (startLevel+t)
+  const w = new Array(Tcap + 1).fill(0);
+  for (let t = 1; t <= Tcap; t++) w[t] = Math.pow(startLevel + t - 1, exponent);
+  const prefix = new Array(Tcap + 1).fill(0);
+  for (let t = 1; t <= Tcap; t++) prefix[t] = prefix[t - 1] + w[t];
 
-  const cost = new Array(T + 1).fill(0);
-  for (let t = 1; t <= T; t++) cost[t] = cum[t] - cum[t - 1];
+  const rawJalons = (xp.jalons && xp.jalons.length) ? xp.jalons : [{ targetLevel: maxLevel, cumSessions: sessionsPerYear }];
+  const jalons = rawJalons.map((j) => ({
+    targetLevel: clamp(Math.round(Number(j.targetLevel) || (startLevel + 1)), startLevel + 1, maxLevel),
+    cumSessions: Math.max(0, Number(j.cumSessions) || 0)
+  }));
+  jalons.sort((a, b) => a.targetLevel - b.targetLevel);
+  jalons[jalons.length - 1].targetLevel = maxLevel; // invariant §7 : dernier jalon = niveau maximal
 
-  return deriveResults(st, levels, T, cost, cum, total);
+  const firstT = jalons[0].targetLevel - startLevel;
+  const period1Sessions = Math.max(1, jalons[0].cumSessions || sessionsPerYear);
+  const budgetReference = period1Sessions * refRate;
+  const sumW1 = prefix[firstT] || 1;
+  const K = budgetReference / sumW1;
+
+  const cum = new Array(Tcap + 1).fill(0);
+  for (let t = 1; t <= Tcap; t++) cum[t] = Math.round(K * prefix[t]);
+  cum[firstT] = Math.round(budgetReference); // garantit l'exactitude de la 1ère période malgré les arrondis
+
+  const cost = new Array(Tcap + 1).fill(0);
+  for (let t = 1; t <= Tcap; t++) cost[t] = Math.max(0, cum[t] - cum[t - 1]);
+
+  let prevT = 0, prevSessions = 0;
+  const periods = jalons.map((j, i) => {
+    const tCur = j.targetLevel - startLevel;
+    const sessions = Math.max(1, j.cumSessions - prevSessions);
+    const budget = cum[tCur] - cum[prevT];
+    const avgRate = budget / sessions;
+    const multiplier = refRate > 0 ? avgRate / refRate : 0;
+    const period = {
+      idx: i, fromLevel: startLevel + prevT, toLevel: j.targetLevel,
+      fromT: prevT, toT: tCur,
+      fromSession: prevSessions, toSession: j.cumSessions,
+      sessions, budget, avgRate, multiplier
+    };
+    prevT = tCur; prevSessions = j.cumSessions;
+    return period;
+  });
+
+  const periodForT = new Array(Tcap + 1).fill(null);
+  periods.forEach((p) => {
+    for (let t = p.fromT + 1; t <= p.toT; t++) periodForT[t] = p;
+  });
+
+  return {
+    startLevel, maxLevel, capLevel, T, Tcap, exponent, sessionsPerYear, refRate,
+    jalons, periods, periodForT, K, cost, cum,
+    total: cum[T],
+    total50: capLevel > maxLevel ? cum[Tcap] : null
+  };
 }
 
-// Prolonge la courbe du niveau max configuré jusqu'au niveau 50. Les niveaux
-// 1..max gardent exactement les valeurs de computeAll(state) (aucun changement
-// rétroactif) ; le segment max+1..50 est réparti selon la même forme de
-// croissance (exponent) mais normalisé sur ce seul segment, de façon à tomber
-// pile sur le total visé "state.total50" fixé par l'utilisateur.
-function computeExtendedTo50(state) {
-  const levels = clamp(Math.round(Number(state.levels) || 25), 2, 60);
-  if (levels >= 50) return null;
-  const T = levels - 1;
-  const exponent = clamp(Number(state.exponent) || 1, 0.1, 4);
-  const T2 = 49;
-
-  const base = computeAll(state);
-  const total = base.total;
-
-  const w = new Array(T2 + 1).fill(0);
-  for (let t = 1; t <= T2; t++) w[t] = Math.pow(t, exponent);
-  const prefix = new Array(T2 + 1).fill(0);
-  for (let t = 1; t <= T2; t++) prefix[t] = prefix[t - 1] + w[t];
-  const segWeight = prefix[T2] - prefix[T];
-
-  const total50Raw = Math.round(Number(state.total50) || 0);
-  const total50 = Math.max(total + 1, total50Raw);
-  const remaining = total50 - total;
-
-  const cum = new Array(T2 + 1).fill(0);
-  for (let t = 0; t <= T; t++) cum[t] = base.cum[t];
-  for (let t = T + 1; t <= T2; t++) {
-    cum[t] = segWeight > 0
-      ? total + Math.round(remaining * (prefix[t] - prefix[T]) / segWeight)
-      : total + Math.round(remaining * (t - T) / (T2 - T));
+// Tableau niveau par niveau (cahier des charges §4) : XP depuis le
+// précédent, XP cumulée, sessions estimées pour cette montée, session
+// cumulée estimée d'obtention, durée équivalente en années. Moyenne d'XP
+// constante à l'intérieur de chaque période (les coûts, eux, restent issus
+// de la courbe globale) ; au-delà du dernier jalon (suite PNJ), pas de
+// notion de session.
+function buildLevelSchedule(curve, fromT, toT) {
+  const rows = [];
+  for (let t = fromT; t <= toT; t++) {
+    const period = curve.periodForT[t];
+    let sessionsForThisLevel = null, sessionCum = null, years = null;
+    if (period) {
+      sessionsForThisLevel = curve.cost[t] / period.avgRate;
+      sessionCum = period.fromSession + (curve.cum[t] - curve.cum[period.fromT]) / period.avgRate;
+      years = sessionCum / curve.sessionsPerYear;
+    }
+    rows.push({
+      level: curve.startLevel + t,
+      cost: curve.cost[t],
+      cum: curve.cum[t],
+      sessionsForThisLevel, sessionCum, years,
+      isFinal: t === toT
+    });
   }
-  cum[T2] = total50;
+  return rows;
+}
 
-  const cost = new Array(T2 + 1).fill(0);
-  for (let t = 1; t <= T2; t++) cost[t] = cum[t] - cum[t - 1];
+// Barème ajusté par période (cahier des charges §5) : les valeurs saisies
+// restent la référence de la première période, jamais écrasées ; chaque
+// période suivante affiche juste un aperçu = référence × multiplicateur.
+function computeBaremeAdjustedPreview(xp) {
+  return BRANCH_ORDER.map((key) => ({
+    key,
+    label: BRANCH_LABELS[key],
+    colorVar: BRANCH_VARS[key],
+    items: (xp.bareme && xp.bareme[key] || []).map((it) => ({
+      name: it.name || 'Type',
+      referenceXp: Math.max(0.01, Number(it.xp) || 0.01)
+    }))
+  }));
+}
 
-  return deriveResults(state, 50, T2, cost, cum, total50);
+// XP attendue à un nombre de sessions cumulées donné, en interpolant
+// linéairement (rythme constant) à l'intérieur de la période concernée —
+// pour le suivi réel optionnel (§6). Au-delà du plan, extrapole avec le
+// rythme de la dernière période.
+function expectedXpAtSession(curve, sessionCount) {
+  const S = Math.max(0, Number(sessionCount) || 0);
+  const periods = curve.periods;
+  let period = periods.find((p) => S <= p.toSession);
+  if (!period) period = periods[periods.length - 1];
+  const within = Math.max(0, S - period.fromSession);
+  return Math.max(0, curve.cum[period.fromT] + within * period.avgRate);
 }
 
 // ---------- sous-composants ----------
+
+function JalonRow({ j, idx, isLast, period, maxLevel, minLevel, onChangeField, onRemove, disabled }) {
+  const [level, setLevel] = useSyncedField(j.targetLevel);
+  const [cumSessions, setCumSessions] = useSyncedField(j.cumSessions);
+  return (
+    <tr className={idx === 0 ? 'final' : undefined}>
+      <td>
+        {isLast ? (
+          <input className="finput finput--num" type="number" value={maxLevel} disabled readOnly title="Le dernier jalon est toujours le niveau maximal" aria-label="Niveau cible" />
+        ) : (
+          <input
+            className="finput finput--num" type="number" min={minLevel} max={maxLevel} step="1" value={level}
+            aria-label="Niveau cible"
+            onChange={(e) => { const v = Number(e.target.value) || minLevel; setLevel(v); onChangeField(idx, 'targetLevel', v); }}
+          />
+        )}
+      </td>
+      <td>
+        <input
+          className="finput finput--num" type="number" min="1" step="1" value={cumSessions}
+          aria-label="Session cumulée depuis le départ"
+          onChange={(e) => { const v = Number(e.target.value) || 1; setCumSessions(v); onChangeField(idx, 'cumSessions', v); }}
+        />
+      </td>
+      <td className="num tab-num">{period ? fmt(period.sessions) : '–'}</td>
+      <td className="num tab-num">{period ? fmt(period.budget) : '–'}</td>
+      <td className="num tab-num">{period ? fmtUp(period.avgRate) : '–'}</td>
+      <td className="num tab-num">{period ? (idx === 0 ? '— (référence)' : `×${period.multiplier.toFixed(2)}`) : '–'}</td>
+      <td>
+        <button className="tbtn" type="button" aria-label={`Retirer le jalon niveau ${j.targetLevel}`} disabled={disabled} onClick={() => onRemove(idx)}>✕</button>
+      </td>
+    </tr>
+  );
+}
 
 function BaremeItemRow({ item, idx, branchKey, cumTotal, onChangeItem, onRemove, disabled, rowRef, dragHandlers }) {
   const [name, setName] = useSyncedField(item.name);
@@ -444,7 +563,7 @@ function CombatCalcFrame({ combat, onChangeField }) {
   );
 }
 
-function BranchChart({ data }) {
+function BranchChart({ data, baseLevel = 1 }) {
   const holderRef = useRef(null);
   const [tooltip, setTooltip] = useState(null);
   const T = data.T;
@@ -504,7 +623,7 @@ function BranchChart({ data }) {
     if (t % labelStep === 0 || t === T || t === 1) {
       bars.push(
         <text key={`${t}-lbl`} x={x0 + barW / 2} y={marginTop + drawH + 18} textAnchor="middle" fontSize="10" style={axisTextStyle}>
-          {t + 1}
+          {baseLevel + t}
         </text>
       );
     }
@@ -528,7 +647,7 @@ function BranchChart({ data }) {
             className="xp-chart-tip"
             style={{ left: tooltip.left, top: tooltip.top, transform: 'translate(-50%, calc(-100% - 10px))' }}
           >
-            <div className="tt-title">Niveau {tooltip.t} → {tooltip.t + 1} · {fmt(data.cost[tooltip.t])} XP</div>
+            <div className="tt-title">Niveau {baseLevel + tooltip.t - 1} → {baseLevel + tooltip.t} · {fmt(data.cost[tooltip.t])} XP</div>
             <div className="row"><span className="dot" style={{ background: `var(${BRANCH_VARS.trame})` }}></span>Trame {fmt(data.branchCost.trame[tooltip.t])}</div>
             <div className="row"><span className="dot" style={{ background: `var(${BRANCH_VARS.secondaire})` }}></span>Secondaire {fmt(data.branchCost.secondaire[tooltip.t])}</div>
             <div className="row"><span className="dot" style={{ background: `var(${BRANCH_VARS.exploration})` }}></span>Exploration {fmt(data.branchCost.exploration[tooltip.t])}</div>
@@ -540,7 +659,7 @@ function BranchChart({ data }) {
   );
 }
 
-function ProgressionTable({ data }) {
+function ProgressionTable({ data, baseLevel = 1 }) {
   const rows = [];
   for (let t = 1; t <= data.T; t++) rows.push(t);
   return (
@@ -559,7 +678,7 @@ function ProgressionTable({ data }) {
         <tbody>
           {rows.map((t) => (
             <tr key={t} className={t === data.T ? 'final' : undefined}>
-              <td className="num tab-num">{t + 1}</td>
+              <td className="num tab-num">{baseLevel + t}</td>
               <td className="num tab-num">{fmt(data.cost[t])}</td>
               <td className="num tab-num">{fmt(data.cum[t])}</td>
               <td className="num tab-num xp-branch-trame">{fmt(data.branchCum.trame[t])}</td>
@@ -575,7 +694,7 @@ function ProgressionTable({ data }) {
   );
 }
 
-function BaremeLevelTable({ data, fromT, toT, capped }) {
+function BaremeLevelTable({ data, fromT, toT, baseLevel = 1, capped }) {
   const rows = [];
   for (let t = fromT; t <= toT; t++) rows.push(t);
   return (
@@ -592,12 +711,39 @@ function BaremeLevelTable({ data, fromT, toT, capped }) {
         <tbody>
           {rows.map((t) => (
             <tr key={t} className={t === toT ? 'final' : undefined}>
-              <td className="num tab-num">{t + 1}</td>
+              <td className="num tab-num">{baseLevel + t}</td>
               <td className="num tab-num">{fmt(data.cost[t])}</td>
               <td className="num tab-num">{fmt(data.cum[t])}</td>
               {data.baremeResults.map((br, i) => (
                 <td key={i} className={`num tab-num xp-branch-${br.branch}`}>{fmt(br.completionsAt[t])}</td>
               ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function LevelScheduleTable({ rows, capped }) {
+  return (
+    <div className={'xp-table-wrap' + (capped ? ' xp-table-wrap--capped' : '')}>
+      <table className="xp-table">
+        <thead>
+          <tr>
+            <th>Niveau</th><th>XP depuis le précédent</th><th>XP cumulée</th>
+            <th>Sessions pour cette montée</th><th>Session cumulée estimée</th><th>Durée (années)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.level} className={r.isFinal ? 'final' : undefined}>
+              <td className="num tab-num">{r.level}</td>
+              <td className="num tab-num">{fmt(r.cost)}</td>
+              <td className="num tab-num">{fmt(r.cum)}</td>
+              <td className="num tab-num">{r.sessionsForThisLevel != null ? fmt1(r.sessionsForThisLevel) : '–'}</td>
+              <td className="num tab-num">{r.sessionCum != null ? fmt1(r.sessionCum) : '–'}</td>
+              <td className="num tab-num">{r.years != null ? r.years.toFixed(2) : '–'}</td>
             </tr>
           ))}
         </tbody>
@@ -632,15 +778,73 @@ function ProfileRow({ p, idx, setProfileField, removeProfile, disabled }) {
 export default function XpCalibreur({ state, mutate }) {
   const xp = state.xpCalibreur;
 
-  const [total, setTotal] = useSyncedField(xp.total);
+  const [startLevel, setStartLevel] = useSyncedField(xp.startLevel);
   const [levels, setLevels] = useSyncedField(xp.levels);
-  const [total50, setTotal50] = useSyncedField(xp.total50);
+  const [sessionsPerYear, setSessionsPerYear] = useSyncedField(xp.sessionsPerYear);
+  const [refXpPerSession, setRefXpPerSession] = useSyncedField(xp.refXpPerSession);
+  const [sessionsSoFar, setSessionsSoFar] = useSyncedField(xp.tracking.sessionsSoFar);
+  const [xpSoFar, setXpSoFar] = useSyncedField(xp.tracking.xpSoFar);
 
-  const data = useMemo(() => computeAll(xp), [xp]);
-  const data50 = useMemo(() => computeExtendedTo50(xp), [xp]);
+  const curve = useMemo(() => computeCampaignCurve(xp), [xp]);
+  const data = useMemo(
+    () => deriveResults(xp, curve.maxLevel, curve.T, curve.cost, curve.cum, curve.total),
+    [xp, curve]
+  );
+  const data50 = useMemo(
+    () => (curve.capLevel > curve.maxLevel
+      ? deriveResults(xp, curve.capLevel, curve.Tcap, curve.cost, curve.cum, curve.total50)
+      : null),
+    [xp, curve]
+  );
+  const fullData = data50 || data;
+  const baremePreview = useMemo(() => computeBaremeAdjustedPreview(xp), [xp]);
+  // Mêmes largeurs de colonnes sur les 5 tableaux (un par branche) : calculées
+  // une seule fois ici à partir du nombre de périodes, posées en % identiques
+  // partout, pour que les colonnes s'alignent d'une branche à l'autre.
+  const previewColPct = useMemo(() => {
+    const dataCols = Math.max(1, curve.periods.length);
+    const first = 42;
+    return { first, data: (100 - first) / dataCols };
+  }, [curve]);
+
+  const warnings = useMemo(() => {
+    const list = [];
+    const sl = Number(xp.startLevel) || 0, ml = Number(xp.levels) || 0;
+    if (ml <= sl) list.push('Le niveau maximal doit être strictement supérieur au niveau de départ.');
+    if ((Number(xp.refXpPerSession) || 0) <= 0) list.push("L'XP moyenne de référence doit être positive.");
+    let prevSessions = 0, prevLevel = sl;
+    (xp.jalons || []).forEach((j, i) => {
+      const s = Number(j.cumSessions) || 0;
+      const l = Number(j.targetLevel) || 0;
+      if (s <= prevSessions) list.push(`Jalon ${i + 1} : la session cumulée (${s}) doit être strictement supérieure à celle du jalon précédent (${prevSessions}).`);
+      if (l <= prevLevel) list.push(`Jalon ${i + 1} : le niveau cible doit être strictement supérieur au jalon précédent.`);
+      prevSessions = s; prevLevel = l;
+    });
+    return list;
+  }, [xp]);
 
   const setField = (key, value) => mutate((s) => { s.xpCalibreur[key] = value; });
   const setCombatField = (key, value) => mutate((s) => { s.xpCalibreur.combat[key] = value; });
+  const setTrackingField = (key, value) => mutate((s) => { s.xpCalibreur.tracking[key] = value; });
+
+  const addJalon = () => mutate((s) => {
+    const arr = s.xpCalibreur.jalons;
+    if (arr.length < 6) {
+      const last = arr[arr.length - 1];
+      const prevLevel = arr.length >= 2 ? arr[arr.length - 2].targetLevel : Number(s.xpCalibreur.startLevel) || 5;
+      const newLevel = clamp(Math.round((prevLevel + last.targetLevel) / 2), prevLevel + 1, last.targetLevel - 1);
+      const prevSessions = arr.length >= 2 ? arr[arr.length - 2].cumSessions : 0;
+      const newSessions = Math.max(prevSessions + 1, Math.round((prevSessions + last.cumSessions) / 2));
+      arr.splice(arr.length - 1, 0, { targetLevel: newLevel, cumSessions: newSessions });
+    }
+  });
+  const removeJalon = (idx) => mutate((s) => {
+    const arr = s.xpCalibreur.jalons;
+    if (arr.length > 1 && idx < arr.length - 1) arr.splice(idx, 1);
+  });
+  const setJalonField = (idx, field, value) => mutate((s) => {
+    s.xpCalibreur.jalons[idx][field] = value;
+  });
 
   const setBaremeField = (branchKey, idx, field, value) => mutate((s) => {
     s.xpCalibreur.bareme[branchKey][idx][field] = value;
@@ -664,7 +868,7 @@ export default function XpCalibreur({ state, mutate }) {
 
   const addProfile = () => mutate((s) => {
     const p = s.xpCalibreur.profiles;
-    if (p.length < 6) p.push({ name: `Profil ${p.length + 1}`, xp: 15 });
+    if (p.length < 6) p.push({ name: `Profil ${p.length + 1}`, xp: Math.round(Number(s.xpCalibreur.refXpPerSession) || 250) });
   });
 
   const removeProfile = (idx) => mutate((s) => {
@@ -697,44 +901,60 @@ export default function XpCalibreur({ state, mutate }) {
 
   const cumTotal = data.cum[data.T];
 
+  const expectedXpSoFar = expectedXpAtSession(curve, Number(sessionsSoFar) || 0);
+  const deltaXp = (Number(xpSoFar) || 0) - expectedXpSoFar;
+
   return (
     <section className="chapter">
       <div className="chapter__head">
         <h2>Calibreur d'XP</h2>
         <span className="xp-sub">
-          Total d'XP, forme de croissance et barème par branche : la courbe est découpée automatiquement,
-          et le temps de jeu nécessaire estimé selon différents rythmes de session.
+          Calibrage par durées cibles : niveau de départ, niveau maximal, rythme de sessions et jalons — le
+          budget d'XP de chaque palier, le budget total et l'XP moyenne par période en sont déduits.
         </span>
       </div>
 
       <div className="xp-grid">
-        <section className="xp-card xp-span-2">
-          <h3 className="xp-h2">Courbe &amp; budget total</h3>
-          <p className="xp-cardsub">Le total est réparti sur les niveaux selon la forme de croissance choisie — la somme des paliers retombe toujours exactement sur ce total.</p>
+        <section className="xp-card xp-span-6">
+          <h3 className="xp-h2">Objectif de niveau</h3>
+          <p className="xp-cardsub">
+            Renseigne les durées cibles, pas un budget : le budget d'XP de chaque palier, le budget total et
+            l'XP moyenne à distribuer par période sont calculés à partir de ça.
+          </p>
           <div className="xp-fieldgrid">
-            <label className="flabel xp-field" htmlFor="in-total">
-              XP total (niveau 1 → niveau max)
+            <label className="flabel xp-field" htmlFor="in-start">
+              Niveau de départ
               <input
-                className="finput finput--num" type="number" id="in-total" min="1" step="1" value={total}
-                onChange={(e) => { const v = Number(e.target.value) || 0; setTotal(v); setField('total', v); }}
+                className="finput finput--num" type="number" id="in-start" min="1" max="58" step="1" value={startLevel}
+                onChange={(e) => { const v = Number(e.target.value) || 1; setStartLevel(v); setField('startLevel', v); }}
               />
             </label>
             <label className="flabel xp-field" htmlFor="in-levels">
-              Niveau maximum
+              Niveau maximal
               <input
-                className="finput finput--num" type="number" id="in-levels" min="2" max="60" step="1" value={levels}
+                className="finput finput--num" type="number" id="in-levels" min={Number(startLevel) + 1} max="60" step="1" value={levels}
                 onChange={(e) => { const v = Number(e.target.value) || 25; setLevels(v); setField('levels', v); }}
               />
             </label>
-            <label className="flabel xp-field" htmlFor="in-total50">
-              XP total visé — niveau 50
+            <label className="flabel xp-field" htmlFor="in-spy">
+              Sessions jouées par an
               <input
-                className="finput finput--num" type="number" id="in-total50" min="1" step="1" value={total50}
-                onChange={(e) => { const v = Number(e.target.value) || 0; setTotal50(v); setField('total50', v); }}
+                className="finput finput--num" type="number" id="in-spy" min="1" step="1" value={sessionsPerYear}
+                onChange={(e) => { const v = Number(e.target.value) || 48; setSessionsPerYear(v); setField('sessionsPerYear', v); }}
+              />
+            </label>
+            <label className="flabel xp-field" htmlFor="in-refrate">
+              XP moyenne/session — 1ère période
+              <input
+                className="finput finput--num" type="number" id="in-refrate" min="0.1" step="1" value={refXpPerSession}
+                onChange={(e) => { const v = Number(e.target.value) || 0.1; setRefXpPerSession(v); setField('refXpPerSession', v); }}
               />
             </label>
           </div>
-          <p className="xp-hint">Le niveau maximum sépare la progression des joueurs (1 → max) de la suite réservée aux PNJ de lore (max → 50, détaillée plus bas).</p>
+          <p className="xp-hint">
+            Le niveau maximal sépare la progression des joueurs (départ → max) de la suite réservée aux PNJ de
+            lore (max → 50, détaillée plus bas, jamais recalibrée).
+          </p>
 
           <label className="flabel xp-field" htmlFor="in-exp" style={{ marginTop: 14 }}>
             <span className="xp-labelrow">
@@ -749,19 +969,170 @@ export default function XpCalibreur({ state, mutate }) {
               />
               <span className="xp-hint num" style={{ margin: 0 }}>3.0</span>
             </div>
-            <p className="xp-hint">Plus bas = paliers presque égaux du début à la fin. Plus haut = les derniers niveaux coûtent bien plus cher que les premiers.</p>
+            <p className="xp-hint">
+              Plus bas = paliers presque égaux du début à la fin (les deux périodes coûteraient alors le même
+              budget). Plus haut = les niveaux 15-25 coûtent bien plus cher que les niveaux 5-15.
+            </p>
           </label>
+
+          <p className="xp-subhead" style={{ marginTop: 20 }}>Jalons</p>
+          <p className="xp-cardsub" style={{ marginTop: 0 }}>
+            Niveau cible + session cumulée depuis le départ (pas la durée de la période, calculée juste à
+            côté pour éviter toute ambiguïté). Le premier jalon (ligne en gras) calibre tout : son budget
+            (sessions × XP moyenne de référence ci-dessus) fixe le coefficient appliqué ensuite, tel quel, à
+            toute la courbe. Le dernier jalon est toujours le niveau maximal.
+          </p>
+          <div className="xp-table-wrap">
+            <table className="xp-table">
+              <thead>
+                <tr>
+                  <th>Niveau cible</th><th>Session cumulée</th><th>Durée (sessions)</th>
+                  <th>Budget d'XP</th><th>XP moyenne/session</th><th>Multiplicateur</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {xp.jalons.map((j, idx) => (
+                  <JalonRow
+                    key={idx}
+                    j={j}
+                    idx={idx}
+                    isLast={idx === xp.jalons.length - 1}
+                    period={curve.periods[idx]}
+                    maxLevel={curve.maxLevel}
+                    minLevel={curve.startLevel + 1}
+                    onChangeField={setJalonField}
+                    onRemove={removeJalon}
+                    disabled={idx === xp.jalons.length - 1}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="xp-actions">
+            <button className="tbtn" onClick={addJalon} disabled={xp.jalons.length >= 6}>+ Ajouter un jalon</button>
+          </div>
+
+          {warnings.length ? (
+            <div className="xp-warnbox" style={{ marginTop: 12 }}>
+              {warnings.map((w, i) => <p className="xp-hint" key={i} style={{ color: 'var(--blood)', margin: '2px 0' }}>⚠ {w}</p>)}
+            </div>
+          ) : null}
+
+          <div className="xp-tiles" style={{ marginTop: 16 }}>
+            <div className="xp-tile">
+              <div className="xp-tile-label">Budget total — niveau {curve.startLevel} → {curve.maxLevel}</div>
+              <div className="xp-tile-value num tab-num">{fmt(curve.total)} XP</div>
+              <div className="xp-tile-sub">résultat du calcul, pas une entrée</div>
+            </div>
+            {curve.total50 != null ? (
+              <div className="xp-tile">
+                <div className="xp-tile-label">XP total — suite PNJ jusqu'au niveau 50</div>
+                <div className="xp-tile-value num tab-num">{fmt(curve.total50)} XP</div>
+                <div className="xp-tile-sub">même coefficient, séparé du calibrage campagne</div>
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="xp-card xp-span-6">
+          <h3 className="xp-h2">Barème ajusté par période</h3>
+          <p className="xp-cardsub">
+            Les valeurs saisies dans « Barème d'XP par type d'événement » plus bas restent la référence de la
+            première période — jamais écrasées. Pour chaque période suivante, aperçu = référence × multiplicateur
+            de la période. Ce multiplicateur donne la moyenne visée <b>si le nombre et la composition des
+            événements par session restent similaires</b> à la première période : c'est une aide au calibrage,
+            pas une garantie de gains réels.
+          </p>
+          <div className="xp-bareme-grid">
+            {baremePreview.map((group) => (
+              <div className="xp-bareme-group" key={group.key}>
+                <div className="xp-bareme-title">
+                  <span className="xp-swatch" style={{ background: `var(${group.colorVar})` }}></span>{group.label}
+                </div>
+                <div className="xp-table-wrap">
+                  <table className="xp-table xp-preview-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: `${previewColPct.first}%` }}>Type</th>
+                        <th style={{ width: `${previewColPct.data}%` }}>Référence</th>
+                        {curve.periods.slice(1).map((p) => (
+                          <th key={p.idx} style={{ width: `${previewColPct.data}%` }} title={`Niveau ${p.fromLevel} → ${p.toLevel}`}>
+                            Période {p.idx + 1} (×{p.multiplier.toFixed(2)})
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.items.map((it, i) => (
+                        <tr key={i}>
+                          <td>{it.name}</td>
+                          <td className="num tab-num">{fmtUp(it.referenceXp)}</td>
+                          {curve.periods.slice(1).map((p) => (
+                            <td key={p.idx} className="num tab-num">{fmtUp(it.referenceXp * p.multiplier)}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="xp-card xp-span-6">
+          <h3 className="xp-h2">Progression détaillée — niveau {curve.startLevel} à {curve.maxLevel}</h3>
+          <p className="xp-cardsub" style={{ marginBottom: 0 }}>
+            Palier par palier : XP depuis le niveau précédent, XP cumulée depuis le niveau {curve.startLevel},
+            sessions estimées pour cette montée, session cumulée estimée et durée équivalente en années (au
+            rythme de {fmt(curve.sessionsPerYear)} sessions/an configuré ci-dessus). Les jalons retombent
+            exactement sur leurs sessions cibles.
+          </p>
+        </section>
+        <section className="xp-card xp-span-6">
+          <LevelScheduleTable rows={buildLevelSchedule(curve, 1, curve.T)} capped />
+        </section>
+
+        <section className="xp-card xp-span-6">
+          <h3 className="xp-h2">Complétions de barème — niveau {curve.startLevel} à {fullData.levels}</h3>
+          <p className="xp-cardsub" style={{ marginBottom: 0 }}>
+            Pour chaque type du barème, combien de complétions il faut pour passer d'un niveau au suivant, en
+            continu du niveau {curve.startLevel} au niveau {fullData.levels} (inclut la suite PNJ jusqu'à 50
+            si le niveau maximal configuré est inférieur).
+          </p>
+        </section>
+        <section className="xp-card xp-span-6">
+          <BaremeLevelTable data={fullData} fromT={1} toT={fullData.T} baseLevel={curve.startLevel} capped />
+        </section>
+
+        <section className="xp-card xp-span-6">
+          <h3 className="xp-h2">Projection graphique — niveau {curve.startLevel} à {fullData.levels}</h3>
+          <p className="xp-cardsub">
+            Coût XP de chaque palier, détail par branche, et session estimée d'obtention par profil de
+            simulation (rythmes plus lents/rapides que la référence, lus sur les mêmes seuils sans recalibrer).
+          </p>
+          <div className="xp-legend">
+            <span className="xp-legend-item"><span className="xp-swatch" style={{ background: `var(${BRANCH_VARS.trame})` }}></span>Trame</span>
+            <span className="xp-legend-item"><span className="xp-swatch" style={{ background: `var(${BRANCH_VARS.secondaire})` }}></span>Secondaire</span>
+            <span className="xp-legend-item"><span className="xp-swatch" style={{ background: `var(${BRANCH_VARS.exploration})` }}></span>Exploration</span>
+            <span className="xp-legend-item"><span className="xp-swatch" style={{ background: `var(${BRANCH_VARS.combat})` }}></span>Combat</span>
+          </div>
+          <BranchChart data={fullData} baseLevel={curve.startLevel} />
+          <div style={{ marginTop: 16 }}>
+            <ProgressionTable data={fullData} baseLevel={curve.startLevel} />
+          </div>
         </section>
 
         <section className="xp-card xp-span-4 xp-rowspan-4">
           <h3 className="xp-h2">Barème d'XP par type d'événement</h3>
           <p className="xp-cardsub">
-            Le détail concret de ce qui rapporte de l'XP dans chaque branche — types librement éditables,
-            ajoute ou retire ce qu'il te faut, et fais glisser la poignée à gauche pour les réordonner.
-            Chaque type affiche le nombre de complétions nécessaires pour boucler toute la courbe jusqu'au
-            niveau maximum configuré ; la ligne « Total » en bas de chaque tableau additionne l'XP de tous
-            les types de la branche et indique combien de fois il faudrait combiner un exemplaire de chacun
-            pour boucler la courbe.
+            Le détail concret de ce qui rapporte de l'XP dans chaque branche, conservé tel quel — ces valeurs
+            sont la référence de la première période (voir « Barème ajusté par période » plus haut). Types
+            librement éditables, ajoute ou retire ce qu'il te faut, et fais glisser la poignée à gauche pour
+            les réordonner. Chaque type affiche le nombre de complétions nécessaires pour boucler toute la
+            courbe jusqu'au niveau maximal configuré ; la ligne « Total » additionne l'XP de tous les types de
+            la branche et indique combien de fois il faudrait combiner un exemplaire de chacun pour boucler
+            la courbe.
           </p>
           <div className="xp-bareme-grid">
             <BaremeTable
@@ -812,9 +1183,14 @@ export default function XpCalibreur({ state, mutate }) {
         <section className="xp-card xp-span-2">
           <h3 className="xp-h2">Répartition par branche</h3>
           <p className="xp-cardsub">
-            Calculée automatiquement à partir du barème ci-contre : plus les types d'une branche pèsent
-            lourd en XP, plus cette branche prend une part importante du budget total. La branche Spéciale
-            reste un bonus à part, hors de ce calcul.
+            Calculée à partir du barème ci-contre : plus les types d'une branche pèsent lourd en XP, plus
+            cette branche prend une part importante ici. La branche Spéciale reste un bonus à part, hors de
+            ce calcul.
+          </p>
+          <p className="xp-hint">
+            ⚠ Ceci pondère par les valeurs unitaires du barème, pas par leur fréquence réelle en jeu — une
+            branche avec de gros jalons rares peut sembler dominante sans l'être à la table. Une vraie
+            prévision demanderait de multiplier chaque récompense par ses occurrences moyennes par session.
           </p>
           <div className="xp-fieldgrid" style={{ gridTemplateColumns: '1fr' }}>
             {BUDGET_BRANCHES.map((key, i) => (
@@ -836,8 +1212,11 @@ export default function XpCalibreur({ state, mutate }) {
         </section>
 
         <section className="xp-card xp-span-2">
-          <h3 className="xp-h2">Profils de rythme</h3>
-          <p className="xp-cardsub">Chaque profil = un rythme de jeu, exprimé en XP moyen gagné par session. Ajoute, renomme ou supprime des profils librement.</p>
+          <h3 className="xp-h2">Profils de simulation</h3>
+          <p className="xp-cardsub">
+            Des rythmes plus lents ou plus rapides que la référence — pour VOIR l'avance ou le retard, ils
+            sont lus sur les mêmes seuils déjà calculés, jamais recalibrés individuellement.
+          </p>
           <div className="xp-profiles">
             {xp.profiles.map((p, idx) => (
               <ProfileRow key={idx} p={p} idx={idx} setProfileField={setProfileField} removeProfile={removeProfile} disabled={xp.profiles.length <= 1} />
@@ -866,56 +1245,37 @@ export default function XpCalibreur({ state, mutate }) {
           </div>
         </section>
 
-        <section className="xp-card xp-span-6">
-          <h3 className="xp-h2">Complétions de barème par niveau</h3>
-          <p className="xp-cardsub" style={{ marginBottom: 0 }}>
-            Pour chaque type du barème ci-dessus, combien de complétions il faut pour passer d'un niveau au
-            suivant. Le premier tableau va du niveau 1 au niveau maximum configuré ; le second reprend à
-            partir de ce niveau maximum jusqu'au niveau 50.
-          </p>
-        </section>
-
-        <section className="xp-card xp-span-3">
-          <p className="xp-subhead">Niveau 1 → {data.levels}</p>
-          <BaremeLevelTable data={data} fromT={1} toT={data.T} capped />
-        </section>
-
-        <section className="xp-card xp-span-3">
-          <p className="xp-subhead">Niveau {data.levels} → 50</p>
-          {data50 ? (
-            <BaremeLevelTable data={data50} fromT={data.T + 1} toT={49} capped />
-          ) : (
-            <p className="xp-hint">Le niveau maximum configuré ci-dessus ({data.levels}) atteint déjà le niveau 50 — pas de suite à afficher.</p>
-          )}
-        </section>
-
-        <section className="xp-card xp-span-6">
-          <h3 className="xp-h2">Projection jusqu'au niveau 50</h3>
-          <p className="xp-cardsub">
-            Coût XP de chaque palier, détail par branche, et session estimée d'obtention par profil de
-            rythme — du niveau 1 au niveau maximum configuré dans « Courbe &amp; budget total » plus haut,
-            prolongé jusqu'au niveau 50 (même barème, même forme de croissance, XP total visé réglable là-haut).
-          </p>
-          {data50 ? (
-            <div className="xp-tiles" style={{ marginBottom: 16 }}>
-              <div className="xp-tile">
-                <div className="xp-tile-label">XP total — niveau 50</div>
-                <div className="xp-tile-value num tab-num">{fmt(data50.total)} XP</div>
-                <div className="xp-tile-sub">fixé manuellement</div>
-              </div>
-            </div>
-          ) : (
-            <p className="xp-hint">Le niveau maximum configuré ci-dessus ({data.levels}) atteint déjà le niveau 50 — pas de prolongement, la courbe s'arrête là.</p>
-          )}
-          <div className="xp-legend">
-            <span className="xp-legend-item"><span className="xp-swatch" style={{ background: `var(${BRANCH_VARS.trame})` }}></span>Trame</span>
-            <span className="xp-legend-item"><span className="xp-swatch" style={{ background: `var(${BRANCH_VARS.secondaire})` }}></span>Secondaire</span>
-            <span className="xp-legend-item"><span className="xp-swatch" style={{ background: `var(${BRANCH_VARS.exploration})` }}></span>Exploration</span>
-            <span className="xp-legend-item"><span className="xp-swatch" style={{ background: `var(${BRANCH_VARS.combat})` }}></span>Combat</span>
+        <section className="xp-card xp-span-2">
+          <h3 className="xp-h2">Suivi réel (optionnel)</h3>
+          <p className="xp-cardsub">Compare, à nombre de sessions égal, l'XP réellement gagnée à l'XP attendue selon le calibrage.</p>
+          <div className="xp-fieldgrid" style={{ gridTemplateColumns: '1fr' }}>
+            <label className="flabel xp-field" htmlFor="in-track-sessions">
+              Sessions jouées à ce jour
+              <input
+                className="finput finput--num" type="number" id="in-track-sessions" min="0" step="1" value={sessionsSoFar}
+                onChange={(e) => { const v = Number(e.target.value) || 0; setSessionsSoFar(v); setTrackingField('sessionsSoFar', v); }}
+              />
+            </label>
+            <label className="flabel xp-field" htmlFor="in-track-xp">
+              XP total gagné à ce jour
+              <input
+                className="finput finput--num" type="number" id="in-track-xp" min="0" step="1" value={xpSoFar}
+                onChange={(e) => { const v = Number(e.target.value) || 0; setXpSoFar(v); setTrackingField('xpSoFar', v); }}
+              />
+            </label>
           </div>
-          <BranchChart data={data50 || data} />
-          <div style={{ marginTop: 16 }}>
-            <ProgressionTable data={data50 || data} />
+          <div className="xp-tiles" style={{ marginTop: 10 }}>
+            <div className="xp-tile">
+              <div className="xp-tile-label">XP attendu à ce stade</div>
+              <div className="xp-tile-value num tab-num">{fmt(expectedXpSoFar)} XP</div>
+            </div>
+            <div className="xp-tile">
+              <div className="xp-tile-label">Écart</div>
+              <div className="xp-tile-value num tab-num" style={{ color: deltaXp >= 0 ? 'var(--kind-data)' : 'var(--blood)' }}>
+                {deltaXp >= 0 ? '+' : ''}{fmt(deltaXp)} XP
+              </div>
+              <div className="xp-tile-sub">{deltaXp >= 0 ? 'avance sur le plan' : 'retard sur le plan'}</div>
+            </div>
           </div>
         </section>
       </div>
