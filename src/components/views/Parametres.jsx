@@ -6,6 +6,7 @@ import {
   ROLES, VIEW_LABEL, listContainers, moveViewToContainer, moveNodeToPosition, addCategory, addSubcategory,
   renameNode, setNodeVisibility, removeNode, moveSibling
 } from '../../lib/menu.js';
+import { PLAYER_EMAIL_DOMAIN } from '../../lib/playerAuth.js';
 
 const TABS = [['ordremenu', 'Ordre menu'], ['temps', 'Temps'], ['comptes', 'Comptes']];
 
@@ -102,7 +103,10 @@ function AccountRow({ user, mutate, onChanged }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [link, setLink] = useState('');
+  const [codeMode, setCodeMode] = useState(false);
+  const [newCode, setNewCode] = useState('');
   const isAdmin = user.role === 'admin';
+  const isPlayerAccount = user.role === 'player' && (user.email || '').endsWith(PLAYER_EMAIL_DOMAIN);
 
   async function resend() {
     setBusy(true);
@@ -117,8 +121,23 @@ function AccountRow({ user, mutate, onChanged }) {
     setBusy(false);
   }
 
+  async function saveCode() {
+    if (!newCode.trim()) return;
+    setBusy(true);
+    setMsg('');
+    try {
+      await callAccountsFn({ action: 'reset_player_code', userId: user.id, code: newCode.trim() });
+      setMsg('Code mis à jour.');
+      setCodeMode(false);
+      setNewCode('');
+    } catch (e) {
+      setMsg(e.message);
+    }
+    setBusy(false);
+  }
+
   async function remove() {
-    if (!window.confirm('Supprimer définitivement le compte « ' + user.email + ' » ? Cette action est irréversible.')) return;
+    if (!window.confirm('Supprimer définitivement le compte « ' + (user.displayName || user.email) + ' » ? Cette action est irréversible.')) return;
     setBusy(true);
     setMsg('');
     try {
@@ -135,7 +154,7 @@ function AccountRow({ user, mutate, onChanged }) {
     <div className={'paramline--account' + (isAdmin ? ' paramline--account-admin' : '')}>
       <div className="paramline paramline--account-row">
         <div className="account__id">
-          <span className="account__email">{user.email}</span>
+          <span className="account__email">{isPlayerAccount ? (user.displayName || user.email) : user.email}</span>
           <span className="account__meta">
             {(ROLES.find((r) => r[0] === user.role) || [, user.role])[1]}
             {user.createdAt ? ' · créé le ' + fmtDateLong(user.createdAt.slice(0, 10)) : ''}
@@ -143,9 +162,24 @@ function AccountRow({ user, mutate, onChanged }) {
           </span>
           {msg && <span className="account__msg">{msg}</span>}
         </div>
-        <button className="tbtn" type="button" disabled={busy} onClick={resend}>
-          {busy ? '…' : 'générer un lien'}
-        </button>
+        {isAdmin && (
+          <button className="tbtn" type="button" disabled={busy} onClick={resend}>
+            {busy ? '…' : 'générer un lien'}
+          </button>
+        )}
+        {isPlayerAccount && !codeMode && (
+          <button className="tbtn" type="button" onClick={() => setCodeMode(true)}>changer le code</button>
+        )}
+        {isPlayerAccount && codeMode && (
+          <div className="account__codeedit">
+            <input
+              className="finput" type="text" placeholder="Nouveau code" value={newCode}
+              onChange={(e) => setNewCode(e.target.value)}
+            />
+            <button className="tbtn" type="button" disabled={busy} onClick={saveCode}>valider</button>
+            <button className="tbtn" type="button" onClick={() => { setCodeMode(false); setNewCode(''); }}>annuler</button>
+          </div>
+        )}
         {isAdmin ? (
           <span className="account__locked" title="Compte admin : ni rôle ni compte modifiable depuis ce répertoire">🔒</span>
         ) : (
@@ -163,6 +197,8 @@ function ComptesPane({ state, mutate }) {
   const [users, setUsers] = useState(null); // null = chargement
   const [loadErr, setLoadErr] = useState('');
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [code, setCode] = useState('');
   const [role, setRole] = useState('player');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -198,11 +234,28 @@ function ComptesPane({ state, mutate }) {
 
   async function createAccount(e) {
     e.preventDefault();
-    const clean = email.trim();
-    if (!clean) return;
     setLink('');
     setBusy(true);
     setMsg('');
+
+    if (role === 'player') {
+      const cleanName = name.trim();
+      const cleanCode = code.trim();
+      if (!cleanName || !cleanCode) { setBusy(false); return; }
+      try {
+        await callAccountsFn({ action: 'create_player', name: cleanName, code: cleanCode });
+        setMsg('Compte créé — donne-lui juste Nom « ' + cleanName + ' » et le code choisi pour se connecter.');
+        setName(''); setCode('');
+        await refresh();
+      } catch (e2) {
+        setMsg(e2.message);
+      }
+      setBusy(false);
+      return;
+    }
+
+    const clean = email.trim();
+    if (!clean) { setBusy(false); return; }
     try {
       const { link: newLink } = await callAccountsFn({ action: 'invite', email: clean, role });
       setLink(newLink || '');
@@ -222,17 +275,30 @@ function ComptesPane({ state, mutate }) {
       </div>
       <h3 className="ssn-h">Créer un compte</h3>
       <p className="dd-hint">
-        Crée le compte Supabase et génère un lien magique à copier-coller (ou à transmettre par
-        n’importe quel canal) pour qu’il/elle choisisse son propre mot de passe.
+        Joueur : juste un Nom et un Code — pas d’email, rien à envoyer, donne-lui les deux directement.
+        Admin : un email réel, avec un lien magique à copier-coller pour qu’il/elle choisisse son mot de passe.
       </p>
       <form className="account__form" onSubmit={createAccount}>
-        <input
-          className="finput" type="email" placeholder="email@exemple.com" required
-          value={email} onChange={(e) => setEmail(e.target.value)}
-        />
         <select className="field account__role" value={role} onChange={(e) => setRole(e.target.value)}>
           {ROLES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
+        {role === 'player' ? (
+          <>
+            <input
+              className="finput" type="text" placeholder="Nom du joueur" required
+              value={name} onChange={(e) => setName(e.target.value)}
+            />
+            <input
+              className="finput" type="text" placeholder="Code" required
+              value={code} onChange={(e) => setCode(e.target.value)}
+            />
+          </>
+        ) : (
+          <input
+            className="finput" type="email" placeholder="email@exemple.com" required
+            value={email} onChange={(e) => setEmail(e.target.value)}
+          />
+        )}
         <button className="tbtn" type="submit" disabled={busy}>
           {busy ? '…' : '＋ créer le compte'}
         </button>
@@ -254,8 +320,9 @@ function ComptesPane({ state, mutate }) {
       )}
       <p className="dd-hint">
         Liste tirée en direct de Supabase (Authentication) — toujours à jour, rien à ajouter à la
-        main. Chaque lien généré est sensible (accès complet au compte visé) : il n’est jamais
-        enregistré, seulement affiché le temps de la copie.
+        main. Chaque lien magique généré (comptes admin) est sensible : il n’est jamais enregistré,
+        seulement affiché le temps de la copie. Le code d’un compte joueur, lui, n’est jamais
+        affiché après coup — seulement au moment où tu le choisis ou le changes.
       </p>
     </div>
   );

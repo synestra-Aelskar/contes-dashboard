@@ -426,6 +426,9 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 .auth__card{ width:min(380px,100%); background:var(--surface); border:1px solid var(--rule); border-radius:3px; padding:26px 24px; display:flex; flex-direction:column; gap:14px; }
 .auth__eyebrow{ margin:0; font-family:var(--f-mono); font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--fg-dim); }
 .auth__title{ margin:0; font-family:var(--f-display); font-weight:600; font-size:26px; color:var(--fg); line-height:1.1; }
+.auth__modes{ display:flex; gap:8px; }
+.auth__modebtn{ flex:1; font-family:var(--f-mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; padding:8px; border:1px solid var(--rule); border-radius:2px; background:none; color:var(--fg-dim); cursor:pointer; }
+.auth__modebtn.is-on{ color:var(--gilt); border-color:var(--gilt); background:var(--surface); }
 .auth__err{ font-family:var(--f-mono); font-size:11px; color:var(--blood); }
 .auth__boot{ min-height:100%; display:flex; align-items:center; justify-content:center; font-family:var(--f-mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dim); }
 
@@ -915,9 +918,10 @@ input[type=range]::-moz-range-thumb{ width:14px; height:14px; border-radius:50%;
 }
 
 .paramline--account{ display:flex; flex-direction:column; gap:8px; padding:8px 10px; border:1px solid var(--rule); border-radius:3px; background:var(--bg); }
-.paramline--account-row{ display:grid; grid-template-columns:1fr auto 24px; gap:10px; align-items:center; }
+.paramline--account-row{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.paramline--account-row .account__id{ flex:1 1 160px; }
 .paramline--account-admin{ border-color:var(--gilt); background:color-mix(in srgb, var(--gilt) 6%, var(--bg)); }
-.account__locked{ text-align:center; opacity:.75; cursor:default; }
+.account__locked{ text-align:center; opacity:.75; cursor:default; flex:none; }
 .account__id{ display:flex; flex-direction:column; gap:2px; min-width:0; }
 .account__email{ font-family:var(--f-body); font-size:13.5px; color:var(--fg); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .account__meta{ font-family:var(--f-mono); font-size:10.5px; color:var(--fg-dim); }
@@ -925,8 +929,9 @@ input[type=range]::-moz-range-thumb{ width:14px; height:14px; border-radius:50%;
 .account__form{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
 .account__form .finput{ flex:1 1 200px; min-width:0; }
 .account__role{ flex:0 0 110px; }
-.account__existing{ flex-basis:100%; display:flex; align-items:center; gap:6px; font-family:var(--f-mono); font-size:10.5px; color:var(--fg-dim); }
 .account__status{ margin-top:-4px; }
+.account__codeedit{ display:flex; align-items:center; gap:6px; flex:1 1 220px; }
+.account__codeedit .finput{ flex:1; min-width:0; }
 .account__link{ display:flex; gap:8px; align-items:center; }
 .account__link .finput{ flex:1; min-width:0; color:var(--kind-data); }
 
