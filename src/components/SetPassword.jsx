@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { supabase } from '../supabase';
 
-/** Écran affiché après avoir cliqué sur un lien magique (création de compte ou
- * réinitialisation) : Supabase ouvre déjà une session « recovery », il ne
- * reste qu'à choisir un mot de passe définitif. */
-export default function SetPassword({ onDone }) {
+/** Écran de choix d'un mot de passe définitif — réutilisé pour deux cas :
+ * 1) après un lien magique (Supabase ouvre une session "recovery" ;
+ * 2) première connexion d'un compte joueur (code choisi par le MJ, doit
+ *    être remplacé par le joueur — voir user_metadata.mustChangePassword,
+ *    posé à la création dans l'Edge Function et levé ici). */
+export default function SetPassword({ onDone, title, lead }) {
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
   const [busy, setBusy] = useState(false);
@@ -16,7 +18,7 @@ export default function SetPassword({ onDone }) {
     if (pw.length < 8) { setErr('8 caractères minimum.'); return; }
     if (pw !== pw2) { setErr('Les deux mots de passe ne correspondent pas.'); return; }
     setBusy(true);
-    const { error } = await supabase.auth.updateUser({ password: pw });
+    const { error } = await supabase.auth.updateUser({ password: pw, data: { mustChangePassword: false } });
     setBusy(false);
     if (error) { setErr(error.message || 'Échec de la mise à jour.'); return; }
     onDone();
@@ -25,8 +27,8 @@ export default function SetPassword({ onDone }) {
   return (
     <div className="auth">
       <form className="auth__card" onSubmit={submit}>
-        <p className="auth__eyebrow">Lien magique</p>
-        <h1 className="auth__title">Choisis ton mot de passe</h1>
+        <p className="auth__eyebrow">{title || 'Lien magique'}</p>
+        <h1 className="auth__title">{lead || 'Choisis ton mot de passe'}</h1>
         <label className="flabel">
           Nouveau mot de passe
           <input

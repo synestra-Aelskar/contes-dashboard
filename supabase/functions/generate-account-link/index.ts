@@ -109,7 +109,7 @@ Deno.serve(async (req: Request) => {
         email: playerEmail,
         password: code,
         email_confirm: true,
-        user_metadata: { role: 'player', displayName: name }
+        user_metadata: { role: 'player', displayName: name, mustChangePassword: true }
       });
       if (error) return json({ error: error.message }, 400);
       return json({ userId: data.user?.id || null, email: playerEmail });
@@ -122,7 +122,10 @@ Deno.serve(async (req: Request) => {
       if (roleOf(target.user) !== 'player') {
         return json({ error: 'Réservé aux comptes joueurs.' }, 403);
       }
-      const { error: updErr } = await admin.auth.admin.updateUserById(userId, { password: code });
+      const { error: updErr } = await admin.auth.admin.updateUserById(userId, {
+        password: code,
+        user_metadata: { ...target.user.user_metadata, mustChangePassword: true }
+      });
       if (updErr) return json({ error: updErr.message }, 400);
       return json({ ok: true });
     }

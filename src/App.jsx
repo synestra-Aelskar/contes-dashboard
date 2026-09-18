@@ -40,5 +40,14 @@ export default function App() {
     return <div className="auth__boot">Connexion…</div>;
   }
   if (!session) return <Login />;
+  if (session.user.user_metadata?.mustChangePassword) {
+    return (
+      <SetPassword
+        onDone={() => {}}
+        title="Première connexion"
+        lead="Choisis ton propre mot de passe"
+      />
+    );
+  }
   return <Dashboard session={session} />;
 }

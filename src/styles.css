@@ -426,9 +426,6 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 .auth__card{ width:min(380px,100%); background:var(--surface); border:1px solid var(--rule); border-radius:3px; padding:26px 24px; display:flex; flex-direction:column; gap:14px; }
 .auth__eyebrow{ margin:0; font-family:var(--f-mono); font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--fg-dim); }
 .auth__title{ margin:0; font-family:var(--f-display); font-weight:600; font-size:26px; color:var(--fg); line-height:1.1; }
-.auth__modes{ display:flex; gap:8px; }
-.auth__modebtn{ flex:1; font-family:var(--f-mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; padding:8px; border:1px solid var(--rule); border-radius:2px; background:none; color:var(--fg-dim); cursor:pointer; }
-.auth__modebtn.is-on{ color:var(--gilt); border-color:var(--gilt); background:var(--surface); }
 .auth__err{ font-family:var(--f-mono); font-size:11px; color:var(--blood); }
 .auth__boot{ min-height:100%; display:flex; align-items:center; justify-content:center; font-family:var(--f-mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dim); }
 
