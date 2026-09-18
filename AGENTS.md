@@ -34,6 +34,14 @@ données de l'artefact n'ont **pas** été migrées (considérées comme du test
   Realtime activé sur cette table, bucket Storage `screenshots` (lecture
   publique, écriture authentifiée) pour les captures collées dans les
   notes.
+- **Edge Function** : [`supabase/functions/generate-account-link`](supabase/functions/generate-account-link/index.ts)
+  — seul morceau de code serveur du projet (Deno, tourne côté Supabase, pas
+  sur Vercel). Génère les liens magiques de création/reset de compte via
+  `auth.admin.generateLink()`, qui nécessite la clé `service_role` —
+  **jamais** exposée côté client, elle vit uniquement dans l'environnement
+  de la fonction (injectée automatiquement par Supabase). Pas de CLI/CI
+  configurée pour ça : déploiement manuel en collant le fichier dans
+  Supabase Dashboard > Edge Functions. Voir §7 pour le détail du flux.
 
 ### Développement local
 
@@ -243,14 +251,53 @@ déjà en place : `.bloc`, `.bloc__partie`, `.bloc--variante`.
 | `src/lib/xpCalibreur.js` | Barème d'XP par branche (Trame/Secondaire/Exploration/Combat/Spéciale) + jalons de progression |
 | `src/lib/prepsession.js` | Logique de la vue Prep Session (Quête > Session > blocs d'XP), voir `BRANCH_KIND_VAR` pour le mapping couleur |
 | `src/lib/ddcalc.js` | Calculateur de résolution d'action (vue Équilibrage DD) |
+| `src/lib/timeblocks.js` | Blocs de temps de séance : conversion h/j/sem → heures, `fmtDuration` |
+| `src/components/PlayerDashboard.jsx` | Dashboard minimal pour un compte `role: "player"` (un seul onglet Personnage) |
+| `src/components/views/PersonnageJoueur.jsx` | Fiche perso en libre-service du joueur (édition limitée, rattachée par `char.ownerId`) |
+| `src/components/SetPassword.jsx` | Écran affiché sur l'évènement Supabase `PASSWORD_RECOVERY` (arrivée via un lien magique) |
 | `supabase/schema.sql` | Schéma complet à rejouer dans Supabase SQL Editor si la base est recréée |
+| `supabase/functions/generate-account-link/` | Edge Function : génère les liens magiques (voir §1 et §7) |
 
-## 7. Ce qui n'est volontairement PAS fait
+## 7. Comptes joueurs et liens magiques
+
+Un compte devient "joueur" via `user_metadata.role = "player"` (mis à la
+création, lu dans `App.jsx` pour aiguiller vers `PlayerDashboard` au lieu de
+`Dashboard`). Un joueur ne voit que l'onglet Personnage, crée son propre
+personnage (`char.ownerId = son id Supabase`) et n'édite que celui-ci ; la
+Note MJ et les autres personnages ne lui sont jamais exposés côté app —
+**mais la RLS actuelle (`to authenticated using (true)`) ne l'empêcherait
+pas techniquement de lire/écrire tout le reste via l'API Supabase
+directement.** La restriction est uniquement côté UI, cohérent avec le
+niveau de confiance du reste du projet (groupe d'amis), pas une frontière
+de sécurité stricte — à garder en tête si le groupe grandit.
+
+Côté MJ, l'onglet Paramètres > Comptes crée les comptes et génère les liens
+magiques via l'Edge Function `generate-account-link`
+(`supabase/functions/generate-account-link/index.ts`) : c'est le seul
+endroit qui utilise la clé `service_role` (`auth.admin.generateLink()`),
+donc le seul bout de code qui tourne côté serveur (Deno, sur l'infra
+Supabase — pas sur Vercel). Elle vérifie que l'appelant est un compte MJ
+avant de générer quoi que ce soit. Un lien généré n'est **jamais** persisté
+dans l'état partagé (`mutate`/Supabase `board`) — il donne un accès complet
+au compte visé, donc il reste uniquement en état React local le temps
+d'être copié. Pas de CLI Supabase configurée : déploiement manuel en
+collant le fichier dans Supabase Dashboard > Edge Functions > New function.
+
+`state.settings.accounts` est un répertoire de confort (email/rôle/repère,
++ `userId` Supabase si connu) qui alimente le sommaire par compte de la vue
+Personnages MJ — ce n'est pas une lecture de la vraie table `auth.users`
+(impossible sans clé admin côté client), donc un compte créé à la main dans
+le dashboard Supabase sans passer par l'onglet Comptes n'y apparaît pas
+automatiquement.
+
+## 8. Ce qui n'est volontairement PAS fait
 
 - Pas de routeur (une seule route, la vue active est un `useState` + clé
   `localStorage`, pas d'URL par vue).
-- Pas de gestion de comptes/inscription dans l'UI : les comptes sont créés
-  à la main côté Supabase (`Authentication > Users`, "Auto Confirm User").
+- Pas de gestion de comptes/inscription **publique** dans l'UI : la création
+  de compte reste un geste MJ (onglet Paramètres > Comptes, ou à la main
+  côté Supabase `Authentication > Users`) — jamais un formulaire d'inscription
+  ouvert.
 - Pas de migration automatique de schéma : `normalize()` dans `board.js`
   fait office de migration douce à la lecture (valeurs par défaut si champ
   manquant), pas de script de migration séparé.
