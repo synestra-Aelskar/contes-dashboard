@@ -24,6 +24,7 @@ import FicheTechnique from './views/FicheTechnique.jsx';
 import XpCalibreur from './views/XpCalibreur.jsx';
 import Equilibrage from './views/Equilibrage.jsx';
 import PrepSession from './views/PrepSession.jsx';
+import BackstageMJ from './views/BackstageMJ.jsx';
 import Parametres from './views/Parametres.jsx';
 import SessionEnCours from './views/SessionEnCours.jsx';
 
@@ -38,7 +39,8 @@ const STATUS_ON = { ready: '1', saving: 'saving', loading: 'saving', offline: '0
 const VIEW_COMPONENTS = {
   liens: Liens, journal: Journal, consequences: Consequences, horloges: Horloges,
   secrets: Secrets, oublis: Oublis, epreuves: Epreuves, zones: Zones,
-  fichetechnique: FicheTechnique, xpcalibreur: XpCalibreur, equilibrage: Equilibrage, prepsession: PrepSession
+  fichetechnique: FicheTechnique, xpcalibreur: XpCalibreur, equilibrage: Equilibrage, prepsession: PrepSession,
+  'backstage-mj': BackstageMJ
 };
 
 export default function Dashboard({ session }) {

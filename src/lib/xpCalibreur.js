@@ -77,3 +77,87 @@ export function normalizeXpState(raw) {
   }
   return merged;
 }
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+// Déplacé depuis XpCalibreur.jsx (et exporté) pour être réutilisable ailleurs
+// (ex. niveau auto d'un personnage joueur à partir de son XP cumulée) —
+// voir XpCalibreur.jsx pour le détail du modèle (w(n), coefficient K, etc.).
+export function computeCampaignCurve(xp) {
+  const startLevel = clamp(Math.round(Number(xp.startLevel) || 5), 1, 58);
+  const maxLevel = clamp(Math.round(Number(xp.levels) || 25), startLevel + 1, 60);
+  const exponent = clamp(Number(xp.exponent) || 1, 0.1, 4);
+  const sessionsPerYear = Math.max(1, Number(xp.sessionsPerYear) || 48);
+  const refRate = Math.max(0.01, Number(xp.refXpPerSession) || 250);
+
+  const capLevel = Math.max(maxLevel, 50);
+  const T = maxLevel - startLevel;
+  const Tcap = capLevel - startLevel;
+
+  const w = new Array(Tcap + 1).fill(0);
+  for (let t = 1; t <= Tcap; t++) w[t] = Math.pow(startLevel + t - 1, exponent);
+  const prefix = new Array(Tcap + 1).fill(0);
+  for (let t = 1; t <= Tcap; t++) prefix[t] = prefix[t - 1] + w[t];
+
+  const rawJalons = (xp.jalons && xp.jalons.length) ? xp.jalons : [{ targetLevel: maxLevel, cumSessions: sessionsPerYear }];
+  const jalons = rawJalons.map((j) => ({
+    targetLevel: clamp(Math.round(Number(j.targetLevel) || (startLevel + 1)), startLevel + 1, maxLevel),
+    cumSessions: Math.max(0, Number(j.cumSessions) || 0)
+  }));
+  jalons.sort((a, b) => a.targetLevel - b.targetLevel);
+  jalons[jalons.length - 1].targetLevel = maxLevel;
+
+  const firstT = jalons[0].targetLevel - startLevel;
+  const period1Sessions = Math.max(1, jalons[0].cumSessions || sessionsPerYear);
+  const budgetReference = period1Sessions * refRate;
+  const sumW1 = prefix[firstT] || 1;
+  const K = budgetReference / sumW1;
+
+  const cum = new Array(Tcap + 1).fill(0);
+  for (let t = 1; t <= Tcap; t++) cum[t] = Math.round(K * prefix[t]);
+  cum[firstT] = Math.round(budgetReference);
+
+  const cost = new Array(Tcap + 1).fill(0);
+  for (let t = 1; t <= Tcap; t++) cost[t] = Math.max(0, cum[t] - cum[t - 1]);
+
+  let prevT = 0, prevSessions = 0;
+  const periods = jalons.map((j, i) => {
+    const tCur = j.targetLevel - startLevel;
+    const sessions = Math.max(1, j.cumSessions - prevSessions);
+    const budget = cum[tCur] - cum[prevT];
+    const avgRate = budget / sessions;
+    const multiplier = refRate > 0 ? avgRate / refRate : 0;
+    const period = {
+      idx: i, fromLevel: startLevel + prevT, toLevel: j.targetLevel,
+      fromT: prevT, toT: tCur,
+      fromSession: prevSessions, toSession: j.cumSessions,
+      sessions, budget, avgRate, multiplier
+    };
+    prevT = tCur; prevSessions = j.cumSessions;
+    return period;
+  });
+
+  const periodForT = new Array(Tcap + 1).fill(null);
+  periods.forEach((p) => {
+    for (let t = p.fromT + 1; t <= p.toT; t++) periodForT[t] = p;
+  });
+
+  return {
+    startLevel, maxLevel, capLevel, T, Tcap, exponent, sessionsPerYear, refRate,
+    jalons, periods, periodForT, K, cost, cum,
+    total: cum[T],
+    total50: capLevel > maxLevel ? cum[Tcap] : null
+  };
+}
+
+/** Niveau atteint pour un total d'XP cumulée donné (le plus haut niveau dont
+ * le coût cumulé ne dépasse pas l'XP fournie), borné à [startLevel, capLevel]. */
+export function levelForXp(xpState, totalXp) {
+  const curve = computeCampaignCurve(xpState);
+  const xp = Math.max(0, Number(totalXp) || 0);
+  let t = 0;
+  for (let i = 1; i <= curve.Tcap; i++) {
+    if (curve.cum[i] <= xp) t = i; else break;
+  }
+  return curve.startLevel + t;
+}

@@ -23,7 +23,7 @@ export const EMPTY_STATE = {
   characters: [], sessionDraft: null, zones: [], sessionZero: { blocks: [] }, fichesTechniques: [],
   xpCalibreur: XP_DEFAULT_STATE, ddCalc: null, prepSessions: [],
   settings: { timeTypes: [], accounts: [], menu: [] },
-  aelCarryHours: 0
+  aelCarryHours: 0, threads: []
 };
 
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -35,7 +35,7 @@ function normalize(raw) {
   const out = { ...base, ...d };
   if (!Array.isArray(out.sections) || !out.sections.length) out.sections = base.sections;
   out.notes = Array.isArray(out.notes) ? out.notes.filter((x) => x && typeof x === 'object') : [];
-  ['sessions', 'consequences', 'clocks', 'secrets', 'reminders', 'epreuves', 'characters', 'zones', 'prepSessions'].forEach((k) => {
+  ['sessions', 'consequences', 'clocks', 'secrets', 'reminders', 'epreuves', 'characters', 'zones', 'prepSessions', 'threads'].forEach((k) => {
     if (!Array.isArray(out[k])) out[k] = [];
   });
   out.prepSessions.forEach((q) => {
@@ -61,7 +61,38 @@ function normalize(raw) {
       if (!used.has(key)) out.settings.menu.push({ id: uid(), type: 'view', viewKey: key, visibility: ['admin'] });
     });
   }
-  out.characters.forEach((c) => { if (typeof c.ownerId !== 'string') c.ownerId = null; });
+  out.characters.forEach((c) => {
+    if (typeof c.ownerId !== 'string') c.ownerId = null;
+    if (typeof c.race !== 'string') c.race = '';
+    if (typeof c.description !== 'string') c.description = '';
+    if (typeof c.qualite !== 'string') c.qualite = '';
+    if (typeof c.defaut !== 'string') c.defaut = '';
+    if (typeof c.peurs !== 'string') c.peurs = '';
+    if (!Array.isArray(c.journal)) c.journal = [];
+    c.journal.forEach((j) => {
+      if (typeof j.title !== 'string') j.title = '';
+      if (typeof j.category !== 'string') j.category = '';
+      if (typeof j.text !== 'string') j.text = '';
+      if (!Array.isArray(j.screenshots)) j.screenshots = [];
+    });
+    if (!Array.isArray(c.traits)) c.traits = [];
+    c.traits.forEach((t) => {
+      if (typeof t.name !== 'string') t.name = '';
+      if (typeof t.narrativeDesc !== 'string') t.narrativeDesc = '';
+      if (typeof t.technicalDesc !== 'string') t.technicalDesc = '';
+      if (typeof t.status !== 'string') t.status = 'draft';
+      if (typeof t.mjNote !== 'string') t.mjNote = '';
+    });
+  });
+  out.threads.forEach((t) => {
+    if (typeof t.title !== 'string') t.title = '';
+    if (!Array.isArray(t.participantIds)) t.participantIds = [];
+    if (!Array.isArray(t.messages)) t.messages = [];
+    t.messages.forEach((m) => {
+      if (typeof m.text !== 'string') m.text = '';
+      if (typeof m.authorName !== 'string') m.authorName = '';
+    });
+  });
   if (!out.sessionZero || typeof out.sessionZero !== 'object') out.sessionZero = { blocks: [] };
   if (!Array.isArray(out.sessionZero.blocks)) out.sessionZero.blocks = [];
   if (!Array.isArray(out.fichesTechniques)) out.fichesTechniques = [];

@@ -16,7 +16,8 @@ export const ALL_VIEWS = [
   ['fichetechnique', 'Fiche Technique'],
   ['xpcalibreur', "Calibreur d'XP"],
   ['equilibrage', 'Équilibrage DD'],
-  ['prepsession', 'Prep Session']
+  ['prepsession', 'Prep Session'],
+  ['backstage-mj', 'Backstage (MJ)']
 ];
 export const VIEW_LABEL = Object.fromEntries(ALL_VIEWS);
 

@@ -457,6 +457,50 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 .chr__recap{ display:flex; flex-direction:column; gap:3px; margin-bottom:10px; }
 .chr__recaptxt{ margin:0; font-size:12.5px; line-height:1.5; color:var(--fg-dim); white-space:pre-wrap; }
 
+/* --- vue personnage joueur (5 onglets) --- */
+.pj{ display:grid; grid-template-columns:150px minmax(0,1fr) 320px; gap:28px; margin-top:16px; align-items:start; }
+@media (max-width:1100px){ .pj{ grid-template-columns:120px minmax(0,1fr) 280px; } }
+@media (max-width:820px){ .pj{ grid-template-columns:1fr; } }
+.pj__nav{ display:flex; flex-direction:column; gap:4px; }
+.pj__navbtn{ text-align:left; font-family:var(--f-mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; padding:8px 10px; border:1px solid transparent; border-radius:2px; background:none; color:var(--fg-dim); cursor:pointer; }
+.pj__navbtn:hover{ color:var(--fg); }
+.pj__navbtn.is-active{ color:var(--kind,var(--gilt)); border-color:var(--rule); background:var(--surface); }
+.pj__body{ display:flex; flex-direction:column; min-width:0; }
+.pj__idblock{ display:flex; flex-direction:column; gap:10px; border-top:1px solid var(--rule); padding-top:12px; }
+.pj__level{ font-family:var(--f-mono); font-size:20px; letter-spacing:.04em; color:var(--kind,var(--gilt)); }
+.pj__descarea{ min-height:160px; }
+
+.pj__entries{ display:flex; flex-direction:column; gap:16px; }
+.pj__entry{ border:1px solid var(--rule); border-radius:3px; padding:12px; display:flex; flex-direction:column; gap:8px; background:var(--surface); }
+.pj__entryhead{ display:grid; grid-template-columns:1fr 200px auto; gap:8px; }
+@media (max-width:640px){ .pj__entryhead{ grid-template-columns:1fr; } }
+.pj__shots{ display:flex; flex-wrap:wrap; gap:10px; }
+.pj__shot{ display:flex; flex-direction:column; gap:4px; width:180px; }
+.pj__shotimg{ width:100%; aspect-ratio:16/10; object-fit:cover; border:1px solid var(--rule); border-radius:2px; display:block; }
+
+.pj__traits{ display:flex; flex-direction:column; gap:12px; }
+.pj__trait{ border:1px solid var(--rule); border-radius:3px; padding:12px; display:flex; flex-direction:column; gap:8px; background:var(--surface); }
+.pj__traithead{ display:flex; justify-content:space-between; align-items:center; }
+.pj__traitstatus{ font-family:var(--f-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
+.pj__traitstatus--draft{ color:var(--fg-dim); }
+.pj__traitstatus--pending{ color:var(--gilt); }
+.pj__traitstatus--accepted{ color:var(--kind-data); }
+.pj__traitstatus--refused{ color:var(--blood); }
+
+.pj__backstage{ display:grid; grid-template-columns:220px minmax(0,1fr); gap:20px; align-items:start; }
+@media (max-width:820px){ .pj__backstage{ grid-template-columns:1fr; } }
+.pj__threadrail{ display:flex; flex-direction:column; gap:6px; }
+.pj__newthread{ border-top:1px solid var(--rule); margin-top:8px; padding-top:10px; display:flex; flex-direction:column; gap:8px; }
+.pj__invitelist{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:12px; }
+.pj__invitechip{ display:flex; align-items:center; gap:4px; font-size:12px; color:var(--fg-dim); }
+.pj__thread{ display:flex; flex-direction:column; gap:12px; }
+.pj__threadmsgs{ display:flex; flex-direction:column; gap:10px; max-height:420px; overflow-y:auto; }
+.pj__msg{ border:1px solid var(--rule); border-radius:3px; padding:8px 10px; background:var(--surface); }
+.pj__msg--mine{ border-color:var(--kind,var(--gilt)); }
+.pj__msghead{ display:flex; justify-content:space-between; gap:8px; font-size:11px; }
+.pj__msgtext{ margin:6px 0 0; font-size:13px; white-space:pre-wrap; }
+.pj__threadcompose{ display:flex; flex-direction:column; gap:8px; }
+
 /* --- tableau XP ---
    XP = un chiffre (colonne étroite) ; Raison = souvent deux lignes de texte
    (colonne large, zone qui s'agrandit). */

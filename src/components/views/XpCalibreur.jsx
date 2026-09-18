@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useSyncedField } from '../../lib/useSyncedField.js';
-import { BUDGET_BRANCHES, BRANCH_ORDER, XP_DEFAULT_STATE } from '../../lib/xpCalibreur.js';
+import { BUDGET_BRANCHES, BRANCH_ORDER, XP_DEFAULT_STATE, computeCampaignCurve } from '../../lib/xpCalibreur.js';
 
 /**
  * Calibreur d'XP — calibrage par DURÉES CIBLES : on renseigne le niveau de
@@ -152,83 +152,9 @@ function deriveResults(st, levels, T, cost, cum, total) {
   return { levels, total, T, cost, cum, branchCost, branchCum, profileResults, baremeResults };
 }
 
-// Courbe de campagne calibrée par durées cibles (cahier des charges §1-3).
-//
-// w(n)  = poids positif de la montée du niveau n vers n+1 = n^exponent
-// K     = coefficient unique, calibré UNIQUEMENT sur la première période :
-//         K = budgetReference / somme(w(n), n = startLevel..premierJalon-1)
-//         avec budgetReference = sessionsPériode1 × refXpPerSession
-// cout(n) = K × w(n), appliqué tel quel jusqu'au niveau maximal (et au-delà
-//           pour la suite PNJ jusqu'au niveau 50, séparément, sans jamais
-//           recalibrer K) — aucune période n'est renormalisée sur son propre
-//           budget, aucun jalon ne remet la courbe à zéro.
-function computeCampaignCurve(xp) {
-  const startLevel = clamp(Math.round(Number(xp.startLevel) || 5), 1, 58);
-  const maxLevel = clamp(Math.round(Number(xp.levels) || 25), startLevel + 1, 60);
-  const exponent = clamp(Number(xp.exponent) || 1, 0.1, 4);
-  const sessionsPerYear = Math.max(1, Number(xp.sessionsPerYear) || 48);
-  const refRate = Math.max(0.01, Number(xp.refXpPerSession) || 250);
-
-  const capLevel = Math.max(maxLevel, 50);
-  const T = maxLevel - startLevel;
-  const Tcap = capLevel - startLevel;
-
-  // w[t] = poids de la montée du niveau (startLevel+t-1) vers (startLevel+t)
-  const w = new Array(Tcap + 1).fill(0);
-  for (let t = 1; t <= Tcap; t++) w[t] = Math.pow(startLevel + t - 1, exponent);
-  const prefix = new Array(Tcap + 1).fill(0);
-  for (let t = 1; t <= Tcap; t++) prefix[t] = prefix[t - 1] + w[t];
-
-  const rawJalons = (xp.jalons && xp.jalons.length) ? xp.jalons : [{ targetLevel: maxLevel, cumSessions: sessionsPerYear }];
-  const jalons = rawJalons.map((j) => ({
-    targetLevel: clamp(Math.round(Number(j.targetLevel) || (startLevel + 1)), startLevel + 1, maxLevel),
-    cumSessions: Math.max(0, Number(j.cumSessions) || 0)
-  }));
-  jalons.sort((a, b) => a.targetLevel - b.targetLevel);
-  jalons[jalons.length - 1].targetLevel = maxLevel; // invariant §7 : dernier jalon = niveau maximal
-
-  const firstT = jalons[0].targetLevel - startLevel;
-  const period1Sessions = Math.max(1, jalons[0].cumSessions || sessionsPerYear);
-  const budgetReference = period1Sessions * refRate;
-  const sumW1 = prefix[firstT] || 1;
-  const K = budgetReference / sumW1;
-
-  const cum = new Array(Tcap + 1).fill(0);
-  for (let t = 1; t <= Tcap; t++) cum[t] = Math.round(K * prefix[t]);
-  cum[firstT] = Math.round(budgetReference); // garantit l'exactitude de la 1ère période malgré les arrondis
-
-  const cost = new Array(Tcap + 1).fill(0);
-  for (let t = 1; t <= Tcap; t++) cost[t] = Math.max(0, cum[t] - cum[t - 1]);
-
-  let prevT = 0, prevSessions = 0;
-  const periods = jalons.map((j, i) => {
-    const tCur = j.targetLevel - startLevel;
-    const sessions = Math.max(1, j.cumSessions - prevSessions);
-    const budget = cum[tCur] - cum[prevT];
-    const avgRate = budget / sessions;
-    const multiplier = refRate > 0 ? avgRate / refRate : 0;
-    const period = {
-      idx: i, fromLevel: startLevel + prevT, toLevel: j.targetLevel,
-      fromT: prevT, toT: tCur,
-      fromSession: prevSessions, toSession: j.cumSessions,
-      sessions, budget, avgRate, multiplier
-    };
-    prevT = tCur; prevSessions = j.cumSessions;
-    return period;
-  });
-
-  const periodForT = new Array(Tcap + 1).fill(null);
-  periods.forEach((p) => {
-    for (let t = p.fromT + 1; t <= p.toT; t++) periodForT[t] = p;
-  });
-
-  return {
-    startLevel, maxLevel, capLevel, T, Tcap, exponent, sessionsPerYear, refRate,
-    jalons, periods, periodForT, K, cost, cum,
-    total: cum[T],
-    total50: capLevel > maxLevel ? cum[Tcap] : null
-  };
-}
+// Courbe de campagne calibrée par durées cibles (cahier des charges §1-3) —
+// computeCampaignCurve vit maintenant dans lib/xpCalibreur.js (réutilisée par
+// le niveau auto des personnages joueur), importée ci-dessus.
 
 // Tableau niveau par niveau (cahier des charges §4) : XP depuis le
 // précédent, XP cumulée, sessions estimées pour cette montée, session
