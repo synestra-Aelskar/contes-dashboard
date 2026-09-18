@@ -60,6 +60,15 @@ export function aelEraIndex(y) {
 }
 export function aelYearInEra(y) { return y - aelEra(y).start + 1; }
 export function aelOrdinal(n) { return n === 1 ? '1ʳᵉ' : n + 'ᵉ'; }
+
+/** "HH:MM" à partir d'une heure flottante (peut dépasser 24, ex. cumul de blocs de temps). */
+export function fmtClock(hoursFloat) {
+  const h = ((Number(hoursFloat) || 0) % 24 + 24) % 24;
+  let hh = Math.floor(h);
+  let mm = Math.round((h - hh) * 60);
+  if (mm === 60) { mm = 0; hh = (hh + 1) % 24; }
+  return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+}
 export function aelDayCycle(d) {
   return 'Jour ' + AEL.DAY_OF[d.day - 1] + ' du Cycle ' + AEL.CYCLE_OF[d.cycle - 1];
 }

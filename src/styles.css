@@ -340,6 +340,11 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 .clock__size{ width:auto; }
 .clock__title{ font-family:var(--f-display); font-size:17px; font-weight:600; }
 
+.aelskar-row{ display:flex; align-items:center; gap:14px; }
+.worldclock{ display:flex; flex-direction:column; align-items:center; gap:2px; flex:none; }
+.worldclock__digital{ font-family:var(--f-mono); font-size:11px; font-weight:600; letter-spacing:.06em; color:var(--fg); }
+.worldclock__face{ display:block; }
+
 .aelskar{ position:relative; display:flex; flex-direction:column; align-items:flex-end; }
 .aelskar__face{ display:flex; flex-direction:column; align-items:flex-end; gap:2px; background:none; border:none; padding:0; cursor:pointer; text-align:right; }
 .aelskar__eyebrow{ font-family:var(--f-mono); font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--fg-dim); }
