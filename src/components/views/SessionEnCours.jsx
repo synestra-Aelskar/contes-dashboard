@@ -250,6 +250,10 @@ function TimeBar({ state, mutate }) {
   const types = (state.settings && state.settings.timeTypes) || [];
   const blocks = d.timeBlocks || [];
   const total = blocksTotalHours(blocks);
+  const carry = Number(state.aelCarryHours) || 0;
+  const withCarry = total + carry;
+  const days = Math.floor(withCarry / 24);
+  const nextCarry = withCarry - days * 24;
 
   return (
     <div className="ssn-block">
@@ -274,8 +278,11 @@ function TimeBar({ state, mutate }) {
         </div>
       )}
       <p className="dd-hint timebar__total">
-        Total : <b>{fmtDuration(total)}</b> — fera avancer le calendrier en jeu de{' '}
-        <b>{Math.round(total / 24)} jour{Math.round(total / 24) > 1 ? 's' : ''}</b> à la clôture de la séance.
+        Total de la séance : <b>{fmtDuration(total)}</b>
+        {carry > 0 && <> (+ {fmtDuration(carry)} reporté{carry !== 1 ? 's' : ''} des séances précédentes)</>}
+        {' '}— fera avancer le calendrier en jeu de{' '}
+        <b>{days} jour{days > 1 ? 's' : ''}</b> à la clôture
+        {nextCarry > 0 && <>, {fmtDuration(nextCarry)} reporté{nextCarry !== 1 ? 's' : ''} sur la suite</>}.
       </p>
 
       <div className="timeblocklist">

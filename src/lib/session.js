@@ -123,10 +123,12 @@ export function finishDraft(s, out) {
   });
 
   // 6) avance le calendrier en jeu du temps réellement écoulé pendant la séance
-  //    (barre de temps → heures → jours, arrondi au jour le plus proche : le
-  //    calendrier d'Aelskar n'a pas de granularité inférieure au jour).
-  const totalHours = blocksTotalHours(d.timeBlocks);
-  const days = Math.round(totalHours / 24);
+  //    (barre de temps → heures, +report des heures non converties en jour
+  //    entier des séances précédentes — une journée fait 24h quel que soit
+  //    le calendrier, donc rien n'est perdu, juste reporté sur la suite).
+  const totalHours = blocksTotalHours(d.timeBlocks) + (Number(s.aelCarryHours) || 0);
+  const days = Math.floor(totalHours / 24);
+  s.aelCarryHours = totalHours - days * 24;
   if (days > 0) s.aelPin = aelShift(campaignDate(s), days);
 
   // 7) clôture
