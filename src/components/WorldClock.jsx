@@ -7,12 +7,15 @@ function pt(angleDeg, r) {
   return [CX + r * Math.cos(rad), CY + r * Math.sin(rad)];
 }
 
-/** Horloge en jeu : cadran 24h, une aiguille soleil/lune (soleil = heure actuelle, lune = opposée). */
+/** Horloge en jeu : cadran 24h, soleil fixe à midi (bas) / lune fixe à minuit (haut), aiguille qui pointe l'heure. */
 export default function WorldClock({ hours }) {
   const h = ((Number(hours) || 0) % 24 + 24) % 24;
   const angle = (h / 24) * 360;
-  const [sx, sy] = pt(angle, 34);
-  const [mx, my] = pt(angle + 180, 34);
+  const [tipX, tipY] = pt(angle, 34);
+  const [tailX, tailY] = pt(angle + 180, 8);
+
+  const [sunX, sunY] = pt(180, 34); // midi, en bas
+  const [moonX, moonY] = pt(0, 34); // minuit, en haut
 
   const ticks = [];
   for (let i = 0; i < 24; i++) {
@@ -31,8 +34,8 @@ export default function WorldClock({ hours }) {
   const sunRays = [];
   for (let i = 0; i < 8; i++) {
     const a = i * 45;
-    const [rx1, ry1] = [sx + 5.5 * Math.cos((a * Math.PI) / 180), sy + 5.5 * Math.sin((a * Math.PI) / 180)];
-    const [rx2, ry2] = [sx + 8 * Math.cos((a * Math.PI) / 180), sy + 8 * Math.sin((a * Math.PI) / 180)];
+    const [rx1, ry1] = [sunX + 5.5 * Math.cos((a * Math.PI) / 180), sunY + 5.5 * Math.sin((a * Math.PI) / 180)];
+    const [rx2, ry2] = [sunX + 8 * Math.cos((a * Math.PI) / 180), sunY + 8 * Math.sin((a * Math.PI) / 180)];
     sunRays.push(<line key={i} x1={rx1} y1={ry1} x2={rx2} y2={ry2} stroke="var(--gilt)" strokeWidth="1" />);
   }
 
@@ -43,12 +46,12 @@ export default function WorldClock({ hours }) {
         <circle cx={CX} cy={CY} r={47} fill="none" stroke="var(--blood)" strokeWidth="1.5" />
         <circle cx={CX} cy={CY} r={44} fill="var(--bg)" stroke="var(--gilt)" strokeWidth="2" />
         {ticks}
-        <line x1={mx} y1={my} x2={sx} y2={sy} stroke="var(--gilt)" strokeWidth="1.2" />
-        <circle cx={CX} cy={CY} r={2.4} fill="var(--blood)" />
         {sunRays}
-        <circle cx={sx} cy={sy} r={4} fill="var(--gilt)" />
-        <circle cx={mx} cy={my} r={4.2} fill="var(--fg)" />
-        <circle cx={mx + 1.6} cy={my - 1.2} r={3.6} fill="var(--bg)" />
+        <circle cx={sunX} cy={sunY} r={4} fill="var(--gilt)" />
+        <circle cx={moonX} cy={moonY} r={4.2} fill="var(--fg)" />
+        <circle cx={moonX + 1.6} cy={moonY - 1.2} r={3.6} fill="var(--bg)" />
+        <line x1={tailX} y1={tailY} x2={tipX} y2={tipY} stroke="var(--blood)" strokeWidth="1.6" strokeLinecap="round" />
+        <circle cx={CX} cy={CY} r={2.4} fill="var(--blood)" />
       </svg>
     </div>
   );
