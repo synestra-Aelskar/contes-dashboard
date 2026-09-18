@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../supabase';
 import { useBoard } from '../lib/board.js';
 import { fmtDateLong, lsGet, lsSet } from '../lib/util.js';
 import { makeDraft, finishDraft } from '../lib/session.js';
+import { getUiScale, applyUiScale } from '../lib/prefs.js';
 import WorldDate from './WorldDate.jsx';
 import ViewBar from './ViewBar.jsx';
 import Notes from './Notes.jsx';
 import FinishModal from './FinishModal.jsx';
+import Preferences from './Preferences.jsx';
 import Liens from './views/Liens.jsx';
 import Journal from './views/Journal.jsx';
 import Consequences from './views/Consequences.jsx';
@@ -35,7 +37,10 @@ export default function Dashboard({ session }) {
   const { state, status, mutate } = useBoard(session);
   const [view, setViewRaw] = useState(lsGet('ccm.view') || 'liens');
   const [finishOpen, setFinishOpen] = useState(false);
+  const [prefsOpen, setPrefsOpen] = useState(false);
   const setView = (v) => { setViewRaw(v); lsSet('ccm.view', v); };
+
+  useEffect(() => { applyUiScale(getUiScale()); }, []);
 
   if (!state) {
     return <div className="auth__boot">Chargement du repaire…</div>;
@@ -93,6 +98,12 @@ export default function Dashboard({ session }) {
               <span className="status__user"> · {(session.user.email || '').split('@')[0]}</span>
               <button
                 className="status__logout" type="button"
+                onClick={() => setPrefsOpen(true)}
+              >
+                Préférences
+              </button>
+              <button
+                className="status__logout" type="button"
                 onClick={() => supabase.auth.signOut()}
               >
                 Quitter
@@ -128,6 +139,8 @@ export default function Dashboard({ session }) {
           onCancel={() => setFinishOpen(false)}
         />
       )}
+
+      {prefsOpen && <Preferences onClose={() => setPrefsOpen(false)} />}
 
       <footer className="foot">
         Dernière mise à jour · {state.updated ? fmtDateLong(state.updated) : '—'} — enregistrée à chaque modification.

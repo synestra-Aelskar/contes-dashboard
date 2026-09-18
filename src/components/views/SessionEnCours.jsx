@@ -227,20 +227,22 @@ function TimeBlockRow({ row, types, mutate }) {
         {numField('d', 'j')}
         {numField('w', 'sem')}
       </div>
-      <select
-        className="field timeblock__type" value={row.typeId || ''}
-        onChange={(e) => patch((b) => { b.typeId = e.target.value; })}
-      >
-        <option value="">— type —</option>
-        {types.map((t) => <option key={t.id} value={t.id}>{t.name || 'Sans nom'}</option>)}
-      </select>
-      <span className="timeblock__hrs">{fmtDuration(blockHours(row))}</span>
-      <button
-        className="tbtn" type="button" aria-label="retirer ce bloc de temps"
-        onClick={() => mutate((s) => { s.sessionDraft.timeBlocks = s.sessionDraft.timeBlocks.filter((x) => x.id !== row.id); })}
-      >
-        ×
-      </button>
+      <div className="timeblock__foot">
+        <select
+          className="field timeblock__type" value={row.typeId || ''}
+          onChange={(e) => patch((b) => { b.typeId = e.target.value; })}
+        >
+          <option value="">— type —</option>
+          {types.map((t) => <option key={t.id} value={t.id}>{t.name || 'Sans nom'}</option>)}
+        </select>
+        <span className="timeblock__hrs">{fmtDuration(blockHours(row))}</span>
+        <button
+          className="tbtn" type="button" aria-label="retirer ce bloc de temps"
+          onClick={() => mutate((s) => { s.sessionDraft.timeBlocks = s.sessionDraft.timeBlocks.filter((x) => x.id !== row.id); })}
+        >
+          ×
+        </button>
+      </div>
     </div>
   );
 }
@@ -255,45 +257,81 @@ function TimeBar({ state, mutate }) {
   const days = Math.floor(withCarry / 24);
   const nextCarry = withCarry - days * 24;
 
+  const byType = new Map();
+  blocks.forEach((b) => {
+    const hrs = blockHours(b);
+    if (!hrs) return;
+    const key = b.typeId || '';
+    byType.set(key, (byType.get(key) || 0) + hrs);
+  });
+  const recap = [...byType.entries()]
+    .map(([typeId, hrs]) => ({ typeId, hrs, type: types.find((t) => t.id === typeId) }))
+    .sort((a, b) => b.hrs - a.hrs);
+
   return (
     <div className="ssn-block">
       <h3 className="ssn-h">Temps écoulé pendant la séance</h3>
-      {blocks.length > 0 && (
-        <div className="timebar">
-          {blocks.map((b) => {
-            const hrs = blockHours(b);
-            if (!hrs) return null;
-            const type = types.find((t) => t.id === b.typeId);
-            const pct = total ? (hrs / total) * 100 : 0;
-            return (
-              <div
-                key={b.id} className="timebar__seg"
-                style={{ width: pct + '%', '--tb-color': type ? type.color : 'var(--rule)' }}
-                title={(b.name || type?.name || 'Bloc') + ' — ' + fmtDuration(hrs)}
-              >
-                <span className="timebar__seg-label">{b.name || type?.name || ''}</span>
-              </div>
-            );
-          })}
+      <div className="timebar-layout">
+        <div className="timebar-list">
+          {blocks.map((b) => <TimeBlockRow key={b.id} row={b} types={types} mutate={mutate} />)}
+          <button
+            className="tbtn" type="button"
+            onClick={() => mutate((s) => { s.sessionDraft.timeBlocks.push(makeTimeBlock()); })}
+          >
+            ＋ ajouter bloc de temps
+          </button>
         </div>
-      )}
-      <p className="dd-hint timebar__total">
-        Total de la séance : <b>{fmtDuration(total)}</b>
-        {carry > 0 && <> (+ {fmtDuration(carry)} reporté{carry !== 1 ? 's' : ''} des séances précédentes)</>}
-        {' '}— fera avancer le calendrier en jeu de{' '}
-        <b>{days} jour{days > 1 ? 's' : ''}</b> à la clôture
-        {nextCarry > 0 && <>, {fmtDuration(nextCarry)} reporté{nextCarry !== 1 ? 's' : ''} sur la suite</>}.
-      </p>
 
-      <div className="timeblocklist">
-        {blocks.map((b) => <TimeBlockRow key={b.id} row={b} types={types} mutate={mutate} />)}
+        <div className="timebar-main">
+          <div className="prep-total">
+            <span className="prep-total__label">Temps total cumulé</span>
+            <span className="prep-total__value">{fmtDuration(total)}</span>
+          </div>
+
+          {blocks.length > 0 ? (
+            <div className="timebar">
+              {blocks.map((b) => {
+                const hrs = blockHours(b);
+                if (!hrs) return null;
+                const type = types.find((t) => t.id === b.typeId);
+                const pct = total ? (hrs / total) * 100 : 0;
+                return (
+                  <div
+                    key={b.id} className="timebar__seg"
+                    style={{ width: pct + '%', '--tb-color': type ? type.color : 'var(--rule)' }}
+                    title={(b.name || type?.name || 'Bloc') + ' — ' + fmtDuration(hrs)}
+                  >
+                    <span className="timebar__seg-label">{b.name || type?.name || ''}</span>
+                    <span className="timebar__seg-dur">{fmtDuration(hrs)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="empty">Aucun bloc de temps pour l’instant.</p>
+          )}
+
+          {recap.length > 0 && (
+            <div className="timebar-recap">
+              {recap.map((r) => (
+                <div key={r.typeId || 'none'} className="timebar-recap__row" style={{ '--tb-color': r.type ? r.type.color : 'var(--rule)' }}>
+                  <span className="timebar-recap__swatch" />
+                  <span className="timebar-recap__name">{r.type ? (r.type.name || 'Sans nom') : 'Sans type'}</span>
+                  <span className="timebar-recap__pct">{total ? Math.round((r.hrs / total) * 100) : 0}%</span>
+                  <span className="timebar-recap__hrs">{fmtDuration(r.hrs)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <p className="dd-hint timebar__total">
+            {carry > 0 && <>+ {fmtDuration(carry)} reporté{carry !== 1 ? 's' : ''} des séances précédentes — </>}
+            fera avancer le calendrier en jeu de{' '}
+            <b>{days} jour{days > 1 ? 's' : ''}</b> à la clôture
+            {nextCarry > 0 && <>, {fmtDuration(nextCarry)} reporté{nextCarry !== 1 ? 's' : ''} sur la suite</>}.
+          </p>
+        </div>
       </div>
-      <button
-        className="tbtn" type="button"
-        onClick={() => mutate((s) => { s.sessionDraft.timeBlocks.push(makeTimeBlock()); })}
-      >
-        ＋ ajouter bloc de temps
-      </button>
     </div>
   );
 }
