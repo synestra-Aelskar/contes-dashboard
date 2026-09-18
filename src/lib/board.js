@@ -21,7 +21,7 @@ export const EMPTY_STATE = {
   sessions: [], consequences: [], clocks: [], secrets: [], reminders: [], epreuves: [],
   characters: [], sessionDraft: null, zones: [], sessionZero: { blocks: [] }, fichesTechniques: [],
   xpCalibreur: XP_DEFAULT_STATE, ddCalc: null, prepSessions: [],
-  settings: { timeTypes: [] },
+  settings: { timeTypes: [], accounts: [] },
   aelCarryHours: 0
 };
 
@@ -48,9 +48,11 @@ function normalize(raw) {
   });
   if (!out.sessionDraft || typeof out.sessionDraft !== 'object') out.sessionDraft = null;
   if (out.sessionDraft && !Array.isArray(out.sessionDraft.timeBlocks)) out.sessionDraft.timeBlocks = [];
-  if (!out.settings || typeof out.settings !== 'object') out.settings = { timeTypes: [] };
+  if (!out.settings || typeof out.settings !== 'object') out.settings = { timeTypes: [], accounts: [] };
   if (!Array.isArray(out.settings.timeTypes)) out.settings.timeTypes = [];
+  if (!Array.isArray(out.settings.accounts)) out.settings.accounts = [];
   if (typeof out.aelCarryHours !== 'number' || !Number.isFinite(out.aelCarryHours)) out.aelCarryHours = 0;
+  out.characters.forEach((c) => { if (typeof c.ownerId !== 'string') c.ownerId = null; });
   if (!out.sessionZero || typeof out.sessionZero !== 'object') out.sessionZero = { blocks: [] };
   if (!Array.isArray(out.sessionZero.blocks)) out.sessionZero.blocks = [];
   if (!Array.isArray(out.fichesTechniques)) out.fichesTechniques = [];

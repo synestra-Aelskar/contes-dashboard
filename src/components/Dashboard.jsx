@@ -86,9 +86,12 @@ export default function Dashboard({ session }) {
             <p className="eyebrow">Tableau de bord · Animation JdR</p>
             <h1>Les Contes Malveillants</h1>
             <p className="lede">
-              Repaire commun du binôme : liens &amp; outils, journal, conséquences, horloges,
-              secrets — la mémoire vivante de la partie.
+              L’abîme n’est que rarement chose absolue, car maints récits tenus pour funestes ne
+              furent, en leur genèse, que des justices sans témoins, dont le passé maudit,
+              dépourvu d’encre et de mémoire, ne sut jamais être rapporté avec la fidélité qui
+              leur eût rendu couleurs et légitimité.
             </p>
+            <p className="lede">Ainsi vont les tragédies ; ainsi vont les contes malveillants.</p>
           </div>
           <div className="topright">
             <WorldDate state={state} mutate={mutate} />

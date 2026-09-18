@@ -55,7 +55,6 @@ function XpRow({ char, row, mutate, sessions, goToSession }) {
 
 function CharPane({ state, char, mutate, goToSession }) {
   const [name, setName, nameRef] = useSyncedField(char.name);
-  const [player, setPlayer, playerRef] = useSyncedField(char.player);
   const [art, setArt, artRef] = useSyncedField(char.artUrl);
   const [mjNote, setMjNote, mjRef] = useSyncedField(char.mjNote);
 
@@ -80,15 +79,6 @@ function CharPane({ state, char, mutate, goToSession }) {
             value={name}
             onChange={(e) => { const v = e.target.value; setName(v); patch((c) => { c.name = v; }); }}
             onBlur={() => patch((c) => { c.name = name.trim(); })}
-          />
-        </label>
-        <label className="flabel">
-          Nom du joueur
-          <input
-            ref={playerRef} className="field" type="text" placeholder="Nom du joueur / de la joueuse"
-            value={player}
-            onChange={(e) => { const v = e.target.value; setPlayer(v); patch((c) => { c.player = v; }); }}
-            onBlur={() => patch((c) => { c.player = player.trim(); })}
           />
         </label>
         <label className="flabel">
@@ -200,19 +190,61 @@ function CharPane({ state, char, mutate, goToSession }) {
   );
 }
 
+/* --- sommaire par compte (arbre) ----------------------------------- */
+
+function AccountNode({ account, chars, selId, onSelect }) {
+  const [open, setOpen] = useState(true);
+  const linked = chars.filter((c) => account.userId && c.ownerId === account.userId);
+  return (
+    <div className="zone-node">
+      <div className="zone-node__row">
+        <button
+          className="zone-node__chev" type="button"
+          onClick={() => setOpen((o) => !o)}
+          style={{ visibility: linked.length ? 'visible' : 'hidden' }}
+          aria-label={open ? 'replier' : 'déplier'}
+        >
+          {open ? '▾' : '▸'}
+        </button>
+        <span className="zone-node__label zone-node__label--static">{account.label || account.email}</span>
+      </div>
+      {open && linked.length > 0 && (
+        <div className="zone-node__kids">
+          {linked.map((c) => (
+            <div key={c.id} className="zone-node">
+              <div className={'zone-node__row' + (selId === c.id ? ' is-sel' : '')}>
+                <span className="zone-node__chev" style={{ visibility: 'hidden' }} />
+                <button className="zone-node__label" type="button" onClick={() => onSelect(c.id)}>
+                  {c.name || 'Sans nom'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {open && !linked.length && <p className="chr__muted zone-node__empty">Aucun personnage créé.</p>}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 
 export default function Personnages({ state, mutate, goToSession }) {
   const chars = state.characters || [];
+  const accounts = (state.settings && state.settings.accounts) || [];
   const [selId, setSelId] = useState(lsGet('ccm.char'));
-  const sel = chars.find((c) => c.id === selId) || chars[0];
+  const sel = chars.find((c) => c.id === selId);
+
+  const select = (id) => { setSelId(id); lsSet('ccm.char', id); };
 
   function addChar() {
-    const c = { id: uid(), name: 'Nouveau personnage', player: '', artUrl: '', mjNote: '', xp: [], events: [], recaps: [] };
+    const c = { id: uid(), name: 'Nouveau personnage', artUrl: '', mjNote: '', xp: [], events: [], recaps: [], ownerId: null };
     mutate((s) => { s.characters.push(c); });
-    setSelId(c.id);
-    lsSet('ccm.char', c.id);
+    select(c.id);
   }
+
+  const linkedAccountIds = new Set(accounts.filter((a) => a.userId).map((a) => a.userId));
+  const unlinked = chars.filter((c) => !c.ownerId || !linkedAccountIds.has(c.ownerId));
 
   return (
     <section className="chapter">
@@ -223,26 +255,42 @@ export default function Personnages({ state, mutate, goToSession }) {
 
       {!chars.length ? (
         <p className="empty">
-          Aucun personnage. Ajoutes-en un — chaque personnage a son onglet : nom du joueur, artwork,
-          note MJ, participation aux séances et tableau d’XP.
+          Aucun personnage. Ajoutes-en un — chaque personnage a son onglet : artwork, note MJ,
+          participation aux séances et tableau d’XP.
         </p>
       ) : (
-        <>
-          <div className="tabs" role="tablist">
-            {chars.map((c) => (
-              <button
-                key={c.id} type="button" role="tab" className="tab"
-                aria-selected={sel && c.id === sel.id}
-                onClick={() => { setSelId(c.id); lsSet('ccm.char', c.id); }}
-              >
-                {c.name || 'Sans nom'}
-              </button>
+        <div className="zones">
+          <div className="zone-tree">
+            {accounts.filter((a) => a.userId).map((a) => (
+              <AccountNode key={a.id} account={a} chars={chars} selId={selId} onSelect={select} />
             ))}
+            {unlinked.length > 0 && (
+              <div className="zone-node">
+                <div className="zone-node__row">
+                  <span className="zone-node__chev" style={{ visibility: 'hidden' }} />
+                  <span className="zone-node__label zone-node__label--static">Sans compte lié</span>
+                </div>
+                <div className="zone-node__kids">
+                  {unlinked.map((c) => (
+                    <div key={c.id} className="zone-node">
+                      <div className={'zone-node__row' + (selId === c.id ? ' is-sel' : '')}>
+                        <span className="zone-node__chev" style={{ visibility: 'hidden' }} />
+                        <button className="zone-node__label" type="button" onClick={() => select(c.id)}>
+                          {c.name || 'Sans nom'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-          {sel && (
+          {sel ? (
             <CharPane key={sel.id} state={state} char={sel} mutate={mutate} goToSession={goToSession} />
+          ) : (
+            <p className="empty">Sélectionne un personnage dans la liste à gauche.</p>
           )}
-        </>
+        </div>
       )}
     </section>
   );

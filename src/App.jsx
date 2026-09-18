@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react';
 import { supabase, configured } from './supabase';
 import Login from './components/Login.jsx';
+import SetPassword from './components/SetPassword.jsx';
 import Dashboard from './components/Dashboard.jsx';
+import PlayerDashboard from './components/PlayerDashboard.jsx';
 
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = inconnu, null = déconnecté
+  const [recovery, setRecovery] = useState(false);
 
   useEffect(() => {
     if (!configured) return undefined;
     supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s ?? null));
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      if (event === 'PASSWORD_RECOVERY') setRecovery(true);
+      setSession(s ?? null);
+    });
     return () => sub.subscription.unsubscribe();
   }, []);
 
@@ -29,9 +35,12 @@ export default function App() {
     );
   }
 
+  if (recovery) return <SetPassword onDone={() => setRecovery(false)} />;
+
   if (session === undefined) {
     return <div className="auth__boot">Connexion…</div>;
   }
   if (!session) return <Login />;
+  if (session.user.user_metadata?.role === 'player') return <PlayerDashboard session={session} />;
   return <Dashboard session={session} />;
 }
