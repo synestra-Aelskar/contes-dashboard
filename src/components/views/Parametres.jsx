@@ -60,7 +60,7 @@ function TempsPane({ state, mutate }) {
   );
 }
 
-const ROLES = [['mj', 'MJ'], ['player', 'Joueur']];
+const ROLES = [['admin', 'Admin'], ['player', 'Joueur']];
 
 /** Appelle l'Edge Function generate-account-link (voir supabase/functions/) :
  * seule façon sûre d'obtenir le texte du lien magique côté client, sans
@@ -102,6 +102,7 @@ function AccountRow({ row, mutate }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [link, setLink] = useState('');
+  const isAdmin = row.role === 'admin';
 
   async function resend() {
     setBusy(true);
@@ -117,7 +118,7 @@ function AccountRow({ row, mutate }) {
   }
 
   return (
-    <div className="paramline--account">
+    <div className={'paramline--account' + (isAdmin ? ' paramline--account-admin' : '')}>
       <div className="paramline paramline--account-row">
         <div className="account__id">
           <span className="account__email">{row.email}</span>
@@ -125,21 +126,26 @@ function AccountRow({ row, mutate }) {
             {(ROLES.find((r) => r[0] === row.role) || [, row.role])[1]}
             {row.label ? ' · ' + row.label : ''}
             {row.createdAt ? ' · créé le ' + fmtDateLong(row.createdAt) : ''}
+            {isAdmin && ' · rôle protégé'}
           </span>
           {msg && <span className="account__msg">{msg}</span>}
         </div>
         <button className="tbtn" type="button" disabled={busy} onClick={resend}>
           {busy ? '…' : 'générer un lien'}
         </button>
-        <button
-          className="tbtn" type="button" aria-label="retirer du répertoire"
-          onClick={() => {
-            if (!window.confirm('Retirer « ' + row.email + ' » du répertoire ? (Le compte Supabase lui-même n’est pas supprimé.)')) return;
-            mutate((s) => { s.settings.accounts = s.settings.accounts.filter((x) => x.id !== row.id); });
-          }}
-        >
-          ×
-        </button>
+        {isAdmin ? (
+          <span className="account__locked" title="Compte admin : ni rôle ni compte modifiable depuis ce répertoire">🔒</span>
+        ) : (
+          <button
+            className="tbtn" type="button" aria-label="retirer du répertoire"
+            onClick={() => {
+              if (!window.confirm('Retirer « ' + row.email + ' » du répertoire ? (Le compte Supabase lui-même n’est pas supprimé.)')) return;
+              mutate((s) => { s.settings.accounts = s.settings.accounts.filter((x) => x.id !== row.id); });
+            }}
+          >
+            ×
+          </button>
+        )}
       </div>
       {link && <CopyLink link={link} />}
     </div>
