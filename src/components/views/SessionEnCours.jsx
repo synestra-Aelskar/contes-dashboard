@@ -279,7 +279,7 @@ function polar(cx, cy, r, angleDeg) {
 }
 
 function TimePie({ recap, total }) {
-  const cx = 55, cy = 55, r = 50, labelR = 32;
+  const cx = 35, cy = 35, r = 32, labelR = 20;
   let angle = 0;
   const slices = recap.map((r2) => {
     const frac = total ? r2.hrs / total : 0;
@@ -289,29 +289,40 @@ function TimePie({ recap, total }) {
     return { ...r2, start, end, pct: Math.round(frac * 100) };
   });
   return (
-    <svg className="timepie" width="110" height="110" viewBox="0 0 110 110" role="img" aria-label="Répartition du temps par type d’évènement">
-      {slices.length === 1 ? (
-        <circle cx={cx} cy={cy} r={r} fill={slices[0].type ? slices[0].type.color : 'var(--rule)'} />
-      ) : (
-        slices.map((s) => {
-          const [x1, y1] = polar(cx, cy, r, s.start);
-          const [x2, y2] = polar(cx, cy, r, s.end);
-          const large = s.end - s.start > 180 ? 1 : 0;
-          const d = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
-          return <path key={s.typeId || 'none'} d={d} fill={s.type ? s.type.color : 'var(--rule)'} stroke="var(--bg)" strokeWidth="1" />;
-        })
-      )}
-      {slices.map((s) => {
-        const mid = (s.start + s.end) / 2;
-        const [lx, ly] = polar(cx, cy, slices.length === 1 ? 0 : labelR, mid);
-        if (!s.pct) return null;
-        return (
-          <text key={(s.typeId || 'none') + '-label'} className="timepie__label" x={slices.length === 1 ? cx : lx} y={slices.length === 1 ? cy : ly}>
-            {s.pct}%
-          </text>
-        );
-      })}
-    </svg>
+    <div className="timepie-wrap">
+      <svg className="timepie" width="70" height="70" viewBox="0 0 70 70" role="img" aria-label="Répartition du temps par type d’évènement">
+        {slices.length === 1 ? (
+          <circle cx={cx} cy={cy} r={r} fill={slices[0].type ? slices[0].type.color : 'var(--rule)'} />
+        ) : (
+          slices.map((s) => {
+            const [x1, y1] = polar(cx, cy, r, s.start);
+            const [x2, y2] = polar(cx, cy, r, s.end);
+            const large = s.end - s.start > 180 ? 1 : 0;
+            const d = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
+            return <path key={s.typeId || 'none'} d={d} fill={s.type ? s.type.color : 'var(--rule)'} stroke="var(--bg)" strokeWidth="1" />;
+          })
+        )}
+        {slices.map((s) => {
+          const mid = (s.start + s.end) / 2;
+          const [lx, ly] = polar(cx, cy, slices.length === 1 ? 0 : labelR, mid);
+          if (!s.pct) return null;
+          return (
+            <text key={(s.typeId || 'none') + '-label'} className="timepie__label" x={slices.length === 1 ? cx : lx} y={slices.length === 1 ? cy : ly}>
+              {s.pct}%
+            </text>
+          );
+        })}
+      </svg>
+      <div className="timepie-legend">
+        {slices.map((s) => (
+          <div key={(s.typeId || 'none') + '-legend'} className="timepie-legend__row" style={{ '--tb-color': s.type ? s.type.color : 'var(--rule)' }}>
+            <span className="timepie-legend__swatch" />
+            <span className="timepie-legend__name">{s.type ? (s.type.name || 'Sans nom') : 'Sans type'}</span>
+            <span className="timepie-legend__pct">{s.pct}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
