@@ -247,11 +247,38 @@ function TimeBlockRow({ row, types, mutate }) {
   );
 }
 
+function TimeBlocksModal({ blocks, types, mutate, onClose }) {
+  return (
+    <div className="modal" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="modal__card timeblocks__card" onClick={(e) => e.stopPropagation()}>
+        <h3 className="modal__title">Blocs de temps</h3>
+        {blocks.length > 0 ? (
+          <div className="timeblocks__editlist">
+            {blocks.map((b) => <TimeBlockRow key={b.id} row={b} types={types} mutate={mutate} />)}
+          </div>
+        ) : (
+          <p className="empty">Aucun bloc de temps pour l’instant.</p>
+        )}
+        <button
+          className="tbtn" type="button"
+          onClick={() => mutate((s) => { s.sessionDraft.timeBlocks.push(makeTimeBlock()); })}
+        >
+          ＋ ajouter bloc de temps
+        </button>
+        <div className="modal__actions">
+          <button className="tbtn" type="button" onClick={onClose}>Fermer</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TimeBar({ state, mutate }) {
   const d = state.sessionDraft;
   const types = (state.settings && state.settings.timeTypes) || [];
   const blocks = d.timeBlocks || [];
   const total = blocksTotalHours(blocks);
+  const [manageOpen, setManageOpen] = useState(false);
   const carry = Number(state.aelCarryHours) || 0;
   const withCarry = total + carry;
   const days = Math.floor(withCarry / 24);
@@ -273,12 +300,24 @@ function TimeBar({ state, mutate }) {
       <h3 className="ssn-h">Temps écoulé pendant la séance</h3>
       <div className="timebar-layout">
         <div className="timebar-list">
-          {blocks.map((b) => <TimeBlockRow key={b.id} row={b} types={types} mutate={mutate} />)}
-          <button
-            className="tbtn" type="button"
-            onClick={() => mutate((s) => { s.sessionDraft.timeBlocks.push(makeTimeBlock()); })}
-          >
-            ＋ ajouter bloc de temps
+          {blocks.length > 0 ? (
+            <div className="timebar-summary">
+              {blocks.map((b) => {
+                const type = types.find((t) => t.id === b.typeId);
+                return (
+                  <div key={b.id} className="timebar-summary__row" style={{ '--tb-color': type ? type.color : 'var(--rule)' }}>
+                    <span className="timebar-summary__swatch" />
+                    <span className="timebar-summary__name">{b.name || type?.name || 'Bloc sans nom'}</span>
+                    <span className="timebar-summary__hrs">{fmtDuration(blockHours(b))}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="empty">Aucun bloc de temps.</p>
+          )}
+          <button className="tbtn" type="button" onClick={() => setManageOpen(true)}>
+            ＋ ajouter / gérer les blocs
           </button>
         </div>
 
@@ -332,6 +371,10 @@ function TimeBar({ state, mutate }) {
           </p>
         </div>
       </div>
+
+      {manageOpen && (
+        <TimeBlocksModal blocks={blocks} types={types} mutate={mutate} onClose={() => setManageOpen(false)} />
+      )}
     </div>
   );
 }
