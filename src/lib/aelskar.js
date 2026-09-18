@@ -59,9 +59,15 @@ export function aelEraIndex(y) {
   return idx + 1;
 }
 export function aelYearInEra(y) { return y - aelEra(y).start + 1; }
+export function aelOrdinal(n) { return n === 1 ? '1ʳᵉ' : n + 'ᵉ'; }
+export function aelDayCycle(d) {
+  return 'Jour ' + AEL.DAY_OF[d.day - 1] + ' du Cycle ' + AEL.CYCLE_OF[d.cycle - 1];
+}
+export function aelSeasonLine(d) {
+  return 'Saison ' + AEL.SEASON_OF[d.season - 1];
+}
 export function aelTextLine1(d) {
-  return 'Jour ' + AEL.DAY_OF[d.day - 1] + ' du Cycle ' + AEL.CYCLE_OF[d.cycle - 1] +
-    ' / Saison ' + AEL.SEASON_OF[d.season - 1];
+  return aelDayCycle(d) + ' / ' + aelSeasonLine(d);
 }
 export function aelTextLine2(d) {
   return 'An ' + d.year + ' · Khestil ' + aelKhestil(d.year) + ' · ' + aelEra(d.year).name;

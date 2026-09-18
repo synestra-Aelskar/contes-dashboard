@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import AelPicker from './AelPicker.jsx';
-import { aelCompare, aelToday, aelTextLine1, aelTextLine2, aelNumeric } from '../lib/aelskar.js';
+import { aelCompare, aelToday, aelDayCycle, aelSeasonLine, aelTextLine2, aelNumeric } from '../lib/aelskar.js';
 import { campaignDate, lastSessionAel } from '../lib/campaign.js';
 
 export { campaignDate, lastSessionAel };
@@ -22,7 +22,7 @@ export default function WorldDate({ state, mutate }) {
         <span className="aelskar__eyebrow">
           {realDrift ? 'Présent de la campagne' : 'Présent de la campagne · temps réel'}
         </span>
-        <span className="aelskar__main">{aelTextLine1(shown)}</span>
+        <span className="aelskar__main">{aelDayCycle(shown)}<br />{aelSeasonLine(shown)}</span>
         <span className="aelskar__sub">{aelTextLine2(shown)}</span>
         <span className="aelskar__num">{aelNumeric(shown)}</span>
       </button>

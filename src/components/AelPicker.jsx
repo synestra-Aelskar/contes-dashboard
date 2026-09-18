@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  AEL, aelShift, aelNumeric, aelKhestil, aelEra, aelYearInEra
+  AEL, aelShift, aelNumeric, aelKhestil, aelEra, aelYearInEra, aelOrdinal
 } from '../lib/aelskar.js';
 
 /**
@@ -56,7 +56,7 @@ export default function AelPicker({ cur, onPick, onToday, midLabel }) {
             onKeyDown={(e) => { if (e.key === 'Enter') commitYear(); }}
           />
           <span className="aelpick__yinfo">
-            Khestil {aelKhestil(yPreview)} · {aelEra(yPreview).name} · année {aelYearInEra(yPreview)}
+            Khestil {aelKhestil(yPreview)} · {aelOrdinal(aelYearInEra(yPreview))} année de l’{aelEra(yPreview).name}
           </span>
         </div>
       </div>
