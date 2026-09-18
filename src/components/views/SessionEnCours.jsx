@@ -4,6 +4,7 @@ import { useSyncedField } from '../../lib/useSyncedField.js';
 import { makeDraft } from '../../lib/session.js';
 import { campaignDate } from '../../lib/campaign.js';
 import { aelValid, aelTextLine1 } from '../../lib/aelskar.js';
+import { makeTimeBlock, blockHours, blocksTotalHours, fmtDuration } from '../../lib/timeblocks.js';
 import AelPicker from '../AelPicker.jsx';
 import CharToggles from '../CharToggles.jsx';
 
@@ -201,6 +202,95 @@ function ReminderLine({ row, mutate }) {
   );
 }
 
+function TimeBlockRow({ row, types, mutate }) {
+  const [name, setName, nameRef] = useSyncedField(row.name);
+  const patch = (fn) =>
+    mutate((s) => { const b = s.sessionDraft.timeBlocks.find((x) => x.id === row.id); if (b) fn(b); });
+  const type = types.find((t) => t.id === row.typeId);
+  const numField = (key, label) => (
+    <input
+      className="finput timeblock__dur" type="number" min="0" step="1" placeholder={label}
+      value={row[key] || ''}
+      onChange={(e) => patch((b) => { b[key] = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0); })}
+    />
+  );
+  return (
+    <div className="timeblock" style={{ '--tb-color': type ? type.color : 'var(--rule)' }}>
+      <input
+        ref={nameRef} className="finput timeblock__name" type="text" placeholder="Nom du bloc"
+        value={name}
+        onChange={(e) => { const v = e.target.value; setName(v); patch((b) => { b.name = v; }); }}
+        onBlur={() => patch((b) => { b.name = name.trim(); })}
+      />
+      <div className="timeblock__durs">
+        {numField('h', 'h')}
+        {numField('d', 'j')}
+        {numField('w', 'sem')}
+      </div>
+      <select
+        className="field timeblock__type" value={row.typeId || ''}
+        onChange={(e) => patch((b) => { b.typeId = e.target.value; })}
+      >
+        <option value="">— type —</option>
+        {types.map((t) => <option key={t.id} value={t.id}>{t.name || 'Sans nom'}</option>)}
+      </select>
+      <span className="timeblock__hrs">{fmtDuration(blockHours(row))}</span>
+      <button
+        className="tbtn" type="button" aria-label="retirer ce bloc de temps"
+        onClick={() => mutate((s) => { s.sessionDraft.timeBlocks = s.sessionDraft.timeBlocks.filter((x) => x.id !== row.id); })}
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
+function TimeBar({ state, mutate }) {
+  const d = state.sessionDraft;
+  const types = (state.settings && state.settings.timeTypes) || [];
+  const blocks = d.timeBlocks || [];
+  const total = blocksTotalHours(blocks);
+
+  return (
+    <div className="ssn-block">
+      <h3 className="ssn-h">Temps écoulé pendant la séance</h3>
+      {blocks.length > 0 && (
+        <div className="timebar">
+          {blocks.map((b) => {
+            const hrs = blockHours(b);
+            if (!hrs) return null;
+            const type = types.find((t) => t.id === b.typeId);
+            const pct = total ? (hrs / total) * 100 : 0;
+            return (
+              <div
+                key={b.id} className="timebar__seg"
+                style={{ width: pct + '%', '--tb-color': type ? type.color : 'var(--rule)' }}
+                title={(b.name || type?.name || 'Bloc') + ' — ' + fmtDuration(hrs)}
+              >
+                <span className="timebar__seg-label">{b.name || type?.name || ''}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <p className="dd-hint timebar__total">
+        Total : <b>{fmtDuration(total)}</b> — fera avancer le calendrier en jeu de{' '}
+        <b>{Math.round(total / 24)} jour{Math.round(total / 24) > 1 ? 's' : ''}</b> à la clôture de la séance.
+      </p>
+
+      <div className="timeblocklist">
+        {blocks.map((b) => <TimeBlockRow key={b.id} row={b} types={types} mutate={mutate} />)}
+      </div>
+      <button
+        className="tbtn" type="button"
+        onClick={() => mutate((s) => { s.sessionDraft.timeBlocks.push(makeTimeBlock()); })}
+      >
+        ＋ ajouter bloc de temps
+      </button>
+    </div>
+  );
+}
+
 /* --- vue principale --------------------------------------------- */
 
 function Workspace({ state, mutate, onFinish }) {
@@ -237,6 +327,8 @@ function Workspace({ state, mutate, onFinish }) {
           abandonner
         </button>
       </div>
+
+      <TimeBar state={state} mutate={mutate} />
 
       <div className="ssn-block">
         <h3 className="ssn-h">Identité</h3>

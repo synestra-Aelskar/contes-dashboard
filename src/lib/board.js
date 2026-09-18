@@ -20,7 +20,8 @@ export const EMPTY_STATE = {
   ],
   sessions: [], consequences: [], clocks: [], secrets: [], reminders: [], epreuves: [],
   characters: [], sessionDraft: null, zones: [], sessionZero: { blocks: [] }, fichesTechniques: [],
-  xpCalibreur: XP_DEFAULT_STATE, ddCalc: null, prepSessions: []
+  xpCalibreur: XP_DEFAULT_STATE, ddCalc: null, prepSessions: [],
+  settings: { timeTypes: [] }
 };
 
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -45,6 +46,9 @@ function normalize(raw) {
     });
   });
   if (!out.sessionDraft || typeof out.sessionDraft !== 'object') out.sessionDraft = null;
+  if (out.sessionDraft && !Array.isArray(out.sessionDraft.timeBlocks)) out.sessionDraft.timeBlocks = [];
+  if (!out.settings || typeof out.settings !== 'object') out.settings = { timeTypes: [] };
+  if (!Array.isArray(out.settings.timeTypes)) out.settings.timeTypes = [];
   if (!out.sessionZero || typeof out.sessionZero !== 'object') out.sessionZero = { blocks: [] };
   if (!Array.isArray(out.sessionZero.blocks)) out.sessionZero.blocks = [];
   if (!Array.isArray(out.fichesTechniques)) out.fichesTechniques = [];

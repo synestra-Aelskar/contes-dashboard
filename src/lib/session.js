@@ -1,5 +1,7 @@
 import { uid } from './util.js';
 import { campaignDate } from './campaign.js';
+import { aelShift } from './aelskar.js';
+import { blocksTotalHours } from './timeblocks.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 
@@ -18,7 +20,8 @@ export function makeDraft(state) {
     events: [],             // { id, description, charIds: [] }
     consequences: [],       // { id, trigger, effect }
     clocks: [],             // { id, title, kind, size, filled, note, deadlineAel }
-    reminders: []           // { id, text, kind }
+    reminders: [],          // { id, text, kind }
+    timeBlocks: []          // { id, name, typeId, h, d, w } — durée réelle, convertie en jours à la clôture
   };
 }
 
@@ -119,7 +122,14 @@ export function finishDraft(s, out) {
     s.reminders.push({ id: uid(), text: (x.text || '').trim(), kind: (x.kind || '').trim() || 'Divers', sessionId: sid });
   });
 
-  // 6) clôture
+  // 6) avance le calendrier en jeu du temps réellement écoulé pendant la séance
+  //    (barre de temps → heures → jours, arrondi au jour le plus proche : le
+  //    calendrier d'Aelskar n'a pas de granularité inférieure au jour).
+  const totalHours = blocksTotalHours(d.timeBlocks);
+  const days = Math.round(totalHours / 24);
+  if (days > 0) s.aelPin = aelShift(campaignDate(s), days);
+
+  // 7) clôture
   s.sessionDraft = null;
   if (out) out.sessionId = sid;
 }
