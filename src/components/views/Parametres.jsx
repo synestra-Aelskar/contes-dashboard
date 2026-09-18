@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { uid, fmtDateLong } from '../../lib/util.js';
 import { useSyncedField } from '../../lib/useSyncedField.js';
 import { supabase } from '../../supabase';
@@ -62,20 +62,18 @@ function TempsPane({ state, mutate }) {
 
 const ROLES = [['admin', 'Admin'], ['player', 'Joueur']];
 
-/** Appelle l'Edge Function generate-account-link (voir supabase/functions/) :
- * seule façon sûre d'obtenir le texte du lien magique côté client, sans
- * jamais exposer la clé service_role dans le navigateur. */
-async function generateAccountLink(action, email, role) {
-  const { data, error } = await supabase.functions.invoke('generate-account-link', {
-    body: { action, email, role }
-  });
+/** Appelle l'Edge Function generate-account-link (voir supabase/functions/) —
+ * seul point d'accès à l'API admin Supabase (invite/recovery/list/delete),
+ * la clé service_role restant entièrement côté fonction. */
+async function callAccountsFn(body) {
+  const { data, error } = await supabase.functions.invoke('generate-account-link', { body });
   if (error) {
     const detail = error.context && typeof error.context.json === 'function'
       ? await error.context.json().catch(() => null)
       : null;
-    throw new Error((detail && detail.error) || error.message || 'Échec de la génération du lien.');
+    throw new Error((detail && detail.error) || error.message || 'Échec de la requête.');
   }
-  return data; // { link, userId }
+  return data;
 }
 
 /** Lien à copier-coller — jamais persisté dans l'état partagé (il donne un
@@ -98,18 +96,18 @@ function CopyLink({ link }) {
   );
 }
 
-function AccountRow({ row, mutate }) {
+function AccountRow({ user, mutate, onChanged }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [link, setLink] = useState('');
-  const isAdmin = row.role === 'admin';
+  const isAdmin = user.role === 'admin';
 
   async function resend() {
     setBusy(true);
     setMsg('');
     setLink('');
     try {
-      const { link: newLink } = await generateAccountLink('recovery', row.email);
+      const { link: newLink } = await callAccountsFn({ action: 'recovery', email: user.email });
       setLink(newLink || '');
     } catch (e) {
       setMsg(e.message);
@@ -117,15 +115,28 @@ function AccountRow({ row, mutate }) {
     setBusy(false);
   }
 
+  async function remove() {
+    if (!window.confirm('Supprimer définitivement le compte « ' + user.email + ' » ? Cette action est irréversible.')) return;
+    setBusy(true);
+    setMsg('');
+    try {
+      await callAccountsFn({ action: 'delete', userId: user.id });
+      mutate((s) => { s.settings.accounts = (s.settings.accounts || []).filter((a) => a.userId !== user.id); });
+      onChanged();
+    } catch (e) {
+      setMsg(e.message);
+      setBusy(false);
+    }
+  }
+
   return (
     <div className={'paramline--account' + (isAdmin ? ' paramline--account-admin' : '')}>
       <div className="paramline paramline--account-row">
         <div className="account__id">
-          <span className="account__email">{row.email}</span>
+          <span className="account__email">{user.email}</span>
           <span className="account__meta">
-            {(ROLES.find((r) => r[0] === row.role) || [, row.role])[1]}
-            {row.label ? ' · ' + row.label : ''}
-            {row.createdAt ? ' · créé le ' + fmtDateLong(row.createdAt) : ''}
+            {(ROLES.find((r) => r[0] === user.role) || [, user.role])[1]}
+            {user.createdAt ? ' · créé le ' + fmtDateLong(user.createdAt.slice(0, 10)) : ''}
             {isAdmin && ' · rôle protégé'}
           </span>
           {msg && <span className="account__msg">{msg}</span>}
@@ -136,13 +147,7 @@ function AccountRow({ row, mutate }) {
         {isAdmin ? (
           <span className="account__locked" title="Compte admin : ni rôle ni compte modifiable depuis ce répertoire">🔒</span>
         ) : (
-          <button
-            className="tbtn" type="button" aria-label="retirer du répertoire"
-            onClick={() => {
-              if (!window.confirm('Retirer « ' + row.email + ' » du répertoire ? (Le compte Supabase lui-même n’est pas supprimé.)')) return;
-              mutate((s) => { s.settings.accounts = s.settings.accounts.filter((x) => x.id !== row.id); });
-            }}
-          >
+          <button className="tbtn" type="button" aria-label="supprimer le compte" disabled={busy} onClick={remove}>
             ×
           </button>
         )}
@@ -153,45 +158,55 @@ function AccountRow({ row, mutate }) {
 }
 
 function ComptesPane({ state, mutate }) {
-  const accounts = (state.settings && state.settings.accounts) || [];
+  const [users, setUsers] = useState(null); // null = chargement
+  const [loadErr, setLoadErr] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('player');
-  const [label, setLabel] = useState('');
-  const [existing, setExisting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [link, setLink] = useState('');
 
-  function addToRoster(cleanEmail, userId) {
-    mutate((s) => {
-      s.settings.accounts = s.settings.accounts || [];
-      s.settings.accounts.push({
-        id: uid(), email: cleanEmail, role, label: label.trim(), userId: userId || null,
-        createdAt: new Date().toISOString().slice(0, 10)
+  async function refresh() {
+    setLoadErr('');
+    try {
+      const { users: list } = await callAccountsFn({ action: 'list' });
+      setUsers(list || []);
+      // Synchronise le répertoire local (utilisé par le sommaire par compte
+      // de la vue Personnages) avec la liste réelle — plus besoin de les
+      // ajouter à la main : userId/role viennent toujours de Supabase.
+      mutate((s) => {
+        s.settings.accounts = s.settings.accounts || [];
+        (list || []).forEach((u) => {
+          const existing = s.settings.accounts.find((a) => a.userId === u.id || a.email === u.email);
+          if (existing) {
+            existing.userId = u.id; existing.email = u.email; existing.role = u.role;
+            if (!existing.createdAt) existing.createdAt = u.createdAt.slice(0, 10);
+          } else {
+            s.settings.accounts.push({ id: uid(), email: u.email, role: u.role, label: '', userId: u.id, createdAt: u.createdAt.slice(0, 10) });
+          }
+        });
       });
-    });
-    setEmail(''); setLabel('');
+    } catch (e) {
+      setLoadErr(e.message);
+      setUsers([]);
+    }
   }
+
+  useEffect(() => { refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function createAccount(e) {
     e.preventDefault();
     const clean = email.trim();
     if (!clean) return;
     setLink('');
-
-    if (existing) {
-      addToRoster(clean, null);
-      setMsg(clean + ' ajouté au répertoire (compte déjà existant — pas de lien généré ici, ni de rattachement automatique de ses personnages).');
-      return;
-    }
-
     setBusy(true);
     setMsg('');
     try {
-      const { link: newLink, userId } = await generateAccountLink('invite', clean, role);
-      addToRoster(clean, userId);
+      const { link: newLink } = await callAccountsFn({ action: 'invite', email: clean, role });
       setLink(newLink || '');
       setMsg('Compte créé pour ' + clean + '.');
+      setEmail('');
+      await refresh();
     } catch (e2) {
       setMsg(e2.message);
     }
@@ -216,34 +231,29 @@ function ComptesPane({ state, mutate }) {
         <select className="field account__role" value={role} onChange={(e) => setRole(e.target.value)}>
           {ROLES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
-        <input
-          className="finput" type="text" placeholder="Nom (repère, optionnel)"
-          value={label} onChange={(e) => setLabel(e.target.value)}
-        />
-        <label className="account__existing">
-          <input type="checkbox" checked={existing} onChange={(e) => setExisting(e.target.checked)} />
-          compte déjà créé (juste le référencer, sans rien générer)
-        </label>
         <button className="tbtn" type="submit" disabled={busy}>
-          {busy ? '…' : (existing ? '＋ ajouter au répertoire' : '＋ créer le compte')}
+          {busy ? '…' : '＋ créer le compte'}
         </button>
       </form>
       {msg && <p className="dd-hint account__status">{msg}</p>}
       {link && <CopyLink link={link} />}
 
-      <h3 className="ssn-h">Répertoire</h3>
-      {accounts.length ? (
+      <h3 className="ssn-h">Comptes existants</h3>
+      {users === null ? (
+        <p className="empty">Chargement…</p>
+      ) : loadErr ? (
+        <p className="dd-hint account__status">{loadErr}</p>
+      ) : users.length ? (
         <div className="paramlist">
-          {accounts.map((a) => <AccountRow key={a.id} row={a} mutate={mutate} />)}
+          {users.map((u) => <AccountRow key={u.id} user={u} mutate={mutate} onChanged={refresh} />)}
         </div>
       ) : (
-        <p className="empty">Aucun compte référencé pour l’instant.</p>
+        <p className="empty">Aucun compte pour l’instant.</p>
       )}
       <p className="dd-hint">
-        Ce répertoire est une liste de repère côté app — il ne reflète pas forcément tous les
-        comptes créés directement depuis le tableau de bord Supabase (Authentication → Users) :
-        ajoute-les ici manuellement si besoin. Chaque lien généré est sensible (accès complet au
-        compte visé) : il n’est jamais enregistré, seulement affiché le temps de la copie.
+        Liste tirée en direct de Supabase (Authentication) — toujours à jour, rien à ajouter à la
+        main. Chaque lien généré est sensible (accès complet au compte visé) : il n’est jamais
+        enregistré, seulement affiché le temps de la copie.
       </p>
     </div>
   );
