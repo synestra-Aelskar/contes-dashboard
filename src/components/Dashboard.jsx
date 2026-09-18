@@ -4,8 +4,9 @@ import { useBoard } from '../lib/board.js';
 import { fmtDateLong, lsGet, lsSet } from '../lib/util.js';
 import { makeDraft, finishDraft } from '../lib/session.js';
 import { getUiScale, applyUiScale } from '../lib/prefs.js';
+import { pruneForRole, firstViewKey, treeHasView } from '../lib/menu.js';
 import WorldDate from './WorldDate.jsx';
-import ViewBar from './ViewBar.jsx';
+import Sidebar from './Sidebar.jsx';
 import Notes from './Notes.jsx';
 import FinishModal from './FinishModal.jsx';
 import Preferences from './Preferences.jsx';
@@ -17,6 +18,7 @@ import Secrets from './views/Secrets.jsx';
 import Oublis from './views/Oublis.jsx';
 import Epreuves from './views/Epreuves.jsx';
 import Personnages from './views/Personnages.jsx';
+import PersonnageJoueur from './views/PersonnageJoueur.jsx';
 import Zones from './views/Zones.jsx';
 import FicheTechnique from './views/FicheTechnique.jsx';
 import XpCalibreur from './views/XpCalibreur.jsx';
@@ -33,9 +35,16 @@ const STATUS_TEXT = {
 };
 const STATUS_ON = { ready: '1', saving: 'saving', loading: 'saving', offline: '0' };
 
+const VIEW_COMPONENTS = {
+  liens: Liens, journal: Journal, consequences: Consequences, horloges: Horloges,
+  secrets: Secrets, oublis: Oublis, epreuves: Epreuves, zones: Zones,
+  fichetechnique: FicheTechnique, xpcalibreur: XpCalibreur, equilibrage: Equilibrage, prepsession: PrepSession
+};
+
 export default function Dashboard({ session }) {
+  const role = session.user.user_metadata?.role === 'player' ? 'player' : 'admin';
   const { state, status, mutate } = useBoard(session);
-  const [view, setViewRaw] = useState(lsGet('ccm.view') || 'liens');
+  const [view, setViewRaw] = useState(lsGet('ccm.view') || '');
   const [finishOpen, setFinishOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const setView = (v) => { setViewRaw(v); lsSet('ccm.view', v); };
@@ -46,7 +55,13 @@ export default function Dashboard({ session }) {
     return <div className="auth__boot">Chargement du repaire…</div>;
   }
 
-  const goToSession = (id) => { lsSet('ccm.session', id); setView('journal'); };
+  const tree = pruneForRole(state.settings.menu || [], role);
+  const isAdminOnlyView = view === 'session' || view === 'parametres';
+  const activeView = ((isAdminOnlyView && role === 'admin') || treeHasView(tree, view))
+    ? view
+    : (firstViewKey(tree) || '');
+
+  const goToSession = (id) => { lsSet('ccm.session', id); if (treeHasView(tree, 'journal')) setView('journal'); };
   const hasDraft = !!state.sessionDraft;
 
   function startSession() {
@@ -61,22 +76,21 @@ export default function Dashboard({ session }) {
     if (out.sessionId) goToSession(out.sessionId);
   }
 
-  let ViewComp = Liens;
   const shared = { state, mutate, goToSession };
-  if (view === 'session') ViewComp = SessionEnCours;
-  else if (view === 'journal') ViewComp = Journal;
-  else if (view === 'consequences') ViewComp = Consequences;
-  else if (view === 'horloges') ViewComp = Horloges;
-  else if (view === 'secrets') ViewComp = Secrets;
-  else if (view === 'oublis') ViewComp = Oublis;
-  else if (view === 'epreuves') ViewComp = Epreuves;
-  else if (view === 'personnages') ViewComp = Personnages;
-  else if (view === 'zones') ViewComp = Zones;
-  else if (view === 'fichetechnique') ViewComp = FicheTechnique;
-  else if (view === 'xpcalibreur') ViewComp = XpCalibreur;
-  else if (view === 'equilibrage') ViewComp = Equilibrage;
-  else if (view === 'prepsession') ViewComp = PrepSession;
-  else if (view === 'parametres') ViewComp = Parametres;
+  let ViewComp = null;
+  if (activeView === 'personnages') ViewComp = role === 'player' ? PersonnageJoueur : Personnages;
+  else if (activeView === 'parametres') ViewComp = Parametres;
+  else ViewComp = VIEW_COMPONENTS[activeView] || null;
+
+  const footerItems = role === 'admin' ? [
+    {
+      key: 'session',
+      label: hasDraft ? '⏹ Terminer la session' : '▶ Débuter la session',
+      active: view === 'session',
+      onClick: hasDraft ? () => { setView('session'); setFinishOpen(true); } : startSession
+    },
+    { key: 'parametres', label: 'Paramètres', active: activeView === 'parametres', onClick: () => setView('parametres') }
+  ] : [];
 
   return (
     <main className="page">
@@ -85,30 +99,30 @@ export default function Dashboard({ session }) {
           <div className="headrow__left">
             <p className="eyebrow">Tableau de bord · Animation JdR</p>
             <h1>Les Contes Malveillants</h1>
-            <p className="lede">
-              L’abîme n’est que rarement chose absolue, car maints récits tenus pour funestes ne
-              furent, en leur genèse, que des justices sans témoins, dont le passé maudit,
-              dépourvu d’encre et de mémoire, ne sut jamais être rapporté avec la fidélité qui
-              leur eût rendu couleurs et légitimité.
-            </p>
-            <p className="lede">Ainsi vont les tragédies ; ainsi vont les contes malveillants.</p>
+            {role === 'admin' ? (
+              <>
+                <p className="lede">
+                  L’abîme n’est que rarement chose absolue, car maints récits tenus pour funestes ne
+                  furent, en leur genèse, que des justices sans témoins, dont le passé maudit,
+                  dépourvu d’encre et de mémoire, ne sut jamais être rapporté avec la fidélité qui
+                  leur eût rendu couleurs et légitimité.
+                </p>
+                <p className="lede">Ainsi vont les tragédies ; ainsi vont les contes malveillants.</p>
+              </>
+            ) : (
+              <p className="lede">Fiche de personnage — {(session.user.email || '').split('@')[0]}</p>
+            )}
           </div>
           <div className="topright">
-            <WorldDate state={state} mutate={mutate} />
+            {role === 'admin' && <WorldDate state={state} mutate={mutate} />}
             <span className="status" data-on={STATUS_ON[status] || '0'}>
               <i />
               <span>{STATUS_TEXT[status] || status}</span>
-              <span className="status__user"> · {(session.user.email || '').split('@')[0]}</span>
-              <button
-                className="status__logout" type="button"
-                onClick={() => setPrefsOpen(true)}
-              >
+              {role === 'admin' && <span className="status__user"> · {(session.user.email || '').split('@')[0]}</span>}
+              <button className="status__logout" type="button" onClick={() => setPrefsOpen(true)}>
                 Préférences
               </button>
-              <button
-                className="status__logout" type="button"
-                onClick={() => supabase.auth.signOut()}
-              >
+              <button className="status__logout" type="button" onClick={() => supabase.auth.signOut()}>
                 Quitter
               </button>
             </span>
@@ -117,22 +131,23 @@ export default function Dashboard({ session }) {
         <div className="divider"><i /></div>
       </header>
 
-      <div className="margins">
-        <Notes state={state} mutate={mutate} />
-      </div>
+      {role === 'admin' && (
+        <div className="margins">
+          <Notes state={state} mutate={mutate} />
+        </div>
+      )}
 
-      <ViewBar
-        view={view}
-        setView={setView}
-        hasDraft={hasDraft}
-        onStart={startSession}
-        onFinish={() => { setView('session'); setFinishOpen(true); }}
-      />
-
-      <div className={'view view--' + view}>
-        {view === 'session'
-          ? <SessionEnCours state={state} mutate={mutate} onFinish={() => setFinishOpen(true)} />
-          : <ViewComp {...shared} />}
+      <div className="dash-body">
+        <Sidebar tree={tree} view={activeView} setView={setView} footerItems={footerItems} />
+        <div className={'dash-main view view--' + (activeView || 'empty')}>
+          {view === 'session'
+            ? <SessionEnCours state={state} mutate={mutate} onFinish={() => setFinishOpen(true)} />
+            : ViewComp
+              ? (activeView === 'personnages' && role === 'player'
+                ? <ViewComp state={state} mutate={mutate} userId={session.user.id} goToSession={goToSession} />
+                : <ViewComp {...shared} />)
+              : <p className="empty">Aucune vue accessible pour l’instant.</p>}
+        </div>
       </div>
 
       {finishOpen && hasDraft && (

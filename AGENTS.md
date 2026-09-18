@@ -80,9 +80,8 @@ Ne jamais pousser sans avoir vérifié l'état distant d'abord. En cas de
 conflit, les fichiers qui reviennent le plus souvent en conflit sont ceux
 où **chaque agent ajoute sa propre vue** :
 
-- `src/components/Dashboard.jsx` (import + entrée dans le `if/else if` qui
-  choisit `ViewComp`)
-- `src/components/ViewBar.jsx` (entrée dans le tableau `VIEWS`)
+- `src/components/Dashboard.jsx` (import + entrée dans `VIEW_COMPONENTS`)
+- `src/lib/menu.js` (entrée dans `ALL_VIEWS`)
 - `src/lib/board.js` (nouvelle clé dans `EMPTY_STATE` + normalisation dans
   `normalize()`)
 
@@ -137,13 +136,48 @@ Tout l'état de campagne partagé vit dans **un seul objet JS** (le blob
 
 1. Créer `src/components/views/MaVue.jsx`, recevant `{ state, mutate }`
    (parfois `goToSession`, voir `Dashboard.jsx`).
-2. L'enregistrer dans **les trois endroits** listés au §2 (`ViewBar.jsx`,
-   `Dashboard.jsx`, et si la vue a son propre état partagé, une nouvelle clé
-   dans `EMPTY_STATE` + normalisation dans `normalize()` de `board.js`).
+2. L'enregistrer dans **trois endroits** :
+   `src/lib/menu.js` (`ALL_VIEWS`, `[clé, libellé]` — sa présence dans le
+   menu et sa visibilité par défaut sont gérées automatiquement, voir §3bis),
+   `Dashboard.jsx` (`VIEW_COMPONENTS`, sauf le cas spécial `personnages`),
+   et si la vue a son propre état partagé, une nouvelle clé dans
+   `EMPTY_STATE` + normalisation dans `normalize()` de `board.js`.
 3. Si la vue a une couleur d'accent dédiée, ajouter un token `--kind-xxx`
    dans les **trois** blocs de thème de `styles.css` (voir §5) et une règle
-   `.viewbtn[data-v="xxx"]{--vk:var(--kind-xxx)}` +
    `.view--xxx{--kind:var(--kind-xxx)}`.
+
+### 3bis. Menu latéral, catégories et visibilité par rôle
+
+Le menu n'est plus une liste fixe : c'est un arbre stocké dans
+`state.settings.menu` (partagé, édité depuis Paramètres > **Ordre menu**),
+défini dans [`src/lib/menu.js`](src/lib/menu.js). Chaque nœud est soit une
+`view` (référence une clé de `ALL_VIEWS`), soit une `category`/`subcategory`
+(nom + enfants). `Sidebar.jsx` rend cet arbre élagué au rôle courant
+(`pruneForRole`) ; `Dashboard.jsx` résout le composant de la vue active à
+partir de `VIEW_COMPONENTS`, avec un cas spécial : la clé `personnages`
+rend `Personnages.jsx` (MJ, tous les persos) pour un admin, ou
+`PersonnageJoueur.jsx` (un joueur, son propre perso via `char.ownerId`)
+pour un joueur.
+
+**Visibilité en cascade** (résolue par `pruneForRole`/`effectiveVisibility`) :
+une `visibility` (tableau de rôles, ex. `['admin']`) posée sur une
+catégorie prend le pas sur tout ce qu'elle contient (sous-catégories +
+vues) ; une `visibility` de sous-catégorie prend le pas sur ses vues ; à
+défaut, la vue utilise la sienne ; à défaut de tout, le repli est
+`['admin']` seul. `visibility: null` = « hérite » du niveau au-dessus.
+
+**Paramètres reste hors de cet arbre**, volontairement : c'est un item fixe
+(pied du `Sidebar`, bouton toujours admin-only, jamais réordonnable ni
+masquable) pour ne jamais risquer de se couper l'accès à l'écran qui sert
+justement à configurer le menu. Même chose pour le bouton
+Débuter/Terminer la session.
+
+Rôle courant = `session.user.user_metadata?.role` (`'player'` ou tout le
+reste = admin) — lu une seule fois dans `Dashboard.jsx`, qui est
+**l'unique composant racine** pour les deux profils (plus de
+`PlayerDashboard.jsx` séparé : la différence de rendu — header minimal,
+pas de `WorldDate`/session/`Notes` — est un simple `if (role === 'admin')`
+inline).
 
 ### Patterns UI réutilisables déjà en place
 
@@ -239,8 +273,9 @@ déjà en place : `.bloc`, `.bloc__partie`, `.bloc--variante`.
 
 | Fichier | Rôle |
 |---|---|
-| `src/components/Dashboard.jsx` | Racine de l'app connectée : header, `ViewBar`, sélection de la vue active, `FinishModal` |
-| `src/components/ViewBar.jsx` | Barre d'onglets — tableau `VIEWS` = liste ordonnée `[clé, libellé]` |
+| `src/components/Dashboard.jsx` | Racine de l'app connectée, admin **et** joueur (branche sur `role`) : header, `Sidebar`, sélection de la vue active, `FinishModal` |
+| `src/components/Sidebar.jsx` | Rend l'arbre de `state.settings.menu` élagué au rôle (`pruneForRole`), mode compact (localStorage) |
+| `src/lib/menu.js` | `ALL_VIEWS`, arbre de menu (catégories/sous-catégories/visibilité), transformations pures utilisées par l'éditeur Ordre menu |
 | `src/lib/board.js` | `EMPTY_STATE`, `normalize()`, hook `useBoard()` (chargement + `mutate` + temps réel + rebase) |
 | `src/lib/useSyncedField.js` | Hook de champ texte "brouillon local + adoption distante hors focus" |
 | `src/lib/util.js` | Helpers génériques : `uid()`, `lsGet`/`lsSet`, formatage de date, normalisation d'URL |

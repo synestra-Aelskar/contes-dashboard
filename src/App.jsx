@@ -3,7 +3,6 @@ import { supabase, configured } from './supabase';
 import Login from './components/Login.jsx';
 import SetPassword from './components/SetPassword.jsx';
 import Dashboard from './components/Dashboard.jsx';
-import PlayerDashboard from './components/PlayerDashboard.jsx';
 
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = inconnu, null = déconnecté
@@ -41,6 +40,5 @@ export default function App() {
     return <div className="auth__boot">Connexion…</div>;
   }
   if (!session) return <Login />;
-  if (session.user.user_metadata?.role === 'player') return <PlayerDashboard session={session} />;
   return <Dashboard session={session} />;
 }

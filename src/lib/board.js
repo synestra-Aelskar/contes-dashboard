@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase, BUCKET } from '../supabase';
 import { XP_DEFAULT_STATE, normalizeXpState } from './xpCalibreur.js';
 import { uid } from './util.js';
+import { ALL_VIEWS, defaultMenuTree, usedViewKeys } from './menu.js';
 
 const ROW_ID = 'main';
 const SAVE_DEBOUNCE = 1000;
@@ -21,7 +22,7 @@ export const EMPTY_STATE = {
   sessions: [], consequences: [], clocks: [], secrets: [], reminders: [], epreuves: [],
   characters: [], sessionDraft: null, zones: [], sessionZero: { blocks: [] }, fichesTechniques: [],
   xpCalibreur: XP_DEFAULT_STATE, ddCalc: null, prepSessions: [],
-  settings: { timeTypes: [], accounts: [] },
+  settings: { timeTypes: [], accounts: [], menu: [] },
   aelCarryHours: 0
 };
 
@@ -52,6 +53,14 @@ function normalize(raw) {
   if (!Array.isArray(out.settings.timeTypes)) out.settings.timeTypes = [];
   if (!Array.isArray(out.settings.accounts)) out.settings.accounts = [];
   if (typeof out.aelCarryHours !== 'number' || !Number.isFinite(out.aelCarryHours)) out.aelCarryHours = 0;
+  if (!Array.isArray(out.settings.menu) || !out.settings.menu.length) {
+    out.settings.menu = defaultMenuTree();
+  } else {
+    const used = usedViewKeys(out.settings.menu);
+    ALL_VIEWS.forEach(([key]) => {
+      if (!used.has(key)) out.settings.menu.push({ id: uid(), type: 'view', viewKey: key, visibility: ['admin'] });
+    });
+  }
   out.characters.forEach((c) => { if (typeof c.ownerId !== 'string') c.ownerId = null; });
   if (!out.sessionZero || typeof out.sessionZero !== 'object') out.sessionZero = { blocks: [] };
   if (!Array.isArray(out.sessionZero.blocks)) out.sessionZero.blocks = [];

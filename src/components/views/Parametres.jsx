@@ -2,8 +2,12 @@ import { useEffect, useState } from 'react';
 import { uid, fmtDateLong } from '../../lib/util.js';
 import { useSyncedField } from '../../lib/useSyncedField.js';
 import { supabase } from '../../supabase';
+import {
+  ROLES, VIEW_LABEL, listContainers, moveViewToContainer, addCategory, addSubcategory,
+  renameNode, setNodeVisibility, removeNode, moveSibling
+} from '../../lib/menu.js';
 
-const TABS = [['temps', 'Temps'], ['comptes', 'Comptes']];
+const TABS = [['ordremenu', 'Ordre menu'], ['temps', 'Temps'], ['comptes', 'Comptes']];
 
 function TimeTypeRow({ row, mutate }) {
   const [name, setName, nameRef] = useSyncedField(row.name);
@@ -59,8 +63,6 @@ function TempsPane({ state, mutate }) {
     </div>
   );
 }
-
-const ROLES = [['admin', 'Admin'], ['player', 'Joueur']];
 
 /** Appelle l'Edge Function generate-account-link (voir supabase/functions/) —
  * seul point d'accès à l'API admin Supabase (invite/recovery/list/delete),
@@ -259,6 +261,145 @@ function ComptesPane({ state, mutate }) {
   );
 }
 
+function VisibilityEditor({ node, onSet }) {
+  const custom = !!node.visibility;
+  return (
+    <div className="menuedit__vis">
+      <select
+        className="field menuedit__vissel"
+        value={custom ? 'custom' : 'inherit'}
+        onChange={(e) => onSet(e.target.value === 'custom' ? ['admin'] : null)}
+      >
+        <option value="inherit">Hérite</option>
+        <option value="custom">Personnalisé</option>
+      </select>
+      {custom && ROLES.map(([v, l]) => (
+        <label key={v} className="menuedit__vischk">
+          <input
+            type="checkbox"
+            checked={node.visibility.includes(v)}
+            onChange={(e) => {
+              const next = e.target.checked
+                ? [...node.visibility, v]
+                : node.visibility.filter((r) => r !== v);
+              onSet(next);
+            }}
+          />
+          {l}
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function ViewNodeRow({ node, mutate, containers, depth, currentContainer, isFirst, isLast }) {
+  const label = VIEW_LABEL[node.viewKey] || node.viewKey;
+  return (
+    <div className="menuedit__row" style={{ marginLeft: depth * 18 }}>
+      <div className="menuedit__reorder">
+        <button className="tbtn" type="button" disabled={isFirst} onClick={() => mutate((s) => { s.settings.menu = moveSibling(s.settings.menu, node.id, -1); })}>▲</button>
+        <button className="tbtn" type="button" disabled={isLast} onClick={() => mutate((s) => { s.settings.menu = moveSibling(s.settings.menu, node.id, 1); })}>▼</button>
+      </div>
+      <span className="menuedit__name">{label}</span>
+      <select
+        className="field menuedit__container"
+        value={currentContainer || ''}
+        onChange={(e) => mutate((s) => { s.settings.menu = moveViewToContainer(s.settings.menu, node.id, e.target.value || null); })}
+      >
+        <option value="">— racine —</option>
+        {containers.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+      </select>
+      <VisibilityEditor node={node} onSet={(roles) => mutate((s) => { s.settings.menu = setNodeVisibility(s.settings.menu, node.id, roles); })} />
+    </div>
+  );
+}
+
+function GroupNodeRow({ node, mutate, depth, isFirst, isLast }) {
+  const [name, setName, nameRef] = useSyncedField(node.name);
+  const patchName = (v) => mutate((s) => { s.settings.menu = renameNode(s.settings.menu, node.id, v); });
+  return (
+    <div className={'menuedit__row menuedit__row--' + node.type} style={{ marginLeft: depth * 18 }}>
+      <div className="menuedit__reorder">
+        <button className="tbtn" type="button" disabled={isFirst} onClick={() => mutate((s) => { s.settings.menu = moveSibling(s.settings.menu, node.id, -1); })}>▲</button>
+        <button className="tbtn" type="button" disabled={isLast} onClick={() => mutate((s) => { s.settings.menu = moveSibling(s.settings.menu, node.id, 1); })}>▼</button>
+      </div>
+      <input
+        ref={nameRef} className="finput menuedit__nameinput" type="text"
+        placeholder={node.type === 'category' ? 'Nom de la catégorie' : 'Nom de la sous-catégorie'}
+        value={name}
+        onChange={(e) => { const v = e.target.value; setName(v); patchName(v); }}
+        onBlur={() => patchName(name.trim())}
+      />
+      <VisibilityEditor node={node} onSet={(roles) => mutate((s) => { s.settings.menu = setNodeVisibility(s.settings.menu, node.id, roles); })} />
+      {node.type === 'category' && (
+        <button
+          className="tbtn" type="button"
+          onClick={() => mutate((s) => { s.settings.menu = addSubcategory(s.settings.menu, node.id, 'Nouvelle sous-catégorie'); })}
+        >
+          ＋ sous-catégorie
+        </button>
+      )}
+      <button
+        className="tbtn" type="button" aria-label="supprimer"
+        onClick={() => {
+          if (!window.confirm('Supprimer « ' + (node.name || '') + ' » ? Son contenu remonte au niveau au-dessus.')) return;
+          mutate((s) => { s.settings.menu = removeNode(s.settings.menu, node.id); });
+        }}
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
+function OrdreMenuPane({ state, mutate }) {
+  const tree = state.settings.menu || [];
+  const containers = listContainers(tree);
+
+  function renderNodes(nodes, depth, containerId) {
+    return nodes.map((n, i) => {
+      const isFirst = i === 0, isLast = i === nodes.length - 1;
+      if (n.type === 'view') {
+        return (
+          <ViewNodeRow
+            key={n.id} node={n} mutate={mutate} containers={containers} depth={depth}
+            currentContainer={containerId} isFirst={isFirst} isLast={isLast}
+          />
+        );
+      }
+      return (
+        <div key={n.id}>
+          <GroupNodeRow node={n} mutate={mutate} depth={depth} isFirst={isFirst} isLast={isLast} />
+          {n.children && n.children.length > 0 && renderNodes(n.children, depth + 1, n.id)}
+        </div>
+      );
+    });
+  }
+
+  return (
+    <div className="zone-pane">
+      <div className="zone-pane__head">
+        <span className="card__label">Ordre menu</span>
+      </div>
+      <h3 className="ssn-h">Organisation du menu</h3>
+      <p className="dd-hint">
+        Réordonne (▲▼), regroupe en catégories/sous-catégories (« ranger dans »), et choisis qui
+        voit quoi. Une visibilité définie sur une catégorie prend le pas sur ses sous-catégories et
+        leurs vues ; une visibilité de sous-catégorie prend le pas sur ses vues.
+      </p>
+      <div className="menuedit">
+        {renderNodes(tree, 0, null)}
+      </div>
+      <button
+        className="tbtn" type="button"
+        onClick={() => mutate((s) => { s.settings.menu = addCategory(s.settings.menu, 'Nouvelle catégorie'); })}
+      >
+        ＋ nouvelle catégorie
+      </button>
+    </div>
+  );
+}
+
 export default function Parametres({ state, mutate }) {
   const [tab, setTab] = useState(TABS[0][0]);
   return (
@@ -277,6 +418,7 @@ export default function Parametres({ state, mutate }) {
             </div>
           ))}
         </div>
+        {tab === 'ordremenu' && <OrdreMenuPane state={state} mutate={mutate} />}
         {tab === 'temps' && <TempsPane state={state} mutate={mutate} />}
         {tab === 'comptes' && <ComptesPane state={state} mutate={mutate} />}
       </div>
