@@ -836,12 +836,12 @@ input[type=range]::-moz-range-thumb{ width:14px; height:14px; border-radius:50%;
 }
 .timebar__total{ margin:0; }
 
-.timebar-recap{ display:flex; flex-direction:column; gap:6px; }
-.timebar-recap__row{ display:grid; grid-template-columns:10px 1fr auto auto; gap:8px; align-items:center; }
-.timebar-recap__swatch{ width:10px; height:10px; border-radius:2px; background:var(--tb-color); }
-.timebar-recap__name{ font-family:var(--f-body); font-size:13.5px; color:var(--fg); }
-.timebar-recap__pct{ font-family:var(--f-mono); font-size:12.5px; font-weight:600; color:var(--tb-color); min-width:3.5ch; text-align:right; }
-.timebar-recap__hrs{ font-family:var(--f-mono); font-size:11.5px; color:var(--fg-dim); white-space:nowrap; }
+.timebar-headrow{ display:flex; align-items:center; gap:24px; flex-wrap:wrap; }
+.timepie{ flex:none; }
+.timepie__label{
+  font-family:var(--f-mono); font-size:9px; font-weight:600; fill:var(--bg);
+  text-anchor:middle; dominant-baseline:middle; pointer-events:none;
+}
 
 .timeblock{
   display:flex; flex-direction:column; gap:8px;

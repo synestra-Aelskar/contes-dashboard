@@ -273,6 +273,48 @@ function TimeBlocksModal({ blocks, types, mutate, onClose }) {
   );
 }
 
+function polar(cx, cy, r, angleDeg) {
+  const rad = ((angleDeg - 90) * Math.PI) / 180;
+  return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
+}
+
+function TimePie({ recap, total }) {
+  const cx = 55, cy = 55, r = 50, labelR = 32;
+  let angle = 0;
+  const slices = recap.map((r2) => {
+    const frac = total ? r2.hrs / total : 0;
+    const start = angle;
+    const end = angle + frac * 360;
+    angle = end;
+    return { ...r2, start, end, pct: Math.round(frac * 100) };
+  });
+  return (
+    <svg className="timepie" width="110" height="110" viewBox="0 0 110 110" role="img" aria-label="Répartition du temps par type d’évènement">
+      {slices.length === 1 ? (
+        <circle cx={cx} cy={cy} r={r} fill={slices[0].type ? slices[0].type.color : 'var(--rule)'} />
+      ) : (
+        slices.map((s) => {
+          const [x1, y1] = polar(cx, cy, r, s.start);
+          const [x2, y2] = polar(cx, cy, r, s.end);
+          const large = s.end - s.start > 180 ? 1 : 0;
+          const d = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
+          return <path key={s.typeId || 'none'} d={d} fill={s.type ? s.type.color : 'var(--rule)'} stroke="var(--bg)" strokeWidth="1" />;
+        })
+      )}
+      {slices.map((s) => {
+        const mid = (s.start + s.end) / 2;
+        const [lx, ly] = polar(cx, cy, slices.length === 1 ? 0 : labelR, mid);
+        if (!s.pct) return null;
+        return (
+          <text key={(s.typeId || 'none') + '-label'} className="timepie__label" x={slices.length === 1 ? cx : lx} y={slices.length === 1 ? cy : ly}>
+            {s.pct}%
+          </text>
+        );
+      })}
+    </svg>
+  );
+}
+
 function TimeBar({ state, mutate }) {
   const d = state.sessionDraft;
   const types = (state.settings && state.settings.timeTypes) || [];
@@ -322,9 +364,12 @@ function TimeBar({ state, mutate }) {
         </div>
 
         <div className="timebar-main">
-          <div className="prep-total">
-            <span className="prep-total__label">Temps total cumulé</span>
-            <span className="prep-total__value">{fmtDuration(total)}</span>
+          <div className="timebar-headrow">
+            <div className="prep-total">
+              <span className="prep-total__label">Temps total cumulé</span>
+              <span className="prep-total__value">{fmtDuration(total)}</span>
+            </div>
+            {recap.length > 0 && <TimePie recap={recap} total={total} />}
           </div>
 
           {blocks.length > 0 ? (
@@ -348,19 +393,6 @@ function TimeBar({ state, mutate }) {
             </div>
           ) : (
             <p className="empty">Aucun bloc de temps pour l’instant.</p>
-          )}
-
-          {recap.length > 0 && (
-            <div className="timebar-recap">
-              {recap.map((r) => (
-                <div key={r.typeId || 'none'} className="timebar-recap__row" style={{ '--tb-color': r.type ? r.type.color : 'var(--rule)' }}>
-                  <span className="timebar-recap__swatch" />
-                  <span className="timebar-recap__name">{r.type ? (r.type.name || 'Sans nom') : 'Sans type'}</span>
-                  <span className="timebar-recap__pct">{total ? Math.round((r.hrs / total) * 100) : 0}%</span>
-                  <span className="timebar-recap__hrs">{fmtDuration(r.hrs)}</span>
-                </div>
-              ))}
-            </div>
           )}
 
           <p className="dd-hint timebar__total">
