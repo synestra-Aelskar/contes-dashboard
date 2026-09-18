@@ -836,18 +836,18 @@ input[type=range]::-moz-range-thumb{ width:14px; height:14px; border-radius:50%;
 }
 .timebar__total{ margin:0; }
 
-.timebar-headrow{ display:flex; align-items:center; gap:20px; flex-wrap:wrap; }
-.timepie-wrap{ display:flex; align-items:center; gap:12px; }
+.timebar-headrow{ display:flex; align-items:center; gap:24px; flex-wrap:wrap; }
 .timepie{ flex:none; }
 .timepie__label{
-  font-family:var(--f-mono); font-size:7px; font-weight:600; fill:var(--bg);
+  font-family:var(--f-mono); font-size:8px; font-weight:600; fill:var(--bg);
   text-anchor:middle; dominant-baseline:middle; pointer-events:none;
 }
-.timepie-legend{ display:flex; flex-direction:column; gap:4px; }
-.timepie-legend__row{ display:grid; grid-template-columns:8px 1fr auto; gap:7px; align-items:center; }
-.timepie-legend__swatch{ width:8px; height:8px; border-radius:2px; background:var(--tb-color); }
-.timepie-legend__name{ font-family:var(--f-body); font-size:13px; color:var(--fg); white-space:nowrap; }
-.timepie-legend__pct{ font-family:var(--f-mono); font-size:11.5px; font-weight:600; color:var(--tb-color); white-space:nowrap; }
+.timegauge-row{ display:flex; gap:16px; flex-wrap:wrap; }
+.timegauge{ display:flex; flex-direction:column; align-items:center; gap:5px; }
+.timegauge__name{
+  font-family:var(--f-body); font-size:11.5px; color:var(--fg); text-align:center;
+  max-width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
 
 .timeblock{
   display:flex; flex-direction:column; gap:8px;
