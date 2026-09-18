@@ -82,15 +82,9 @@ export default function Dashboard({ session }) {
   else if (activeView === 'parametres') ViewComp = Parametres;
   else ViewComp = VIEW_COMPONENTS[activeView] || null;
 
-  const footerItems = role === 'admin' ? [
-    {
-      key: 'session',
-      label: hasDraft ? '⏹ Terminer la session' : '▶ Débuter la session',
-      active: view === 'session',
-      onClick: hasDraft ? () => { setView('session'); setFinishOpen(true); } : startSession
-    },
-    { key: 'parametres', label: 'Paramètres', active: activeView === 'parametres', onClick: () => setView('parametres') }
-  ] : [];
+  const footerItems = role === 'admin'
+    ? [{ key: 'parametres', label: 'Paramètres', active: activeView === 'parametres', onClick: () => setView('parametres') }]
+    : [];
 
   return (
     <main className="page">
@@ -114,6 +108,15 @@ export default function Dashboard({ session }) {
             )}
           </div>
           <div className="topright">
+            {role === 'admin' && (
+              <button
+                className={'btn-primary btn-primary--session' + (hasDraft ? ' btn-primary--stop' : '')}
+                type="button"
+                onClick={hasDraft ? () => { setView('session'); setFinishOpen(true); } : startSession}
+              >
+                {hasDraft ? '⏹ Terminer la session' : '▶ Débuter la session'}
+              </button>
+            )}
             {role === 'admin' && <WorldDate state={state} mutate={mutate} />}
             <span className="status" data-on={STATUS_ON[status] || '0'}>
               <i />

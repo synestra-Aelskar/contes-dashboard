@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { uid, fmtDateLong } from '../../lib/util.js';
 import { useSyncedField } from '../../lib/useSyncedField.js';
 import { supabase } from '../../supabase';
 import {
-  ROLES, VIEW_LABEL, listContainers, moveViewToContainer, addCategory, addSubcategory,
+  ROLES, VIEW_LABEL, listContainers, moveViewToContainer, moveNodeToPosition, addCategory, addSubcategory,
   renameNode, setNodeVisibility, removeNode, moveSibling
 } from '../../lib/menu.js';
 
@@ -292,10 +292,47 @@ function VisibilityEditor({ node, onSet }) {
   );
 }
 
-function ViewNodeRow({ node, mutate, containers, depth, currentContainer, isFirst, isLast }) {
-  const label = VIEW_LABEL[node.viewKey] || node.viewKey;
+function DragHandle({ node, drag }) {
   return (
-    <div className="menuedit__row" style={{ marginLeft: depth * 18 }}>
+    <span
+      className="menuedit__handle" title="Glisser pour réordonner"
+      draggable
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; drag.onStart(node.id); }}
+      onDragEnd={drag.onEnd}
+    >
+      ⠿
+    </span>
+  );
+}
+
+/** Calcule la cible de dépose au survol : entre deux lignes (réordonne comme
+ * frère), ou en plein milieu d'une catégorie/sous-catégorie (range dedans). */
+function useDropTarget(node, containerId, index, drag) {
+  const isGroup = node.type === 'category' || node.type === 'subcategory';
+  const isOver = drag.overRow === node.id;
+  return {
+    className: isOver ? (drag.overMode === 'into' ? ' is-dragover-into' : ' is-dragover') : '',
+    onDragOver: (e) => {
+      if (!drag.draggedId || drag.draggedId === node.id) return;
+      e.preventDefault();
+      const rect = e.currentTarget.getBoundingClientRect();
+      const relY = (e.clientY - rect.top) / rect.height;
+      if (isGroup && relY > 0.25 && relY < 0.75) {
+        drag.setOver(node.id, 'into', node.id, 0);
+      } else {
+        drag.setOver(node.id, 'sibling', containerId, relY < 0.5 ? index : index + 1);
+      }
+    },
+    onDrop: (e) => { e.preventDefault(); drag.onDrop(); }
+  };
+}
+
+function ViewNodeRow({ node, mutate, containers, depth, currentContainer, index, isFirst, isLast, drag }) {
+  const label = VIEW_LABEL[node.viewKey] || node.viewKey;
+  const dz = useDropTarget(node, currentContainer, index, drag);
+  return (
+    <div className={'menuedit__row' + dz.className} style={{ marginLeft: depth * 18 }} onDragOver={dz.onDragOver} onDrop={dz.onDrop}>
+      <DragHandle node={node} drag={drag} />
       <div className="menuedit__reorder">
         <button className="tbtn" type="button" disabled={isFirst} onClick={() => mutate((s) => { s.settings.menu = moveSibling(s.settings.menu, node.id, -1); })}>▲</button>
         <button className="tbtn" type="button" disabled={isLast} onClick={() => mutate((s) => { s.settings.menu = moveSibling(s.settings.menu, node.id, 1); })}>▼</button>
@@ -314,11 +351,17 @@ function ViewNodeRow({ node, mutate, containers, depth, currentContainer, isFirs
   );
 }
 
-function GroupNodeRow({ node, mutate, depth, isFirst, isLast }) {
+function GroupNodeRow({ node, mutate, depth, containerId, index, isFirst, isLast, drag }) {
   const [name, setName, nameRef] = useSyncedField(node.name);
   const patchName = (v) => mutate((s) => { s.settings.menu = renameNode(s.settings.menu, node.id, v); });
+  const dz = useDropTarget(node, containerId, index, drag);
   return (
-    <div className={'menuedit__row menuedit__row--' + node.type} style={{ marginLeft: depth * 18 }}>
+    <div
+      className={'menuedit__row menuedit__row--' + node.type + dz.className}
+      style={{ marginLeft: depth * 18 }}
+      onDragOver={dz.onDragOver} onDrop={dz.onDrop}
+    >
+      <DragHandle node={node} drag={drag} />
       <div className="menuedit__reorder">
         <button className="tbtn" type="button" disabled={isFirst} onClick={() => mutate((s) => { s.settings.menu = moveSibling(s.settings.menu, node.id, -1); })}>▲</button>
         <button className="tbtn" type="button" disabled={isLast} onClick={() => mutate((s) => { s.settings.menu = moveSibling(s.settings.menu, node.id, 1); })}>▼</button>
@@ -355,6 +398,28 @@ function GroupNodeRow({ node, mutate, depth, isFirst, isLast }) {
 function OrdreMenuPane({ state, mutate }) {
   const tree = state.settings.menu || [];
   const containers = listContainers(tree);
+  const [draggedId, setDraggedId] = useState(null);
+  const [overRow, setOverRow] = useState(null);
+  const [overMode, setOverMode] = useState(null);
+  const dropRef = useRef(null);
+
+  const drag = {
+    draggedId, overRow, overMode,
+    onStart: (id) => setDraggedId(id),
+    onEnd: () => { setDraggedId(null); setOverRow(null); setOverMode(null); },
+    setOver: (rowId, mode, containerId, index) => {
+      dropRef.current = { containerId, index };
+      setOverRow(rowId);
+      setOverMode(mode);
+    },
+    onDrop: () => {
+      if (draggedId && dropRef.current) {
+        const { containerId, index } = dropRef.current;
+        mutate((s) => { s.settings.menu = moveNodeToPosition(s.settings.menu, draggedId, containerId, index); });
+      }
+      setDraggedId(null); setOverRow(null); setOverMode(null);
+    }
+  };
 
   function renderNodes(nodes, depth, containerId) {
     return nodes.map((n, i) => {
@@ -363,13 +428,13 @@ function OrdreMenuPane({ state, mutate }) {
         return (
           <ViewNodeRow
             key={n.id} node={n} mutate={mutate} containers={containers} depth={depth}
-            currentContainer={containerId} isFirst={isFirst} isLast={isLast}
+            currentContainer={containerId} index={i} isFirst={isFirst} isLast={isLast} drag={drag}
           />
         );
       }
       return (
         <div key={n.id}>
-          <GroupNodeRow node={n} mutate={mutate} depth={depth} isFirst={isFirst} isLast={isLast} />
+          <GroupNodeRow node={n} mutate={mutate} depth={depth} containerId={containerId} index={i} isFirst={isFirst} isLast={isLast} drag={drag} />
           {n.children && n.children.length > 0 && renderNodes(n.children, depth + 1, n.id)}
         </div>
       );
@@ -383,9 +448,10 @@ function OrdreMenuPane({ state, mutate }) {
       </div>
       <h3 className="ssn-h">Organisation du menu</h3>
       <p className="dd-hint">
-        Réordonne (▲▼), regroupe en catégories/sous-catégories (« ranger dans »), et choisis qui
-        voit quoi. Une visibilité définie sur une catégorie prend le pas sur ses sous-catégories et
-        leurs vues ; une visibilité de sous-catégorie prend le pas sur ses vues.
+        Glisse ⠿ pour réordonner (ou dépose en plein sur une catégorie pour y ranger), regroupe en
+        catégories/sous-catégories (« ranger dans »), et choisis qui voit quoi. Une visibilité
+        définie sur une catégorie prend le pas sur ses sous-catégories et leurs vues ; une
+        visibilité de sous-catégorie prend le pas sur ses vues.
       </p>
       <div className="menuedit">
         {renderNodes(tree, 0, null)}

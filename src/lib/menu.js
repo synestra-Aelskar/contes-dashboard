@@ -113,6 +113,38 @@ export function moveViewToContainer(tree, viewId, containerId) {
   return updateContainerChildren(without, containerId || null, (kids) => [...kids, node]);
 }
 
+function findContainerAndIndex(nodes, id, containerId) {
+  for (let i = 0; i < nodes.length; i++) {
+    if (nodes[i].id === id) return { containerId, index: i };
+    if (nodes[i].children) {
+      const found = findContainerAndIndex(nodes[i].children, id, nodes[i].id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/** Déplace un nœud (vue OU catégorie/sous-catégorie) à un index précis dans
+ * un conteneur donné (null = racine) — utilisé par le glisser-déposer.
+ * `index` est calculé par l'appelant contre l'arbre AVANT retrait du nœud
+ * déplacé ; si le nœud reste dans le même conteneur et se déplace vers
+ * l'avant, on corrige le décalage d'un cran causé par son propre retrait. */
+export function moveNodeToPosition(tree, nodeId, containerId, index) {
+  if (nodeId === containerId) return tree; // un nœud ne peut pas se contenir lui-même
+  const origin = findContainerAndIndex(tree, nodeId, null);
+  const [node, without] = findAndRemove(tree, nodeId);
+  if (!node) return tree;
+  let targetIndex = index;
+  if (origin && origin.containerId === (containerId || null) && origin.index < index) {
+    targetIndex -= 1;
+  }
+  return updateContainerChildren(without, containerId || null, (kids) => {
+    const arr = kids.slice();
+    arr.splice(Math.max(0, Math.min(targetIndex, arr.length)), 0, node);
+    return arr;
+  });
+}
+
 export function addCategory(tree, name) {
   return [...tree, { id: uid(), type: 'category', name, visibility: null, children: [] }];
 }
