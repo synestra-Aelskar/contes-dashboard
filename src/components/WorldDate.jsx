@@ -50,12 +50,10 @@ export default function WorldDate({ state, mutate, readOnly = false }) {
           className="aelskar__face" type="button" aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
         >
-          <span className="aelskar__eyebrow">
-            {realDrift ? 'Présent de la campagne' : 'Présent de la campagne · temps réel'}
+          <span className="aelskar__main aelskar__main--small" title={aelNumeric(displayDate) + (realDrift ? '' : ' · temps réel')}>
+            {aelDayCycle(displayDate)}, {aelSeasonLine(displayDate)}
           </span>
-          <span className="aelskar__main">{aelDayCycle(displayDate)}<br />{aelSeasonLine(displayDate)}</span>
-          <span className="aelskar__sub">{aelTextLine2(displayDate)}</span>
-          <span className="aelskar__num">{aelNumeric(displayDate)}</span>
+          <span className="aelskar__sub aelskar__sub--small">{aelTextLine2(displayDate)}</span>
         </button>
         {open && (
           <AelPicker
