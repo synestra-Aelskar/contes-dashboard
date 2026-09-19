@@ -200,9 +200,10 @@ function RevealModal({ state, block, onToggle, onClose }) {
   );
 }
 
-function SecretBlock({ state, s, b, index, mutate }) {
+function SecretBlock({ state, s, b, index, mutate, expanded, onExpand }) {
   const [text, setText, textRef] = useSyncedField(b.text);
   const [open, setOpen] = useState(false);
+  const preview = (text || '').replace(/\s+/g, ' ').trim();
   const patchBlock = (fn) =>
     mutate((st) => {
       const x = st.secrets.find((y) => y.id === s.id);
@@ -212,15 +213,19 @@ function SecretBlock({ state, s, b, index, mutate }) {
   const names = (b.revealedTo || []).map((id) => charName(state, id)).filter(Boolean);
 
   return (
-    <div className="secret-block">
-      <div className="secret-block__head">
+    <div className={'secret-block' + (expanded ? ' is-open' : '')}>
+      <div
+        className="secret-block__head" role="button" tabIndex={0}
+        onClick={() => onExpand(expanded ? null : b.id)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onExpand(expanded ? null : b.id); } }}
+      >
         <span className="secret-block__label">{index + 1}</span>
         <span className={'secret-block__who' + (names.length ? ' is-revealed' : '')}>
           {names.length ? names.join(', ') : 'caché'}
         </span>
         <button
           className="secret-block__gear" type="button" title="Révéler à…" aria-label="Révéler à…"
-          onClick={() => setOpen(true)}
+          onClick={(e) => { e.stopPropagation(); setOpen(true); }}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="3" />
@@ -229,7 +234,8 @@ function SecretBlock({ state, s, b, index, mutate }) {
         </button>
         <button
           className="secret-block__x" type="button" title="Retirer ce bloc" aria-label="Retirer ce bloc"
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             if (text.trim() && !window.confirm('Retirer ce bloc ?')) return;
             mutate((st) => {
               const x = st.secrets.find((y) => y.id === s.id);
@@ -240,14 +246,21 @@ function SecretBlock({ state, s, b, index, mutate }) {
           ×
         </button>
       </div>
-      <textarea
-        ref={textRef}
-        className="finput finput--area secret-block__text" placeholder="Morceau du secret…"
-        value={text}
-        rows={Math.min(8, Math.max(2, Math.ceil((text || '').length / 60) + (text || '').split('\n').length - 1))}
-        onChange={(e) => { const v = e.target.value; setText(v); patchBlock((x) => { x.text = v; }); }}
-        onBlur={() => patchBlock((x) => { x.text = text; })}
-      />
+      {expanded ? (
+        <textarea
+          ref={textRef}
+          className="finput finput--area secret-block__text" placeholder="Morceau du secret…"
+          value={text}
+          autoFocus
+          rows={Math.min(10, Math.max(3, Math.ceil((text || '').length / 60) + (text || '').split('\n').length - 1))}
+          onChange={(e) => { const v = e.target.value; setText(v); patchBlock((x) => { x.text = v; }); }}
+          onBlur={() => patchBlock((x) => { x.text = text; })}
+        />
+      ) : (
+        <button type="button" className="secret-block__preview" onClick={() => onExpand(b.id)}>
+          {preview || <em>vide</em>}
+        </button>
+      )}
       {open && (
         <RevealModal
           state={state} block={b}
@@ -264,6 +277,8 @@ function SecretBlock({ state, s, b, index, mutate }) {
 
 function SecretCard({ state, s, mutate, open, onToggle }) {
   const [title, setTitle, titleRef] = useSyncedField(s.title);
+  // Un seul bloc deplie a la fois ; les autres restent sur une ligne.
+  const [openBlock, setOpenBlock] = useState(null);
   const patch = (fn) =>
     mutate((st) => { const x = st.secrets.find((y) => y.id === s.id); if (x) fn(x); });
   const blocks = s.blocks || [];
@@ -291,11 +306,20 @@ function SecretCard({ state, s, mutate, open, onToggle }) {
             onBlur={() => patch((x) => { x.title = title.trim(); })}
           />
           <TagEditor tags={s.tags || []} onChange={(tags) => patch((x) => { x.tags = tags; })} placeholder="tags MJ : lieu, PNJ, intrigue…" />
-          {blocks.map((b, i) => <SecretBlock key={b.id} state={state} s={s} b={b} index={i} mutate={mutate} />)}
+          {blocks.map((b, i) => (
+            <SecretBlock
+              key={b.id} state={state} s={s} b={b} index={i} mutate={mutate}
+              expanded={openBlock === b.id} onExpand={setOpenBlock}
+            />
+          ))}
           <div className="card__actions secret-card__actions">
             <button
               className="tbtn" type="button"
-              onClick={() => patch((x) => { x.blocks = x.blocks || []; x.blocks.push({ id: uid(), text: '', revealedTo: [] }); })}
+              onClick={() => {
+                const id = uid();
+                patch((x) => { x.blocks = x.blocks || []; x.blocks.push({ id, text: '', revealedTo: [] }); });
+                setOpenBlock(id);
+              }}
             >
               ＋ bloc
             </button>
