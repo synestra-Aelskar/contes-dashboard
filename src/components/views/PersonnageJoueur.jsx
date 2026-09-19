@@ -5,6 +5,8 @@ import { levelForXp } from '../../lib/xpCalibreur.js';
 import { uploadScreenshot } from '../../lib/board.js';
 import { toast } from '../../lib/toast.js';
 import SessionLink from '../SessionLink.jsx';
+import CharIdPanel from '../CharIdPanel.jsx';
+import ThreadBoard from '../ThreadBoard.jsx';
 
 const TABS = [
   ['info', 'Informations'],
@@ -20,60 +22,6 @@ const TRAIT_STATUS_LABEL = {
   accepted: 'Acceptée',
   refused: 'Refusé'
 };
-
-/* ------------------------------- Panneau artwork (droite) ------------- */
-
-function ArtPanel({ char, patch, level }) {
-  const [name, setName, nameRef] = useSyncedField(char.name);
-  const [art, setArt, artRef] = useSyncedField(char.artUrl);
-  const [race, setRace, raceRef] = useSyncedField(char.race);
-
-  return (
-    <div className="chr__side">
-      {char.artUrl ? (
-        <a className="chr__artlink" href={char.artUrl} target="_blank" rel="noopener noreferrer">
-          <img className="chr__art" src={char.artUrl} alt={char.name || ''} />
-        </a>
-      ) : (
-        <div className="chr__art chr__art--placeholder">POUVOIR DE L’IMAGINATION</div>
-      )}
-      <label className="flabel">
-        URL d’artwork
-        <input
-          ref={artRef} className="field field--mono" type="text" placeholder="https://…"
-          value={art}
-          onChange={(e) => { const v = e.target.value; setArt(v); patch((c) => { c.artUrl = v.trim(); }); }}
-          onBlur={() => patch((c) => { c.artUrl = art.trim(); })}
-        />
-      </label>
-
-      <div className="pj__idblock">
-        <label className="flabel">
-          Nom
-          <input
-            ref={nameRef} className="field" type="text" placeholder="Nom du personnage"
-            value={name}
-            onChange={(e) => { const v = e.target.value; setName(v); patch((c) => { c.name = v; }); }}
-            onBlur={() => patch((c) => { c.name = name.trim(); })}
-          />
-        </label>
-        <div className="flabel">
-          Niveau
-          <div className="pj__level">{level}</div>
-        </div>
-        <label className="flabel">
-          Race
-          <input
-            ref={raceRef} className="field" type="text" placeholder="Race"
-            value={race}
-            onChange={(e) => { const v = e.target.value; setRace(v); patch((c) => { c.race = v; }); }}
-            onBlur={() => patch((c) => { c.race = race.trim(); })}
-          />
-        </label>
-      </div>
-    </div>
-  );
-}
 
 /* ------------------------------- Informations --------------------------- */
 
@@ -404,109 +352,14 @@ function TraitsTab({ char, mutate }) {
 
 /* ------------------------------- Backstage ------------------------------ */
 
-function ThreadMessages({ thread, mutate, char }) {
-  const [text, setText] = useState('');
-
-  function send() {
-    const t = text.trim();
-    if (!t) return;
-    mutate((s) => {
-      const th = (s.threads || []).find((x) => x.id === thread.id);
-      if (th) {
-        th.messages = th.messages || [];
-        th.messages.push({ id: uid(), authorId: char.id, authorName: char.name || 'Joueur', text: t, createdAt: new Date().toISOString() });
-      }
-    });
-    setText('');
-  }
-
-  return (
-    <div className="pj__thread">
-      <div className="pj__threadmsgs">
-        {(thread.messages || []).map((m) => (
-          <div key={m.id} className={'pj__msg' + (m.authorId === char.id ? ' pj__msg--mine' : '')}>
-            <div className="pj__msghead">
-              <b>{m.authorName || '—'}</b>
-              <span className="chr__muted">{m.createdAt ? new Date(m.createdAt).toLocaleString('fr-FR') : ''}</span>
-            </div>
-            <p className="pj__msgtext">{m.text}</p>
-          </div>
-        ))}
-        {!((thread.messages || []).length) && <p className="chr__muted">Aucun message pour l’instant.</p>}
-      </div>
-      <div className="pj__threadcompose">
-        <textarea
-          className="notes" placeholder="Écrire un message…" rows={3}
-          value={text} onChange={(e) => setText(e.target.value)}
-        />
-        <button className="btn-primary" type="button" onClick={send}>Envoyer</button>
-      </div>
-    </div>
-  );
-}
-
 function BackstageTab({ state, char, mutate }) {
-  const allThreads = state.threads || [];
-  const otherChars = (state.characters || []).filter((c) => c.id !== char.id && c.ownerId);
-  const mine = allThreads.filter((t) => t.participantIds.includes(char.id) || t.createdBy === char.id);
-  const [selId, setSelId] = useState(lsGet('ccm.pjThread') || (mine[0] && mine[0].id) || null);
-  const sel = mine.find((t) => t.id === selId) || mine[0] || null;
-  const [title, setTitle] = useState('');
-  const [invited, setInvited] = useState([]);
-
-  function select(id) { setSelId(id); lsSet('ccm.pjThread', id); }
-
-  function toggleInvite(id) {
-    setInvited((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
-  }
-
-  function createThread() {
-    const t = title.trim();
-    if (!t) { toast('Titre du thread requis'); return; }
-    const thread = { id: uid(), title: t, participantIds: [char.id, ...invited], messages: [], createdBy: char.id, createdAt: new Date().toISOString() };
-    mutate((s) => { s.threads = s.threads || []; s.threads.push(thread); });
-    setTitle(''); setInvited([]);
-    select(thread.id);
-  }
-
   return (
     <div className="chr__main">
-      <div className="pj__backstage">
-        <div className="pj__threadrail">
-          {mine.map((t) => (
-            <button
-              key={t.id} type="button"
-              className={'journal__item' + (sel && sel.id === t.id ? ' is-active' : '')}
-              onClick={() => select(t.id)}
-            >
-              <span className="journal__title">{t.title || 'Sans titre'}</span>
-            </button>
-          ))}
-          <div className="pj__newthread">
-            <input
-              className="field" type="text" placeholder="Titre du nouveau thread"
-              value={title} onChange={(e) => setTitle(e.target.value)}
-            />
-            {otherChars.length > 0 && (
-              <div className="pj__invitelist">
-                <span className="chr__muted">Inviter :</span>
-                {otherChars.map((c) => (
-                  <label key={c.id} className="pj__invitechip">
-                    <input type="checkbox" checked={invited.includes(c.id)} onChange={() => toggleInvite(c.id)} />
-                    {c.name || 'Sans nom'}
-                  </label>
-                ))}
-              </div>
-            )}
-            <button className="tbtn" type="button" onClick={createThread}>＋ créer le thread</button>
-          </div>
-        </div>
-        {sel ? (
-          <ThreadMessages key={sel.id} thread={sel} mutate={mutate} char={char} />
-        ) : (
-          <p className="empty">Aucun thread. Crée-en un pour ouvrir une narration hors-jeu avec le MJ (et d’autres joueurs si tu le souhaites).</p>
-        )}
-      </div>
+      <ThreadBoard
+        state={state} mutate={mutate}
+        scopeCharId={char.id} authorId={char.id} authorName={char.name || 'Joueur'}
+        canCreate storageKey="ccm.pjThread"
+      />
     </div>
   );
 }
@@ -571,7 +424,7 @@ export default function PersonnageJoueur({ state, mutate, userId, goToSession })
           ))}
         </nav>
         <div className="pj__body">{content}</div>
-        <ArtPanel char={mine} patch={patch} level={level} />
+        <CharIdPanel char={mine} patch={patch} level={level} />
       </div>
     </section>
   );

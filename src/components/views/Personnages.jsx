@@ -1,7 +1,18 @@
 import { useState } from 'react';
 import { uid, lsGet, lsSet } from '../../lib/util.js';
 import { useSyncedField } from '../../lib/useSyncedField.js';
+import { levelForXp } from '../../lib/xpCalibreur.js';
 import SessionLink from '../SessionLink.jsx';
+import CharIdPanel from '../CharIdPanel.jsx';
+import ThreadBoard from '../ThreadBoard.jsx';
+
+const TABS = [
+  ['info', 'Informations'],
+  ['xp', 'Suivi'],
+  ['journal', 'Journal'],
+  ['traits', 'Traits'],
+  ['backstage', 'Backstage']
+];
 
 /* ------------------------------------------------------------------ */
 
@@ -53,11 +64,79 @@ function XpRow({ char, row, mutate, sessions, goToSession }) {
   );
 }
 
-function CharPane({ state, char, mutate, goToSession }) {
-  const [name, setName, nameRef] = useSyncedField(char.name);
-  const [art, setArt, artRef] = useSyncedField(char.artUrl);
+function AdminInfoTab({ char, mutate }) {
+  const [description, setDescription, descRef] = useSyncedField(char.description);
+  const [qualite, setQualite, qRef] = useSyncedField(char.qualite);
+  const [defaut, setDefaut, dRef] = useSyncedField(char.defaut);
+  const [peurs, setPeurs, pRef] = useSyncedField(char.peurs);
   const [mjNote, setMjNote, mjRef] = useSyncedField(char.mjNote);
 
+  const patch = (fn) =>
+    mutate((s) => { const c = s.characters.find((x) => x.id === char.id); if (c) fn(c); });
+
+  return (
+    <div className="chr__main">
+      <label className="flabel">
+        Description
+        <textarea
+          ref={descRef} className="notes pj__descarea" placeholder="Qui est ce personnage ?"
+          value={description}
+          onChange={(e) => { const v = e.target.value; setDescription(v); patch((c) => { c.description = v; }); }}
+          onBlur={() => patch((c) => { c.description = description; })}
+        />
+      </label>
+      <label className="flabel">
+        Qualité
+        <input
+          ref={qRef} className="field" type="text" placeholder="Une qualité marquante"
+          value={qualite}
+          onChange={(e) => { const v = e.target.value; setQualite(v); patch((c) => { c.qualite = v; }); }}
+          onBlur={() => patch((c) => { c.qualite = qualite.trim(); })}
+        />
+      </label>
+      <label className="flabel">
+        Défaut
+        <input
+          ref={dRef} className="field" type="text" placeholder="Un défaut marquant"
+          value={defaut}
+          onChange={(e) => { const v = e.target.value; setDefaut(v); patch((c) => { c.defaut = v; }); }}
+          onBlur={() => patch((c) => { c.defaut = defaut.trim(); })}
+        />
+      </label>
+      <label className="flabel">
+        Peurs
+        <input
+          ref={pRef} className="field" type="text" placeholder="Ce qui l’effraie"
+          value={peurs}
+          onChange={(e) => { const v = e.target.value; setPeurs(v); patch((c) => { c.peurs = v; }); }}
+          onBlur={() => patch((c) => { c.peurs = peurs.trim(); })}
+        />
+      </label>
+      <label className="flabel">
+        Note MJ
+        <textarea
+          ref={mjRef} className="notes" placeholder="Tout ce que le MJ garde en tête sur ce personnage…"
+          value={mjNote}
+          onChange={(e) => { const v = e.target.value; setMjNote(v); patch((c) => { c.mjNote = v; }); }}
+          onBlur={() => patch((c) => { c.mjNote = mjNote; })}
+        />
+      </label>
+      <div className="card__actions">
+        <button
+          className="tbtn" type="button"
+          onClick={() => {
+            if (!window.confirm('Supprimer le personnage « ' + (char.name || '') + ' » ?')) return;
+            mutate((s) => { s.characters = s.characters.filter((x) => x.id !== char.id); });
+          }}
+        >
+          supprimer ce personnage
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AdminXpTab({ state, char, mutate, goToSession }) {
   const patch = (fn) =>
     mutate((s) => { const c = s.characters.find((x) => x.id === char.id); if (c) fn(c); });
 
@@ -70,133 +149,166 @@ function CharPane({ state, char, mutate, goToSession }) {
   const totalXp = xp.reduce((n, r) => n + (parseInt(r.amount, 10) || 0), 0);
 
   return (
-    <div className="chr">
-      <div className="chr__main">
-        <label className="flabel">
-          Nom du personnage
-          <input
-            ref={nameRef} className="field" type="text" placeholder="Nom du personnage"
-            value={name}
-            onChange={(e) => { const v = e.target.value; setName(v); patch((c) => { c.name = v; }); }}
-            onBlur={() => patch((c) => { c.name = name.trim(); })}
-          />
-        </label>
-        <label className="flabel">
-          Note MJ
-          <textarea
-            ref={mjRef} className="notes" placeholder="Tout ce que le MJ garde en tête sur ce personnage…"
-            value={mjNote}
-            onChange={(e) => { const v = e.target.value; setMjNote(v); patch((c) => { c.mjNote = v; }); }}
-            onBlur={() => patch((c) => { c.mjNote = mjNote; })}
-          />
-        </label>
-        <div className="card__actions">
+    <div className="chr__main">
+      <div className="chr__block">
+        <h4 className="chr__h">Participation<span className="count"> ({participations.length})</span></h4>
+        {participations.length ? (
+          <ul className="chr__list">
+            {participations.map((s) => (
+              <li key={s.id}>
+                <SessionLink sessions={state.sessions} sessionId={s.id} goToSession={goToSession} />
+                {s.date ? <span className="chr__muted"> · {s.date}</span> : null}
+              </li>
+            ))}
+          </ul>
+        ) : <p className="chr__muted">Aucune séance.</p>}
+      </div>
+
+      <div className="chr__block">
+        <h4 className="chr__h">XP<span className="count"> (total {totalXp})</span></h4>
+        <div className="xptable xptable--char">
+          <div className="xptable__head"><span>XP</span><span>Raison</span><span /></div>
+          {xp.map((r) => (
+            <XpRow
+              key={r.id} char={char} row={r} mutate={mutate}
+              sessions={state.sessions} goToSession={goToSession}
+            />
+          ))}
           <button
             className="tbtn" type="button"
-            onClick={() => {
-              if (!window.confirm('Supprimer le personnage « ' + (char.name || '') + ' » ?')) return;
-              mutate((s) => { s.characters = s.characters.filter((x) => x.id !== char.id); });
-            }}
+            onClick={() => patch((c) => { c.xp = c.xp || []; c.xp.push({ id: uid(), amount: '', reason: '', sessionId: null }); })}
           >
-            supprimer ce personnage
+            ＋ ligne
           </button>
         </div>
       </div>
 
-      <div className="chr__side">
-        <label className="flabel">
-          URL d’artwork
-          <input
-            ref={artRef} className="field field--mono" type="text" placeholder="https://…"
-            value={art}
-            onChange={(e) => { const v = e.target.value; setArt(v); patch((c) => { c.artUrl = v.trim(); }); }}
-            onBlur={() => patch((c) => { c.artUrl = art.trim(); })}
-          />
-        </label>
-        {char.artUrl ? (
-          <a className="chr__artlink" href={char.artUrl} target="_blank" rel="noopener noreferrer">
-            <img className="chr__art" src={char.artUrl} alt={char.name || ''} />
-          </a>
-        ) : (
-          <div className="chr__art chr__art--placeholder">POUVOIR DE L’IMAGINATION</div>
-        )}
-
+      {events.length > 0 && (
         <div className="chr__block">
-          <h4 className="chr__h">Participation<span className="count"> ({participations.length})</span></h4>
-          {participations.length ? (
-            <ul className="chr__list">
-              {participations.map((s) => (
-                <li key={s.id}>
-                  <SessionLink sessions={state.sessions} sessionId={s.id} goToSession={goToSession} />
-                  {s.date ? <span className="chr__muted"> · {s.date}</span> : null}
-                </li>
-              ))}
-            </ul>
-          ) : <p className="chr__muted">Aucune séance.</p>}
-        </div>
-
-        <div className="chr__block">
-          <h4 className="chr__h">XP<span className="count"> (total {totalXp})</span></h4>
-          <div className="xptable xptable--char">
-            <div className="xptable__head"><span>XP</span><span>Raison</span><span /></div>
-            {xp.map((r) => (
-              <XpRow
-                key={r.id} char={char} row={r} mutate={mutate}
-                sessions={state.sessions} goToSession={goToSession}
-              />
+          <h4 className="chr__h">Événements<span className="count"> ({events.length})</span></h4>
+          <ul className="chr__list">
+            {events.map((ev) => (
+              <li key={ev.id}>
+                <span className="chr__evt">{ev.description || '—'}</span>{' '}
+                <SessionLink sessions={state.sessions} sessionId={ev.sessionId} goToSession={goToSession} />
+                <button
+                  className="tbtn chr__x" type="button" aria-label="retirer"
+                  onClick={() => patch((c) => { c.events = (c.events || []).filter((x) => x.id !== ev.id); })}
+                >
+                  ×
+                </button>
+              </li>
             ))}
-            <button
-              className="tbtn" type="button"
-              onClick={() => patch((c) => { c.xp = c.xp || []; c.xp.push({ id: uid(), amount: '', reason: '', sessionId: null }); })}
-            >
-              ＋ ligne
-            </button>
-          </div>
+          </ul>
         </div>
+      )}
 
-        {(char.traits || []).length > 0 && (
-          <div className="chr__block">
-            <h4 className="chr__h">Traits<span className="count"> ({(char.traits || []).length})</span></h4>
-            <div className="pj__traits">
-              {(char.traits || []).map((trait) => (
-                <TraitAdminBlock key={trait.id} char={char} trait={trait} mutate={mutate} />
-              ))}
+      {recaps.length > 0 && (
+        <div className="chr__block">
+          <h4 className="chr__h">Résumés MJ reçus</h4>
+          {recaps.map((rc) => (
+            <div key={rc.id} className="chr__recap">
+              <SessionLink sessions={state.sessions} sessionId={rc.sessionId} goToSession={goToSession} />
+              <p className="chr__recaptxt">{rc.summary || '—'}</p>
             </div>
-          </div>
-        )}
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
-        {events.length > 0 && (
-          <div className="chr__block">
-            <h4 className="chr__h">Événements<span className="count"> ({events.length})</span></h4>
-            <ul className="chr__list">
-              {events.map((ev) => (
-                <li key={ev.id}>
-                  <span className="chr__evt">{ev.description || '—'}</span>{' '}
-                  <SessionLink sessions={state.sessions} sessionId={ev.sessionId} goToSession={goToSession} />
-                  <button
-                    className="tbtn chr__x" type="button" aria-label="retirer"
-                    onClick={() => patch((c) => { c.events = (c.events || []).filter((x) => x.id !== ev.id); })}
-                  >
-                    ×
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {recaps.length > 0 && (
-          <div className="chr__block">
-            <h4 className="chr__h">Résumés MJ reçus</h4>
-            {recaps.map((rc) => (
-              <div key={rc.id} className="chr__recap">
-                <SessionLink sessions={state.sessions} sessionId={rc.sessionId} goToSession={goToSession} />
-                <p className="chr__recaptxt">{rc.summary || '—'}</p>
+function AdminJournalTab({ char }) {
+  const entries = char.journal || [];
+  return (
+    <div className="chr__main">
+      <h4 className="chr__h">Journal d’aventure<span className="count"> ({entries.length})</span></h4>
+      {entries.length ? (
+        <div className="pj__entries">
+          {entries.slice().reverse().map((entry) => (
+            <div key={entry.id} className="pj__entry">
+              <div className="pj__entryhead">
+                <b>{entry.title || 'Sans titre'}</b>
+                {entry.category && <span className="chr__muted">{entry.category}</span>}
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+              {entry.text && <p className="chr__recaptxt">{entry.text}</p>}
+              {(entry.screenshots || []).length > 0 && (
+                <div className="pj__shots">
+                  {entry.screenshots.map((shot) => (
+                    <div key={shot.id} className="pj__shot">
+                      <a href={shot.url} target="_blank" rel="noopener noreferrer">
+                        <img className="pj__shotimg" src={shot.url} alt="" />
+                      </a>
+                      {shot.caption && <p className="chr__muted">{shot.caption}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : <p className="empty">Ce personnage n’a pas encore de note de journal.</p>}
+    </div>
+  );
+}
+
+function AdminTraitsTab({ char, mutate }) {
+  const traits = char.traits || [];
+  return (
+    <div className="chr__main">
+      <h4 className="chr__h">Traits<span className="count"> ({traits.length})</span></h4>
+      {traits.length ? (
+        <div className="pj__traits">
+          {traits.map((trait) => <TraitAdminBlock key={trait.id} char={char} trait={trait} mutate={mutate} />)}
+        </div>
+      ) : <p className="empty">Aucun trait proposé par ce personnage.</p>}
+    </div>
+  );
+}
+
+function AdminBackstageTab({ state, char, mutate }) {
+  return (
+    <div className="chr__main">
+      <ThreadBoard
+        state={state} mutate={mutate}
+        scopeCharId={char.id} authorId="mj" authorName="MJ"
+        canCreate={false} storageKey={'ccm.mjThread.' + char.id}
+      />
+    </div>
+  );
+}
+
+function CharPane({ state, char, mutate, goToSession }) {
+  const [tab, setTab] = useState(lsGet('ccm.charTab') || 'info');
+  const patch = (fn) =>
+    mutate((s) => { const c = s.characters.find((x) => x.id === char.id); if (c) fn(c); });
+  const totalXp = (char.xp || []).reduce((n, r) => n + (parseInt(r.amount, 10) || 0), 0);
+  const level = levelForXp(state.xpCalibreur, totalXp);
+
+  function setTabAndSave(t) { setTab(t); lsSet('ccm.charTab', t); }
+
+  let content;
+  if (tab === 'xp') content = <AdminXpTab state={state} char={char} mutate={mutate} goToSession={goToSession} />;
+  else if (tab === 'journal') content = <AdminJournalTab char={char} />;
+  else if (tab === 'traits') content = <AdminTraitsTab char={char} mutate={mutate} />;
+  else if (tab === 'backstage') content = <AdminBackstageTab state={state} char={char} mutate={mutate} />;
+  else content = <AdminInfoTab char={char} mutate={mutate} />;
+
+  return (
+    <div className="pj">
+      <nav className="pj__nav">
+        {TABS.map(([key, label]) => (
+          <button
+            key={key} type="button"
+            className={'pj__navbtn' + (tab === key ? ' is-active' : '')}
+            onClick={() => setTabAndSave(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+      <div className="pj__body">{content}</div>
+      <CharIdPanel char={char} patch={patch} level={level} />
     </div>
   );
 }
@@ -302,7 +414,10 @@ export default function Personnages({ state, mutate, goToSession }) {
   chars.forEach((c) => (c.traits || []).forEach((t) => { if (t.status === 'pending') pending.push({ char: c, trait: t }); }));
 
   function addChar() {
-    const c = { id: uid(), name: 'Nouveau personnage', artUrl: '', mjNote: '', xp: [], events: [], recaps: [], ownerId: null };
+    const c = {
+      id: uid(), name: 'Nouveau personnage', artUrl: '', mjNote: '', race: '', description: '', qualite: '', defaut: '', peurs: '',
+      xp: [], events: [], recaps: [], journal: [], traits: [], ownerId: null
+    };
     mutate((s) => { s.characters.push(c); });
     select(c.id);
   }
