@@ -119,7 +119,7 @@ export default function Dashboard({ session }) {
                 {hasDraft ? '⏹ Terminer la session' : '▶ Débuter la session'}
               </button>
             )}
-            {role === 'admin' && <WorldDate state={state} mutate={mutate} />}
+            <WorldDate state={state} mutate={mutate} readOnly={role !== 'admin'} />
             <span className="status" data-on={STATUS_ON[status] || '0'}>
               <i />
               <span>{STATUS_TEXT[status] || status}</span>

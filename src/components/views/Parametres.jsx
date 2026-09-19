@@ -68,12 +68,20 @@ function TempsPane({ state, mutate }) {
 /** Appelle l'Edge Function generate-account-link (voir supabase/functions/) —
  * seul point d'accès à l'API admin Supabase (invite/recovery/list/delete),
  * la clé service_role restant entièrement côté fonction. */
-async function callAccountsFn(body) {
+async function callAccountsFn(body, retried = false) {
   const { data, error } = await supabase.functions.invoke('generate-account-link', { body });
   if (error) {
     const detail = error.context && typeof error.context.json === 'function'
       ? await error.context.json().catch(() => null)
       : null;
+    const status = error.context && error.context.status;
+    // Jeton périmé (onglet resté ouvert, mot de passe changé…) : on renouvelle
+    // la session une fois avant de conclure « non authentifié ».
+    if (status === 401 && !retried) {
+      const { data: refreshed } = await supabase.auth.refreshSession().catch(() => ({ data: null }));
+      if (refreshed && refreshed.session) return callAccountsFn(body, true);
+      throw new Error('Session expirée — déconnecte-toi puis reconnecte-toi.');
+    }
     throw new Error((detail && detail.error) || error.message || 'Échec de la requête.');
   }
   return data;

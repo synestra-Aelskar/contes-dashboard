@@ -7,7 +7,7 @@ import { blocksTotalHours } from '../lib/timeblocks.js';
 
 export { campaignDate, lastSessionAel };
 
-export default function WorldDate({ state, mutate }) {
+export default function WorldDate({ state, mutate, readOnly = false }) {
   const [open, setOpen] = useState(false);
   const shown = campaignDate(state);
   const realDrift = aelCompare(shown, aelToday()) !== 0;
@@ -25,6 +25,24 @@ export default function WorldDate({ state, mutate }) {
 
   const setDate = (d) =>
     mutate((s) => { s.aelPin = { year: d.year, season: d.season, cycle: d.cycle, day: d.day }; });
+
+  // Joueurs : même horloge et même date du présent de la campagne, sans
+  // sélecteur — seule la table MJ déplace le temps.
+  if (readOnly) {
+    return (
+      <div className="aelskar-row">
+        <WorldClock hours={liveHour} />
+        <div className="aelskar aelskar--readonly">
+          <div className="aelskar__face aelskar__face--static">
+            <span className="aelskar__eyebrow">Présent de la campagne</span>
+            <span className="aelskar__main">{aelDayCycle(displayDate)}<br />{aelSeasonLine(displayDate)}</span>
+            <span className="aelskar__sub">{aelTextLine2(displayDate)}</span>
+            <span className="aelskar__num">{aelNumeric(displayDate)}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="aelskar-row">
