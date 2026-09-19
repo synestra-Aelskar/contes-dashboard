@@ -543,6 +543,8 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 .pj__traitstatus{ font-family:var(--f-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
 .pj__traitstatus--draft{ color:var(--fg-dim); }
 .pj__traitstatus--pending{ color:var(--gilt); }
+.pj__traitstatus--creating{ color:var(--gilt); }
+.pj__trait--creating{ border-color:var(--gilt); }
 .pj__traitstatus--accepted{ color:var(--kind-data); }
 .pj__traitstatus--refused{ color:var(--blood); }
 

@@ -19,7 +19,8 @@ const TABS = [
 const TRAIT_STATUS_LABEL = {
   draft: 'Brouillon',
   pending: 'En attente de validation',
-  accepted: 'Acceptée',
+  creating: 'En cours de création',
+  accepted: 'Créé en jeu',
   refused: 'Refusé'
 };
 
