@@ -208,7 +208,6 @@ function RevealModal({ state, block, onToggle, onClose }) {
 function SecretBlock({ state, s, b, index, mutate, expanded, onExpand }) {
   const [text, setText, textRef] = useSyncedField(b.text);
   const [open, setOpen] = useState(false);
-  const preview = (text || '').replace(/\s+/g, ' ').trim();
   const patchBlock = (fn) =>
     mutate((st) => {
       const x = st.secrets.find((y) => y.id === s.id);
@@ -261,11 +260,7 @@ function SecretBlock({ state, s, b, index, mutate, expanded, onExpand }) {
           onChange={(e) => { const v = e.target.value; setText(v); patchBlock((x) => { x.text = v; }); }}
           onBlur={() => patchBlock((x) => { x.text = text; })}
         />
-      ) : (
-        <button type="button" className="secret-block__preview" onClick={() => onExpand(b.id)}>
-          {preview || <em>vide</em>}
-        </button>
-      )}
+      ) : null}
       {open && (
         <RevealModal
           state={state} block={b}
@@ -348,6 +343,7 @@ function SecretCard({ state, s, mutate, open, onToggle }) {
 
 function PlayerSecretCard({ s, blocks, userId, mutate, open, onToggle }) {
   const mine = (s.playerTags && Array.isArray(s.playerTags[userId])) ? s.playerTags[userId] : [];
+  const [current, setCurrent] = useState(blocks[0] ? blocks[0].id : null);
   const setMine = (tags) => mutate((st) => {
     const x = st.secrets.find((y) => y.id === s.id);
     if (!x) return;
@@ -366,7 +362,19 @@ function PlayerSecretCard({ s, blocks, userId, mutate, open, onToggle }) {
       {!open && <TagChips tags={[...(s.tags || []), ...mine]} />}
       {open && (
         <>
-          {blocks.map((b) => <p key={b.id} className="secret-card__text">{b.text}</p>)}
+          {blocks.map((b, i) => (
+            <div key={b.id} className={'secret-block' + (current === b.id ? ' is-open' : '')}>
+              <div
+                className="secret-block__head" role="button" tabIndex={0}
+                onClick={() => setCurrent(current === b.id ? null : b.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCurrent(current === b.id ? null : b.id); } }}
+              >
+                <span className="secret-block__label">{i + 1}</span>
+                <span className="secret-block__who">élément {i + 1}</span>
+              </div>
+              {current === b.id && <p className="secret-card__text">{b.text}</p>}
+            </div>
+          ))}
           <TagChips tags={s.tags || []} />
           <TagEditor tags={mine} onChange={setMine} placeholder="mes tags…" tone="mine" />
         </>

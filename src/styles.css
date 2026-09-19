@@ -663,9 +663,8 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 .secret-block{ display:flex; flex-direction:column; gap:4px; padding-top:6px; border-top:1px solid var(--rule); }
 .secret-block__head{ display:flex; align-items:center; gap:8px; min-width:0; cursor:pointer; }
 .secret-block__head:hover .secret-block__label{ color:var(--gilt); }
-.secret-block__preview{ width:100%; text-align:left; background:none; border:none; padding:0 0 0 24px; font-family:var(--f-body); font-size:12.5px; line-height:1.4; color:var(--fg-dim); cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.secret-block__preview:hover{ color:var(--fg); }
-.secret-block__preview em{ opacity:.6; }
+.secret-block{ padding-top:4px; }
+.secret-block.is-open{ padding-bottom:4px; }
 .secret-block__label{ flex:none; min-width:16px; font-family:var(--f-mono); font-size:9.5px; letter-spacing:.1em; color:var(--fg-dim); }
 .secret-block__who{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:var(--f-mono); font-size:9.5px; letter-spacing:.06em; color:var(--fg-dim); opacity:.8; }
 .secret-block__who.is-revealed{ color:var(--gilt); opacity:1; }
@@ -674,7 +673,7 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 .secret-block__x:hover{ color:var(--blood); border-color:var(--blood); }
 .secret-block__text{ min-height:0; padding:5px 8px; font-size:12.5px; line-height:1.45; }
 .secret-card__text{ margin:0; font-family:var(--f-body); font-size:13.5px; line-height:1.55; color:var(--fg); white-space:pre-wrap; }
-.secret-card__text + .secret-card__text{ padding-top:8px; border-top:1px solid var(--rule); }
+.secret-block .secret-card__text{ padding:2px 0 0 24px; }
 .secret-tags{ display:inline-flex; flex-wrap:wrap; gap:4px; }
 .secret-tag{ display:inline-flex; align-items:center; gap:3px; padding:1px 7px; border:1px solid var(--rule); border-radius:10px; font-family:var(--f-mono); font-size:9.5px; letter-spacing:.06em; color:var(--fg-dim); }
 .secret-tag--mine{ border-color:var(--gilt); color:var(--gilt); }
