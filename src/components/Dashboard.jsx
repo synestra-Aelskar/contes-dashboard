@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../supabase';
 import { useBoard } from '../lib/board.js';
 import { fmtDateLong, lsGet, lsSet } from '../lib/util.js';
-import { makeDraft, finishDraft } from '../lib/session.js';
+import { makeDraft, finishDraft, nextSessionTitle } from '../lib/session.js';
 import { getUiScale, applyUiScale } from '../lib/prefs.js';
 import { pruneForRole, firstViewKey, treeHasView } from '../lib/menu.js';
 import WorldDate from './WorldDate.jsx';
 import Sidebar from './Sidebar.jsx';
 import TableauDeBord from './views/TableauDeBord.jsx';
 import FinishModal from './FinishModal.jsx';
+import StartSessionModal from './StartSessionModal.jsx';
 import Preferences from './Preferences.jsx';
 import Liens from './views/Liens.jsx';
 import Journal from './views/Journal.jsx';
@@ -49,6 +50,8 @@ export default function Dashboard({ session }) {
   const [view, setViewRaw] = useState(lsGet('ccm.view') || '');
   const [finishOpen, setFinishOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
+  const [startConfirmOpen, setStartConfirmOpen] = useState(false);
+  const [sessionPanelOpen, setSessionPanelOpen] = useState(false);
   const setView = (v) => { setViewRaw(v); lsSet('ccm.view', v); };
 
   useEffect(() => { applyUiScale(getUiScale()); }, []);
@@ -58,7 +61,7 @@ export default function Dashboard({ session }) {
   }
 
   const tree = pruneForRole(state.settings.menu || [], role);
-  const isAdminOnlyView = view === 'session' || view === 'parametres' || view === 'tableaudebord';
+  const isAdminOnlyView = view === 'parametres' || view === 'tableaudebord';
   const activeView = ((isAdminOnlyView && role === 'admin') || treeHasView(tree, view))
     ? view
     : (firstViewKey(tree) || '');
@@ -66,16 +69,24 @@ export default function Dashboard({ session }) {
   const goToSession = (id) => { lsSet('ccm.session', id); if (treeHasView(tree, 'journal')) setView('journal'); };
   const hasDraft = !!state.sessionDraft;
 
-  function startSession() {
+  function confirmStart() {
     mutate((s) => { if (!s.sessionDraft) s.sessionDraft = makeDraft(s); });
-    setView('session');
+    setStartConfirmOpen(false);
+    setSessionPanelOpen(true);
   }
 
   function confirmFinish() {
     const out = {};
     mutate((s) => finishDraft(s, out));
     setFinishOpen(false);
+    setSessionPanelOpen(false);
     if (out.sessionId) goToSession(out.sessionId);
+  }
+
+  function abandonSession() {
+    mutate((s) => { s.sessionDraft = null; });
+    setFinishOpen(false);
+    setSessionPanelOpen(false);
   }
 
   const shared = { state, mutate, goToSession, role, userId: session.user.id };
@@ -92,13 +103,15 @@ export default function Dashboard({ session }) {
   const sessionButton = role === 'admin' ? (
     <>
     <button
-      className={'btn-primary btn-primary--session' + (hasDraft ? ' btn-primary--stop' : '')}
+      className={'btn-primary btn-primary--session' + (hasDraft ? ' btn-primary--live' : '')}
       type="button"
-      onClick={hasDraft ? () => { setView('session'); setFinishOpen(true); } : startSession}
-      data-label={hasDraft ? 'Terminer la session' : 'Débuter la session'}
-      aria-label={hasDraft ? 'Terminer la session' : 'Débuter la session'}
+      onClick={hasDraft ? () => setSessionPanelOpen(true) : () => setStartConfirmOpen(true)}
+      data-label={hasDraft ? 'Session en cours…' : 'Débuter la session'}
+      aria-label={hasDraft ? 'Session en cours…' : 'Débuter la session'}
     >
-      {hasDraft ? '⏹' : '▶'}<span className="sidebar__label"> {hasDraft ? 'Terminer la session' : 'Débuter la session'}</span>
+      {hasDraft
+        ? <><span className="btn-primary__dot" /><span className="sidebar__label">Session en cours…</span></>
+        : <>▶<span className="sidebar__label"> Débuter la session</span></>}
     </button>
     <button
       type="button"
@@ -147,21 +160,37 @@ export default function Dashboard({ session }) {
       <div className="dash-body">
         <Sidebar tree={tree} view={activeView} setView={setView} footerItems={footerItems} topSlot={sessionButton} />
         <div className={'dash-main view view--' + (activeView || 'empty')}>
-          {view === 'session'
-            ? <SessionEnCours state={state} mutate={mutate} onFinish={() => setFinishOpen(true)} />
-            : ViewComp
-              ? (activeView === 'personnages' && role === 'player'
-                ? <ViewComp state={state} mutate={mutate} userId={session.user.id} goToSession={goToSession} />
-                : <ViewComp {...shared} />)
-              : <p className="empty">Aucune vue accessible pour l’instant.</p>}
+          {ViewComp
+            ? (activeView === 'personnages' && role === 'player'
+              ? <ViewComp state={state} mutate={mutate} userId={session.user.id} goToSession={goToSession} />
+              : <ViewComp {...shared} />)
+            : <p className="empty">Aucune vue accessible pour l’instant.</p>}
         </div>
       </div>
+
+      {startConfirmOpen && (
+        <StartSessionModal
+          title={nextSessionTitle(state)}
+          onConfirm={confirmStart}
+          onCancel={() => setStartConfirmOpen(false)}
+        />
+      )}
+
+      {sessionPanelOpen && hasDraft && (
+        <SessionEnCours
+          state={state}
+          mutate={mutate}
+          onFinish={() => setFinishOpen(true)}
+          onClose={() => setSessionPanelOpen(false)}
+        />
+      )}
 
       {finishOpen && hasDraft && (
         <FinishModal
           draft={state.sessionDraft}
           onConfirm={confirmFinish}
           onCancel={() => setFinishOpen(false)}
+          onAbandon={abandonSession}
         />
       )}
 

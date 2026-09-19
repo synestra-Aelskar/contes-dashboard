@@ -5,23 +5,29 @@ import { blocksTotalHours } from './timeblocks.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 
+/** Titre de la prochaine séance (avant même que le brouillon existe). */
+export function nextSessionTitle(state) {
+  return 'Séance ' + ((state.sessions || []).length + 1);
+}
+
 /** Nouveau brouillon de séance en cours. */
 export function makeDraft(state) {
-  const n = (state.sessions || []).length + 1;
   return {
     id: uid(),
-    title: 'Séance ' + n,
+    title: nextSessionTitle(state),
     date: new Date().toLocaleDateString('fr-FR'),
     aelDate: clone(campaignDate(state)),
     summary: '',
     participants: [],
-    xp: [],                 // { id, charId, amount, reason }
+    xp: [],                 // { id, reason, branchKey, amount, charIds: [] }
     eventsTitle: 'Événements de la séance',
     events: [],             // { id, description, charIds: [] }
-    consequences: [],       // { id, trigger, effect }
+    consequences: [],       // { id, trigger, effect, charIds: [], eventId }
     clocks: [],             // { id, title, kind, size, filled, note, deadlineAel }
     reminders: [],          // { id, text, kind }
-    timeBlocks: []          // { id, name, typeId, h, d, w } — durée réelle, convertie en jours à la clôture
+    timeBlocks: [],         // { id, name, typeId, h, d, w } — durée réelle, convertie en jours à la clôture
+    prepLink: null,         // { queteId, sessionId } — séance préparée liée, pour le condensé
+    prepChecks: {}          // { [xpBlockId]: bool } — objectifs prévus cochés en direct
   };
 }
 
@@ -34,9 +40,9 @@ export function sessionGaps(d) {
   if (!(d.participants || []).length) g.push('Aucun participant coché');
 
   (d.xp || []).forEach((r, i) => {
-    const empty = !r.charId && !String(r.amount ?? '').trim() && !(r.reason || '').trim();
+    const empty = !(r.reason || '').trim() && !(r.charIds || []).length && !String(r.amount ?? '').trim();
     if (empty) return;
-    if (!r.charId) g.push('Attribution XP, ligne ' + (i + 1) + ' : personnage non choisi');
+    if (!(r.charIds || []).length) g.push('Attribution XP, ligne ' + (i + 1) + ' : aucun participant choisi');
     if (!String(r.amount ?? '').trim()) g.push('Attribution XP, ligne ' + (i + 1) + ' : montant vide');
     if (!(r.reason || '').trim()) g.push('Attribution XP, ligne ' + (i + 1) + ' : raison vide');
   });
@@ -76,13 +82,18 @@ export function finishDraft(s, out) {
     fromDraft: true
   });
 
-  // 2) XP -> personnages
+  // 2) XP -> personnages (une ligne peut être partagée par plusieurs participants)
   (d.xp || []).forEach((r) => {
-    const c = findChar(r.charId);
-    if (!c) return;
-    if (!String(r.amount ?? '').trim() && !(r.reason || '').trim()) return;
-    c.xp = c.xp || [];
-    c.xp.push({ id: uid(), amount: String(r.amount ?? '').trim(), reason: (r.reason || '').trim(), sessionId: sid });
+    if (!String(r.amount ?? '').trim() && !(r.charIds || []).length) return;
+    const reason = (r.reason || '').trim();
+    (r.charIds || []).forEach((cid) => {
+      const c = findChar(cid);
+      if (!c) return;
+      c.xp = c.xp || [];
+      c.xp.push({
+        id: uid(), amount: String(r.amount ?? '').trim(), reason, branchKey: r.branchKey || null, sessionId: sid
+      });
+    });
   });
 
   // 3) événements -> personnages liés
@@ -106,8 +117,11 @@ export function finishDraft(s, out) {
 
   // 5) conséquences / horloges / à ne pas oublier
   (d.consequences || []).forEach((x) => {
-    if (!(x.trigger || '').trim() && !(x.effect || '').trim()) return;
-    s.consequences.push({ id: uid(), trigger: (x.trigger || '').trim(), effect: (x.effect || '').trim(), done: false, sessionId: sid });
+    if (!(x.trigger || '').trim() && !(x.effect || '').trim() && !(x.charIds || []).length) return;
+    s.consequences.push({
+      id: uid(), trigger: (x.trigger || '').trim(), effect: (x.effect || '').trim(),
+      done: false, sessionId: sid, charIds: (x.charIds || []).slice()
+    });
   });
   (d.clocks || []).forEach((x) => {
     if (!(x.title || '').trim() && !(x.note || '').trim()) return;

@@ -1,6 +1,6 @@
 import { sessionGaps } from '../lib/session.js';
 
-export default function FinishModal({ draft, onConfirm, onCancel }) {
+export default function FinishModal({ draft, onConfirm, onCancel, onAbandon }) {
   if (!draft) return null;
   const gaps = sessionGaps(draft);
   return (
@@ -23,11 +23,16 @@ export default function FinishModal({ draft, onConfirm, onCancel }) {
           et rappels sont poussés dans leurs vues respectives. Chaque élément gardera un lien vers
           cette séance.
         </p>
-        <div className="modal__actions">
-          <button className="tbtn" type="button" onClick={onCancel}>Continuer l’édition</button>
-          <button className="btn-primary btn-primary--stop" type="button" onClick={onConfirm}>
-            Clôturer la séance
+        <div className="modal__actions modal__actions--split">
+          <button className="btn-warn" type="button" onClick={onAbandon}>
+            Abandonner — tout effacer
           </button>
+          <div className="modal__actions">
+            <button className="tbtn" type="button" onClick={onCancel}>Retour</button>
+            <button className="btn-primary btn-primary--stop" type="button" onClick={onConfirm}>
+              Confirmer
+            </button>
+          </div>
         </div>
       </div>
     </div>
