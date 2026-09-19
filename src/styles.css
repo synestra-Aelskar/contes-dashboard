@@ -398,7 +398,11 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 .clock__size{ width:auto; }
 .clock__title{ font-family:var(--f-display); font-size:17px; font-weight:600; }
 
-.aelskar-row{ display:flex; align-items:center; gap:14px; }
+/* Date a gauche de l'horloge : les deux lignes partent du haut du cadran et la
+ * seconde recule un peu pour suivre la courbe du cercle (meme ecart aux deux). */
+.aelskar-row{ display:flex; align-items:flex-start; gap:12px; }
+.aelskar-row .aelskar{ padding-top:4px; }
+.aelskar__sub--small{ padding-right:13px; }
 /* Horloge en jeu : composant isole, cadran transparent sur le fond de l'en-tete. */
 .worldclock{ display:flex; flex-direction:column; align-items:center; gap:3px; flex:none; }
 .worldclock__face{ display:block; background:none; }
