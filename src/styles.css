@@ -601,6 +601,12 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
   background:var(--surface); border:1px solid var(--rule); border-radius:4px;
   box-shadow:0 12px 32px rgba(0,0,0,.45); padding:8px;
 }
+.xp-picker__all{
+  display:flex; align-items:center; gap:9px; cursor:pointer; padding:5px 4px 8px; margin-bottom:4px;
+  border-bottom:1px solid var(--rule);
+  font-family:var(--f-mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--fg-dim);
+}
+.xp-picker__all:hover{ color:var(--fg); }
 .xp-picker__list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px; }
 
 @media (max-width:960px){

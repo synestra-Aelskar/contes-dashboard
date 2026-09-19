@@ -17,11 +17,17 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
    doit voir le texte arriver sans attendre qu'on clique ailleurs. */
 
 /** Petit pop-up de sélection multiple des participants d'une ligne d'XP. */
-function XpParticipantsPicker({ chars, charIds, pos, onToggle, onClose }) {
+function XpParticipantsPicker({ chars, charIds, pos, onToggle, onToggleAll, onClose }) {
+  const allOn = chars.length > 0 && chars.every((c) => charIds.indexOf(c.id) >= 0);
+  const someOn = chars.some((c) => charIds.indexOf(c.id) >= 0);
   return createPortal(
     <>
       <div className="ssnparticipants__menu-backdrop" onClick={onClose} />
       <div className="xp-picker" style={{ top: pos.top, left: pos.left }} onClick={(e) => e.stopPropagation()}>
+        <label className="xp-picker__all">
+          <SelectAllCheckbox allOn={allOn} someOn={someOn} onToggle={onToggleAll} />
+          <span>{allOn ? 'Tout décocher' : 'Tout cocher'}</span>
+        </label>
         <ul className="xp-picker__list">
           {chars.map((c) => (
             <li key={c.id}>
@@ -51,6 +57,11 @@ function XpLine({ row, chars, mutate }) {
       r.charIds = r.charIds || [];
       const i = r.charIds.indexOf(cid);
       if (i >= 0) r.charIds.splice(i, 1); else r.charIds.push(cid);
+    });
+  const toggleAllChars = () =>
+    patch((r) => {
+      const allOn = chars.length > 0 && chars.every((c) => (r.charIds || []).indexOf(c.id) >= 0);
+      r.charIds = allOn ? [] : chars.map((c) => c.id);
     });
   const charIds = row.charIds || [];
   const names = charIds.map((cid) => (chars.find((c) => c.id === cid) || {}).name).filter(Boolean);
@@ -95,7 +106,7 @@ function XpLine({ row, chars, mutate }) {
       {pickerOpen && pos && (
         <XpParticipantsPicker
           chars={chars} charIds={charIds} pos={pos}
-          onToggle={toggleChar} onClose={() => setPickerOpen(false)}
+          onToggle={toggleChar} onToggleAll={toggleAllChars} onClose={() => setPickerOpen(false)}
         />
       )}
       <button
