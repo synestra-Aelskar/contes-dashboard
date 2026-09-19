@@ -23,7 +23,7 @@ export const EMPTY_STATE = {
   characters: [], sessionDraft: null, zones: [], sessionZero: { blocks: [] }, fichesTechniques: [],
   xpCalibreur: XP_DEFAULT_STATE, ddCalc: null, prepSessions: [],
   settings: { timeTypes: [], accounts: [], menu: [] },
-  aelCarryHours: 0, threads: []
+  aelCarryHours: 0, threads: [], campaign: { actNumber: '', actTitle: '' }
 };
 
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -53,6 +53,9 @@ function normalize(raw) {
   if (!Array.isArray(out.settings.timeTypes)) out.settings.timeTypes = [];
   if (!Array.isArray(out.settings.accounts)) out.settings.accounts = [];
   if (typeof out.aelCarryHours !== 'number' || !Number.isFinite(out.aelCarryHours)) out.aelCarryHours = 0;
+  if (!out.campaign || typeof out.campaign !== 'object') out.campaign = { actNumber: '', actTitle: '' };
+  if (typeof out.campaign.actNumber !== 'string') out.campaign.actNumber = '';
+  if (typeof out.campaign.actTitle !== 'string') out.campaign.actTitle = '';
   if (!Array.isArray(out.settings.menu) || !out.settings.menu.length) {
     out.settings.menu = defaultMenuTree();
   } else {

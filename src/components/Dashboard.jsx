@@ -7,7 +7,7 @@ import { getUiScale, applyUiScale } from '../lib/prefs.js';
 import { pruneForRole, firstViewKey, treeHasView } from '../lib/menu.js';
 import WorldDate from './WorldDate.jsx';
 import Sidebar from './Sidebar.jsx';
-import Notes from './Notes.jsx';
+import TableauDeBord from './views/TableauDeBord.jsx';
 import FinishModal from './FinishModal.jsx';
 import Preferences from './Preferences.jsx';
 import Liens from './views/Liens.jsx';
@@ -58,7 +58,7 @@ export default function Dashboard({ session }) {
   }
 
   const tree = pruneForRole(state.settings.menu || [], role);
-  const isAdminOnlyView = view === 'session' || view === 'parametres';
+  const isAdminOnlyView = view === 'session' || view === 'parametres' || view === 'tableaudebord';
   const activeView = ((isAdminOnlyView && role === 'admin') || treeHasView(tree, view))
     ? view
     : (firstViewKey(tree) || '');
@@ -82,6 +82,7 @@ export default function Dashboard({ session }) {
   let ViewComp = null;
   if (activeView === 'personnages') ViewComp = role === 'player' ? PersonnageJoueur : Personnages;
   else if (activeView === 'parametres') ViewComp = Parametres;
+  else if (activeView === 'tableaudebord') ViewComp = TableauDeBord;
   else ViewComp = VIEW_COMPONENTS[activeView] || null;
 
   const footerItems = role === 'admin'
@@ -89,6 +90,7 @@ export default function Dashboard({ session }) {
     : [];
 
   const sessionButton = role === 'admin' ? (
+    <>
     <button
       className={'btn-primary btn-primary--session' + (hasDraft ? ' btn-primary--stop' : '')}
       type="button"
@@ -98,6 +100,18 @@ export default function Dashboard({ session }) {
     >
       {hasDraft ? '⏹' : '▶'}<span className="sidebar__label"> {hasDraft ? 'Terminer la session' : 'Débuter la session'}</span>
     </button>
+    <button
+      type="button"
+      className={'sidebar__item sidebar__item--action' + (activeView === 'tableaudebord' ? ' is-active' : '')}
+      onClick={() => setView('tableaudebord')}
+      data-label="Tableau de bord" aria-label="Tableau de bord"
+    >
+      <svg className="sidebar__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M3 3h8v10H3z" /><path d="M13 3h8v6h-8z" /><path d="M13 13h8v8h-8z" /><path d="M3 17h8v4H3z" />
+      </svg>
+      <span className="sidebar__label">Tableau de bord</span>
+    </button>
+    </>
   ) : null;
 
   const statusBar = (
@@ -129,12 +143,6 @@ export default function Dashboard({ session }) {
         </div>
         <div className="divider"><i /></div>
       </header>
-
-      {role === 'admin' && (
-        <div className="margins">
-          <Notes state={state} mutate={mutate} />
-        </div>
-      )}
 
       <div className="dash-body">
         <Sidebar tree={tree} view={activeView} setView={setView} footerItems={footerItems} topSlot={sessionButton} />

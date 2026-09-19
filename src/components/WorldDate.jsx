@@ -23,6 +23,17 @@ export default function WorldDate({ state, mutate, readOnly = false }) {
   const liveHour = liveTotal - extraDays * 24;
   const displayDate = extraDays > 0 ? aelShift(shown, extraDays) : shown;
 
+  const act = state.campaign || {};
+  const actNumber = (act.actNumber || '').trim();
+  const actTitle = (act.actTitle || '').trim();
+  const actLine = (actNumber || actTitle) ? (
+    <span className="aelskar__act">
+      {actNumber && <strong className="aelskar__act-num">{actNumber}</strong>}
+      {actNumber && actTitle && <span className="aelskar__act-sep"> : </span>}
+      {actTitle && <em className="aelskar__act-title">{actTitle}</em>}
+    </span>
+  ) : null;
+
   const setDate = (d) =>
     mutate((s) => { s.aelPin = { year: d.year, season: d.season, cycle: d.cycle, day: d.day }; });
 
@@ -35,6 +46,7 @@ export default function WorldDate({ state, mutate, readOnly = false }) {
           <div className="aelskar__face aelskar__face--static">
             <span className="aelskar__main aelskar__main--small">{aelDayCycle(displayDate)}, {aelSeasonLine(displayDate)}</span>
             <span className="aelskar__sub aelskar__sub--small">{aelTextLine2(displayDate)}</span>
+            {actLine}
           </div>
         </div>
         <WorldClock hours={liveHour} />
@@ -53,6 +65,7 @@ export default function WorldDate({ state, mutate, readOnly = false }) {
             {aelDayCycle(displayDate)}, {aelSeasonLine(displayDate)}
           </span>
           <span className="aelskar__sub aelskar__sub--small">{aelTextLine2(displayDate)}</span>
+          {actLine}
         </button>
         {open && (
           <AelPicker
