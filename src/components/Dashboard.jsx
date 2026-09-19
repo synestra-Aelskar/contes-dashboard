@@ -120,9 +120,7 @@ export default function Dashboard({ session }) {
                 </p>
                 <p className="lede">Ainsi vont les tragédies ; ainsi vont les contes malveillants.</p>
               </>
-            ) : (
-              <p className="lede">Fiche de personnage — {(session.user.email || '').split('@')[0]}</p>
-            )}
+            ) : null}
           </div>
           <div className="topright">
             {role === 'admin' && (
