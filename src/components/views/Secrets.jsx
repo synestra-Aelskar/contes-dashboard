@@ -173,16 +173,19 @@ function scrollTo(id) {
 
 /* ---------- MJ ---------- */
 
-function RevealModal({ state, block, onToggle, onClose }) {
-  const groups = groupCharacters(state);
+function RevealModal({ state, block, onToggle, onClose, share, excludeIds }) {
+  const groups = groupCharacters(state)
+    .map((g) => ({ ...g, chars: g.chars.filter((c) => !(excludeIds && excludeIds.has(c.id))) }))
+    .filter((g) => g.chars.length);
   const revealed = new Set(block.revealedTo || []);
   return (
     <div className="modal" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="modal__card secret-modal" onClick={(e) => e.stopPropagation()}>
-        <h3 className="modal__title">Révéler ce bloc à…</h3>
+        <h3 className="modal__title">{share ? 'Partager cet élément avec…' : 'Révéler ce bloc à…'}</h3>
         <p className="modal__note">
-          Coche les personnages qui connaissent ce morceau du secret. Leur joueur·euse le verra
-          dans sa vue Secrets ; les autres blocs restent cachés.
+          {share
+            ? 'Coche le personnage à qui tu confies cette information : son joueur·euse la verra dans ses Secrets. Un partage ne se reprend pas.'
+            : 'Coche les personnages qui connaissent ce morceau du secret. Leur joueur·euse le verra dans sa vue Secrets ; les autres blocs restent cachés.'}
         </p>
         {!groups.length ? (
           <p className="empty">Aucun personnage pour l’instant.</p>
@@ -190,9 +193,14 @@ function RevealModal({ state, block, onToggle, onClose }) {
           <div key={g.key} className="secret-modal__group">
             <span className="card__label">{g.label}</span>
             {g.chars.map((c) => (
-              <label key={c.id} className="secret-modal__row">
-                <input type="checkbox" checked={revealed.has(c.id)} onChange={() => onToggle(c.id)} />
+              <label key={c.id} className={'secret-modal__row' + (share && revealed.has(c.id) ? ' is-locked' : '')}>
+                <input
+                  type="checkbox" checked={revealed.has(c.id)}
+                  disabled={share && revealed.has(c.id)}
+                  onChange={() => onToggle(c.id)}
+                />
                 <span>{c.name || 'Personnage'}</span>
+                {share && revealed.has(c.id) && <span className="secret-modal__known">sait déjà</span>}
               </label>
             ))}
           </div>
@@ -341,9 +349,19 @@ function SecretCard({ state, s, mutate, open, onToggle }) {
 
 /* ---------- Joueur ---------- */
 
-function PlayerSecretCard({ s, blocks, userId, mutate, open, onToggle }) {
+function PlayerSecretCard({ state, s, blocks, userId, mutate, open, onToggle }) {
   const mine = (s.playerTags && Array.isArray(s.playerTags[userId])) ? s.playerTags[userId] : [];
   const [current, setCurrent] = useState(blocks[0] ? blocks[0].id : null);
+  const [shareId, setShareId] = useState(null);
+  const myCharIds = new Set((state.characters || []).filter((c) => c.ownerId === userId).map((c) => c.id));
+  const shareBlock = shareId ? blocks.find((b) => b.id === shareId) : null;
+  const shareWith = (blockId, charId) => mutate((st) => {
+    const x = st.secrets.find((y) => y.id === s.id);
+    const b = x && (x.blocks || []).find((z) => z.id === blockId);
+    if (!b) return;
+    b.revealedTo = Array.isArray(b.revealedTo) ? b.revealedTo : [];
+    if (!b.revealedTo.includes(charId)) b.revealedTo.push(charId);
+  });
   const setMine = (tags) => mutate((st) => {
     const x = st.secrets.find((y) => y.id === s.id);
     if (!x) return;
@@ -371,10 +389,26 @@ function PlayerSecretCard({ s, blocks, userId, mutate, open, onToggle }) {
               >
                 <span className="secret-block__label">{i + 1}</span>
                 <span className="secret-block__who">élément {i + 1}</span>
+                <button
+                  className="secret-block__gear" type="button" title="Partager avec un autre personnage" aria-label="Partager avec un autre personnage"
+                  onClick={(e) => { e.stopPropagation(); setShareId(b.id); }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+                    <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
+                  </svg>
+                </button>
               </div>
               {current === b.id && <p className="secret-card__text">{b.text}</p>}
             </div>
           ))}
+          {shareBlock && (
+            <RevealModal
+              state={state} block={shareBlock} share excludeIds={myCharIds}
+              onToggle={(id) => shareWith(shareBlock.id, id)}
+              onClose={() => setShareId(null)}
+            />
+          )}
           <TagChips tags={s.tags || []} />
           <TagEditor tags={mine} onChange={setMine} placeholder="mes tags…" tone="mine" />
         </>
@@ -411,7 +445,7 @@ function PlayerSecrets({ state, mutate, userId }) {
             {!opened.length && <p className="empty secret-list__hint">Choisis un secret dans l’index.</p>}
             {opened.map(({ s, blocks }) => (
               <PlayerSecretCard
-                key={s.id} s={s} blocks={blocks} userId={userId} mutate={mutate}
+                key={s.id} state={state} s={s} blocks={blocks} userId={userId} mutate={mutate}
                 open onToggle={(id) => { toggle(id, false); setActiveId(null); }}
               />
             ))}
