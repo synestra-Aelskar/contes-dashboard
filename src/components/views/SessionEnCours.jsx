@@ -147,7 +147,12 @@ function EventListRow({ row, chars, consequences, mutate }) {
       </span>
       <button
         className="evtline__remove" type="button" aria-label="retirer l’événement"
-        onClick={() => mutate((s) => { s.sessionDraft.events = s.sessionDraft.events.filter((x) => x.id !== row.id); })}
+        onClick={() => mutate((s) => {
+          const dr = s.sessionDraft;
+          dr.events = dr.events.filter((x) => x.id !== row.id);
+          const { selSession } = resolvePrepLink(s);
+          rebuildSummary(dr, selSession);
+        })}
       >
         ×
       </button>
@@ -182,7 +187,12 @@ function ConseqListRow({ row, chars, events, mutate }) {
       </span>
       <button
         className="evtline__remove" type="button" aria-label="retirer la conséquence"
-        onClick={() => mutate((s) => { s.sessionDraft.consequences = s.sessionDraft.consequences.filter((x) => x.id !== row.id); })}
+        onClick={() => mutate((s) => {
+          const dr = s.sessionDraft;
+          dr.consequences = dr.consequences.filter((x) => x.id !== row.id);
+          const { selSession } = resolvePrepLink(s);
+          rebuildSummary(dr, selSession);
+        })}
       >
         ×
       </button>
@@ -547,8 +557,9 @@ function resolvePrepLink(state) {
 
 const PREP_SUMMARY_HEADER = 'Parmi les objectifs décidés, ils ont réussi à :';
 const EVENTS_SUMMARY_HEADER = 'Événements :';
+const CONSEQUENCES_SUMMARY_HEADER = 'Conséquences :';
 // « Événement : » (singulier) : ancien format, reconnu pour nettoyer les résumés déjà générés avec.
-const AUTO_SUMMARY_HEADERS = [PREP_SUMMARY_HEADER, EVENTS_SUMMARY_HEADER, 'Événement :'];
+const AUTO_SUMMARY_HEADERS = [PREP_SUMMARY_HEADER, EVENTS_SUMMARY_HEADER, CONSEQUENCES_SUMMARY_HEADER, 'Événement :'];
 
 /** Texte écrit à la main par le MJ, sans aucun des blocs auto (peu importe où ils traînent encore). */
 function manualSummaryText(summary) {
@@ -570,19 +581,30 @@ function prepBlockText(dr, sess) {
 
 function eventsBlockText(events) {
   if (!events || !events.length) return '';
-  const list = events.map((e) => '- [[evt:' + e.id + '|' + (e.description || 'Sans description') + ']]').join('\n');
+  const list = events.map((e) => '- [[link:evt-' + e.id + '|' + (e.description || 'Sans description') + ']]').join('\n');
   return EVENTS_SUMMARY_HEADER + '\n' + list;
+}
+
+function consequencesBlockText(consequences) {
+  if (!consequences || !consequences.length) return '';
+  const list = consequences
+    .map((c) => '- [[link:conseq-' + c.id + '|' + (c.effect || c.trigger || 'Sans description') + ']]')
+    .join('\n');
+  return CONSEQUENCES_SUMMARY_HEADER + '\n' + list;
 }
 
 /**
  * Reconstruit le résumé en entier : texte manuel du MJ, puis, toujours dans
- * cet ordre fixe, le bloc « Objectifs » puis le bloc « Événements ». Chaque
- * bloc est régénéré au complet à chaque appel, donc jamais de doublon ni de
- * désordre même après plusieurs ajouts successifs.
+ * cet ordre fixe, les blocs « Objectifs », « Événements » et « Conséquences ».
+ * Chaque bloc est régénéré au complet à partir de l'état actuel (donc un
+ * événement/une conséquence supprimé disparaît automatiquement du résumé),
+ * jamais de doublon ni de désordre même après plusieurs ajouts successifs.
  */
 function rebuildSummary(dr, sess) {
   const manual = manualSummaryText(dr.summary);
-  const blocks = [prepBlockText(dr, sess), eventsBlockText(dr.events)].filter(Boolean);
+  const blocks = [
+    prepBlockText(dr, sess), eventsBlockText(dr.events), consequencesBlockText(dr.consequences)
+  ].filter(Boolean);
   dr.summary = [manual, ...blocks].filter(Boolean).join('\n\n');
 }
 
@@ -746,47 +768,56 @@ function PrepBlocksFull({ state, mutate }) {
 
 /* --- résumé MJ : aperçu avec vrais liens, édition en texte brut ---- */
 
-const EVT_LINK_RE = /\[\[evt:([^|]+)\|([^\]]*)\]\]/g;
+const SUMMARY_LINK_RE = /\[\[link:([^|]+)\|([^\]]*)\]\]/g;
 
-function parseSummaryParts(text, events, chars) {
+/** Personnages liés à un événement ou une conséquence, pour l'info-bulle du lien. */
+function namesForAnchor(anchorId, events, consequences, chars) {
+  const namesOf = (charIds) => (charIds || [])
+    .map((cid) => (chars.find((c) => c.id === cid) || {}).name)
+    .filter(Boolean)
+    .join(', ');
+  if (anchorId.indexOf('evt-') === 0) {
+    const ev = (events || []).find((e) => e.id === anchorId.slice(4));
+    return ev ? namesOf(ev.charIds) : '';
+  }
+  if (anchorId.indexOf('conseq-') === 0) {
+    const c = (consequences || []).find((x) => x.id === anchorId.slice(7));
+    return c ? namesOf(c.charIds) : '';
+  }
+  return '';
+}
+
+function parseSummaryParts(text, events, consequences, chars) {
   const parts = [];
   let last = 0, m, i = 0;
-  EVT_LINK_RE.lastIndex = 0;
-  const namesFor = (evId) => {
-    const ev = (events || []).find((e) => e.id === evId);
-    if (!ev) return '';
-    return (ev.charIds || [])
-      .map((cid) => (chars.find((c) => c.id === cid) || {}).name)
-      .filter(Boolean)
-      .join(', ');
-  };
-  while ((m = EVT_LINK_RE.exec(text || ''))) {
+  SUMMARY_LINK_RE.lastIndex = 0;
+  while ((m = SUMMARY_LINK_RE.exec(text || ''))) {
     if (m.index > last) parts.push(text.slice(last, m.index));
-    const evId = m[1];
-    const names = namesFor(evId);
+    const anchorId = m[1];
+    const names = namesForAnchor(anchorId, events, consequences, chars);
     parts.push(
       <a
-        key={'evtlink-' + i++} className="ssn-evtlink" href={'#evt-' + evId}
+        key={'lnk-' + i++} className="ssn-evtlink" href={'#' + anchorId}
         data-chars={names || 'Aucun personnage lié'}
         onClick={(e) => e.stopPropagation()}
       >
         {m[2]}
       </a>
     );
-    last = EVT_LINK_RE.lastIndex;
+    last = SUMMARY_LINK_RE.lastIndex;
   }
   if (last < (text || '').length) parts.push((text || '').slice(last));
   return parts;
 }
 
 /**
- * Résumé MJ : par défaut un aperçu en lecture où les lignes d'événements
- * injectées automatiquement apparaissent comme de vrais liens cliquables
- * (vers l'événement correspondant, plus bas dans la séance), avec un survol
- * listant les personnages concernés. Cliquer dedans bascule sur un textarea
- * classique pour éditer le texte brut.
+ * Résumé MJ : par défaut un aperçu en lecture où les lignes d'événements et
+ * de conséquences injectées automatiquement apparaissent comme de vrais
+ * liens cliquables (vers l'entrée correspondante, plus bas dans la séance),
+ * avec un survol listant les personnages concernés. Cliquer dedans bascule
+ * sur un textarea classique pour éditer le texte brut.
  */
-function SummaryField({ value, onChange, onCommit, events, chars }) {
+function SummaryField({ value, onChange, onCommit, events, consequences, chars }) {
   const [editing, setEditing] = useState(false);
   const [local, setLocal, ref] = useSyncedField(value);
   const hasContent = (value || '').trim().length > 0;
@@ -810,7 +841,7 @@ function SummaryField({ value, onChange, onCommit, events, chars }) {
       onClick={() => setEditing(true)}
       onKeyDown={(e) => { if (e.key === 'Enter') setEditing(true); }}
     >
-      {hasContent ? parseSummaryParts(value, events, chars) : placeholder}
+      {hasContent ? parseSummaryParts(value, events, consequences, chars) : placeholder}
     </div>
   );
 }
@@ -887,6 +918,7 @@ function Workspace({ state, mutate, onFinish }) {
         <SummaryField
           value={d.summary}
           events={d.events}
+          consequences={d.consequences}
           chars={chars}
           onChange={(v) => set((dr) => { dr.summary = v; })}
           onCommit={(v) => set((dr) => { dr.summary = v; })}
@@ -1204,6 +1236,9 @@ function ConsequenceBuilderModal({ state, mutate, defaultCharId, onClose }) {
       dr.consequences.push({
         id: uid(), trigger: triggerText, effect: effect.trim(), charIds: [...charIds], eventId
       });
+
+      const { selSession } = resolvePrepLink(s);
+      rebuildSummary(dr, selSession);
     });
     onClose();
   };
@@ -1299,6 +1334,7 @@ function CharQuickMenu({ state, mutate, char, open, onToggle, onClose }) {
   const btnRef = useRef(null);
   const [pos, setPos] = useState(null);
   const [eventBuilderOpen, setEventBuilderOpen] = useState(false);
+  const [conseqBuilderOpen, setConseqBuilderOpen] = useState(false);
   useEffect(() => {
     if (!open || !btnRef.current) return;
     const r = btnRef.current.getBoundingClientRect();
@@ -1310,13 +1346,7 @@ function CharQuickMenu({ state, mutate, char, open, onToggle, onClose }) {
   const traits = char.traits || [];
 
   const openEventBuilder = () => { setEventBuilderOpen(true); onClose(); };
-  const addConsequence = () => {
-    mutate((s) => {
-      s.sessionDraft.consequences = s.sessionDraft.consequences || [];
-      s.sessionDraft.consequences.push({ id: uid(), trigger: '', effect: '', charIds: [char.id] });
-    });
-    onClose();
-  };
+  const openConseqBuilder = () => { setConseqBuilderOpen(true); onClose(); };
   const addSecret = () => {
     mutate((s) => {
       s.secrets = s.secrets || [];
@@ -1367,7 +1397,7 @@ function CharQuickMenu({ state, mutate, char, open, onToggle, onClose }) {
             <div className="ssnparticipants__menu-label">Ajouter :</div>
             <div className="ssnparticipants__menu-add">
               <button type="button" onClick={openEventBuilder}>Événement</button>
-              <button type="button" onClick={addConsequence}>Conséquence</button>
+              <button type="button" onClick={openConseqBuilder}>Conséquence</button>
               <button type="button" onClick={addSecret}>Secret</button>
             </div>
           </div>
@@ -1378,6 +1408,13 @@ function CharQuickMenu({ state, mutate, char, open, onToggle, onClose }) {
         <EventBuilderModal
           state={state} mutate={mutate} defaultCharId={char.id}
           onClose={() => setEventBuilderOpen(false)}
+        />,
+        document.body
+      )}
+      {conseqBuilderOpen && createPortal(
+        <ConsequenceBuilderModal
+          state={state} mutate={mutate} defaultCharId={char.id}
+          onClose={() => setConseqBuilderOpen(false)}
         />,
         document.body
       )}
