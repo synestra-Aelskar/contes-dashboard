@@ -1188,7 +1188,13 @@ function EventBuilderModal({ state, mutate, defaultCharId, editEvent, onClose })
     editEvent ? [...(editEvent.charIds || [])] : (defaultCharId ? [defaultCharId] : [])
   );
   const [description, setDescription] = useState(editEvent ? (editEvent.description || '') : '');
-  const [conseqs, setConseqs] = useState([]); // [{ id, effect }] — conséquences en plus, ajoutées à la validation
+  // [{ id, existingId?, effect }] — existingId présent = conséquence déjà liée à l'événement, chargée pour édition
+  const [conseqs, setConseqs] = useState(() => {
+    if (!editEvent) return [];
+    return (state.sessionDraft.consequences || [])
+      .filter((c) => c.eventId === editEvent.id)
+      .map((c) => ({ id: uid(), existingId: c.id, effect: c.effect || '' }));
+  });
 
   const toggleChar = (cid) =>
     setCharIds((ids) => (ids.indexOf(cid) >= 0 ? ids.filter((x) => x !== cid) : [...ids, cid]));
@@ -1222,13 +1228,21 @@ function EventBuilderModal({ state, mutate, defaultCharId, editEvent, onClose })
       }
 
       dr.consequences = dr.consequences || [];
+      const trigger = names + ' ont fait : ' + desc;
+      const keptExistingIds = [];
       conseqs.forEach((c) => {
-        if (!c.effect.trim()) return;
-        dr.consequences.push({
-          id: uid(), trigger: names + ' ont fait : ' + desc,
-          effect: c.effect.trim(), charIds: [...charIds], eventId: eid
-        });
+        const effect = c.effect.trim();
+        if (!effect) return;
+        if (c.existingId) {
+          keptExistingIds.push(c.existingId);
+          const existing = dr.consequences.find((x) => x.id === c.existingId);
+          if (existing) { existing.trigger = trigger; existing.effect = effect; existing.charIds = [...charIds]; existing.eventId = eid; }
+        } else {
+          dr.consequences.push({ id: uid(), trigger, effect, charIds: [...charIds], eventId: eid });
+        }
       });
+      // conséquences déjà liées à cet événement, retirées ou vidées dans le builder → supprimées
+      dr.consequences = dr.consequences.filter((c) => c.eventId !== eid || keptExistingIds.indexOf(c.id) >= 0);
 
       const { selSession } = resolvePrepLink(s);
       rebuildSummary(dr, selSession);
