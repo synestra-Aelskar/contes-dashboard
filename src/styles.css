@@ -149,6 +149,10 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
   border-right:1px solid var(--rule); padding-right:14px; transition:width .2s ease, padding .2s ease;
 }
 .sidebar.is-compact{ width:var(--rail); padding-right:10px; }
+.sidebar__top{ display:flex; flex-direction:column; margin-bottom:10px; }
+.sidebar__top .btn-primary{ position:relative; display:flex; align-items:center; justify-content:center; gap:6px; width:100%; }
+.sidebar.is-compact .sidebar__top .btn-primary{ padding-left:0; padding-right:0; }
+.sidebar.is-compact .sidebar__top .btn-primary .sidebar__label{ display:none; }
 .sidebar__items{ display:flex; flex-direction:column; gap:1px; }
 .sidebar__item{
   position:relative; display:flex; align-items:center; gap:9px; width:100%; text-align:left;
@@ -398,7 +402,7 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 /* Horloge en jeu : composant isole, cadran transparent sur le fond de l'en-tete. */
 .worldclock{ display:flex; flex-direction:column; align-items:center; gap:3px; flex:none; }
 .worldclock__face{ display:block; background:none; }
-.worldclock__digital{ font-family:var(--f-mono); font-variant-numeric:tabular-nums; font-size:11px; letter-spacing:.08em; color:var(--fg); opacity:.92; }
+.worldclock__digital{ font-family:var(--f-display); font-variant-numeric:tabular-nums; font-size:13px; letter-spacing:.06em; color:var(--fg); }
 
 .aelskar{ position:relative; display:flex; flex-direction:column; align-items:flex-end; }
 .aelskar__face{ display:flex; flex-direction:column; align-items:flex-end; gap:2px; background:none; border:none; padding:0; cursor:pointer; text-align:right; }

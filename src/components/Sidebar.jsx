@@ -60,7 +60,7 @@ function GroupItem({ node, depth, view, onSelect, compact, openMap, toggleOpen }
   );
 }
 
-export default function Sidebar({ tree, view, setView, footerItems }) {
+export default function Sidebar({ tree, view, setView, footerItems, topSlot }) {
   const [compact, setCompact] = useState(lsGet('ccm.sidebarCompact') === '1');
   const [openMap, setOpenMap] = useState({});
   const toggleOpen = (id) => setOpenMap((m) => ({ ...m, [id]: m[id] === false ? true : false }));
@@ -73,6 +73,7 @@ export default function Sidebar({ tree, view, setView, footerItems }) {
 
   return (
     <nav className={'sidebar' + (compact ? ' is-compact' : '')} aria-label="Navigation">
+      {topSlot && <div className="sidebar__top">{topSlot}</div>}
       <div className="sidebar__items">
         {tree.map((n) => (
           n.type === 'view'

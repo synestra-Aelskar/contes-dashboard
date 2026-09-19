@@ -88,6 +88,18 @@ export default function Dashboard({ session }) {
     ? [{ key: 'parametres', label: 'Paramètres', active: activeView === 'parametres', onClick: () => setView('parametres') }]
     : [];
 
+  const sessionButton = role === 'admin' ? (
+    <button
+      className={'btn-primary btn-primary--session' + (hasDraft ? ' btn-primary--stop' : '')}
+      type="button"
+      onClick={hasDraft ? () => { setView('session'); setFinishOpen(true); } : startSession}
+      data-label={hasDraft ? 'Terminer la session' : 'Débuter la session'}
+      aria-label={hasDraft ? 'Terminer la session' : 'Débuter la session'}
+    >
+      {hasDraft ? '⏹' : '▶'}<span className="sidebar__label"> {hasDraft ? 'Terminer la session' : 'Débuter la session'}</span>
+    </button>
+  ) : null;
+
   const statusBar = (
     <span className="status" data-on={STATUS_ON[status] || '0'}>
       <i />
@@ -123,15 +135,6 @@ export default function Dashboard({ session }) {
             ) : null}
           </div>
           <div className="topright">
-            {role === 'admin' && (
-              <button
-                className={'btn-primary btn-primary--session' + (hasDraft ? ' btn-primary--stop' : '')}
-                type="button"
-                onClick={hasDraft ? () => { setView('session'); setFinishOpen(true); } : startSession}
-              >
-                {hasDraft ? '⏹ Terminer la session' : '▶ Débuter la session'}
-              </button>
-            )}
             <WorldDate state={state} mutate={mutate} readOnly={role !== 'admin'} />
           </div>
         </div>
@@ -145,7 +148,7 @@ export default function Dashboard({ session }) {
       )}
 
       <div className="dash-body">
-        <Sidebar tree={tree} view={activeView} setView={setView} footerItems={footerItems} />
+        <Sidebar tree={tree} view={activeView} setView={setView} footerItems={footerItems} topSlot={sessionButton} />
         <div className={'dash-main view view--' + (activeView || 'empty')}>
           {view === 'session'
             ? <SessionEnCours state={state} mutate={mutate} onFinish={() => setFinishOpen(true)} />
