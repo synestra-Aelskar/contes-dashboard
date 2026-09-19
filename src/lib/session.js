@@ -48,10 +48,7 @@ export function sessionGaps(d) {
   });
 
   (d.events || []).forEach((e, i) => {
-    const empty = !(e.description || '').trim() && !(e.charIds || []).length;
-    if (empty) return;
     if (!(e.description || '').trim()) g.push('Événement ' + (i + 1) + ' : description vide');
-    if (!(e.charIds || []).length) g.push('Événement ' + (i + 1) + ' : aucun personnage lié');
   });
 
   return g;

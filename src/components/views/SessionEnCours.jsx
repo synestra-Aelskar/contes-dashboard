@@ -119,14 +119,79 @@ function XpLine({ row, chars, mutate }) {
   );
 }
 
+/** Icône plume (édition) — même langage que les icônes du menu latéral (trait fin, 24×24). */
+function QuillIcon({ size = 15 }) {
+  return (
+    <svg
+      width={size} height={size} viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
+      <path d="M16 8L2 22" />
+      <path d="M17.5 15L9 15" />
+    </svg>
+  );
+}
+
+/** Petit menu d'actions « … » sur une ligne (événement/conséquence) : modifier, etc. */
+function RowActionsMenu({ actions }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+  const btnRef = useRef(null);
+
+  const openMenu = () => {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 6, left: r.right - 170 });
+    }
+    setOpen(true);
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef} type="button" className="evtline__morebtn" aria-label="actions"
+        onClick={openMenu}
+      >
+        <QuillIcon />
+      </button>
+      {open && pos && createPortal(
+        <>
+          <div className="ssnparticipants__menu-backdrop" onClick={() => setOpen(false)} />
+          <div className="row-actions-menu" style={{ top: pos.top, left: pos.left }} onClick={(e) => e.stopPropagation()}>
+            {actions.map((a, i) => (
+              <button
+                key={i} type="button"
+                onClick={() => { setOpen(false); a.onClick(); }}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
+        </>,
+        document.body
+      )}
+    </>
+  );
+}
+
 /** Ligne de listing en lecture — description, personnages liés, conséquence(s) liée(s) le cas échéant. */
-function EventListRow({ row, chars, consequences, mutate }) {
+function EventListRow({ row, state, chars, consequences, mutate, highlightIds, onHoverTarget }) {
+  const [editOpen, setEditOpen] = useState(false);
+  const [addConseqOpen, setAddConseqOpen] = useState(false);
   const names = (row.charIds || [])
     .map((cid) => (chars.find((c) => c.id === cid) || {}).name)
     .filter(Boolean);
   const linkedConseqs = (consequences || []).filter((c) => c.eventId === row.id);
+  const linkedConseqIds = linkedConseqs.map((c) => c.id);
+  const isHighlighted = (highlightIds || []).indexOf(row.id) >= 0;
   return (
-    <li className="evtline" id={'evt-' + row.id}>
+    <li
+      className={'evtline' + (isHighlighted ? ' is-linked-hover' : '')} id={'evt-' + row.id}
+      onMouseEnter={() => onHoverTarget && onHoverTarget(linkedConseqIds)}
+      onMouseLeave={() => onHoverTarget && onHoverTarget([])}
+    >
       <span className="evtline__desc">{row.description || 'Sans description'}</span>
       <span
         className={'evtline__chars' + (names.length ? ' evtline__chars--hoverable' : '')}
@@ -135,39 +200,64 @@ function EventListRow({ row, chars, consequences, mutate }) {
         {names.length ? 'Participants (' + names.length + ')' : '—'}
       </span>
       <span className="evtline__conseq">
-        {linkedConseqs.length ? (
-          linkedConseqs.map((c) => (
-            <a key={c.id} className="ssn-evtlink" href={'#conseq-' + c.id}>
-              {(c.effect || c.trigger || 'Conséquence').slice(0, 40)}{(c.effect || c.trigger || '').length > 40 ? '…' : ''}
-            </a>
-          ))
-        ) : (
-          <span className="evtline__conseq--empty">—</span>
-        )}
+        {linkedConseqs.length > 0 && linkedConseqs.map((c) => (
+          <a key={c.id} className="ssn-evtlink" href={'#conseq-' + c.id}>
+            {(c.effect || c.trigger || 'Conséquence').slice(0, 40)}{(c.effect || c.trigger || '').length > 40 ? '…' : ''}
+          </a>
+        ))}
+        {linkedConseqs.length === 0 && <span className="evtline__conseq--empty">—</span>}
       </span>
-      <button
-        className="evtline__remove" type="button" aria-label="retirer l’événement"
-        onClick={() => mutate((s) => {
-          const dr = s.sessionDraft;
-          dr.events = dr.events.filter((x) => x.id !== row.id);
-          const { selSession } = resolvePrepLink(s);
-          rebuildSummary(dr, selSession);
-        })}
-      >
-        ×
-      </button>
+      <span className="evtline__actions">
+        <RowActionsMenu
+          actions={[
+            { label: 'Modifier l’événement', onClick: () => setEditOpen(true) },
+            { label: '＋ Ajouter une conséquence', onClick: () => setAddConseqOpen(true) }
+          ]}
+        />
+        <button
+          className="evtline__remove" type="button" aria-label="retirer l’événement"
+          onClick={() => mutate((s) => {
+            const dr = s.sessionDraft;
+            dr.events = dr.events.filter((x) => x.id !== row.id);
+            const { selSession } = resolvePrepLink(s);
+            rebuildSummary(dr, selSession);
+          })}
+        >
+          ×
+        </button>
+      </span>
+      {editOpen && createPortal(
+        <EventBuilderModal
+          state={state} mutate={mutate} editEvent={row}
+          onClose={() => setEditOpen(false)}
+        />,
+        document.body
+      )}
+      {addConseqOpen && createPortal(
+        <ConsequenceBuilderModal
+          state={state} mutate={mutate} defaultEventId={row.id}
+          onClose={() => setAddConseqOpen(false)}
+        />,
+        document.body
+      )}
     </li>
   );
 }
 
 /** Ligne de listing en lecture — description, personnages, événement lié — même modèle que les événements. */
-function ConseqListRow({ row, chars, events, mutate }) {
+function ConseqListRow({ row, state, chars, events, mutate, highlightIds, onHoverTarget }) {
+  const [editOpen, setEditOpen] = useState(false);
   const names = (row.charIds || [])
     .map((cid) => (chars.find((c) => c.id === cid) || {}).name)
     .filter(Boolean);
   const linkedEvent = row.eventId ? (events || []).find((e) => e.id === row.eventId) : null;
+  const isHighlighted = (highlightIds || []).indexOf(row.id) >= 0;
   return (
-    <li className="evtline" id={'conseq-' + row.id}>
+    <li
+      className={'evtline' + (isHighlighted ? ' is-linked-hover' : '')} id={'conseq-' + row.id}
+      onMouseEnter={() => onHoverTarget && onHoverTarget(linkedEvent ? [linkedEvent.id] : [])}
+      onMouseLeave={() => onHoverTarget && onHoverTarget([])}
+    >
       <span className="evtline__desc">{row.effect || row.trigger || 'Sans description'}</span>
       <span
         className={'evtline__chars' + (names.length ? ' evtline__chars--hoverable' : '')}
@@ -185,17 +275,27 @@ function ConseqListRow({ row, chars, events, mutate }) {
           <span className="evtline__conseq--empty">—</span>
         )}
       </span>
-      <button
-        className="evtline__remove" type="button" aria-label="retirer la conséquence"
-        onClick={() => mutate((s) => {
-          const dr = s.sessionDraft;
-          dr.consequences = dr.consequences.filter((x) => x.id !== row.id);
-          const { selSession } = resolvePrepLink(s);
-          rebuildSummary(dr, selSession);
-        })}
-      >
-        ×
-      </button>
+      <span className="evtline__actions">
+        <RowActionsMenu actions={[{ label: 'Modifier la conséquence', onClick: () => setEditOpen(true) }]} />
+        <button
+          className="evtline__remove" type="button" aria-label="retirer la conséquence"
+          onClick={() => mutate((s) => {
+            const dr = s.sessionDraft;
+            dr.consequences = dr.consequences.filter((x) => x.id !== row.id);
+            const { selSession } = resolvePrepLink(s);
+            rebuildSummary(dr, selSession);
+          })}
+        >
+          ×
+        </button>
+      </span>
+      {editOpen && createPortal(
+        <ConsequenceBuilderModal
+          state={state} mutate={mutate} editConseq={row}
+          onClose={() => setEditOpen(false)}
+        />,
+        document.body
+      )}
     </li>
   );
 }
@@ -856,6 +956,7 @@ function Workspace({ state, mutate, onFinish }) {
   const [pickOpen, setPickOpen] = useState(false);
   const [eventBuilderOpen, setEventBuilderOpen] = useState(false);
   const [conseqBuilderOpen, setConseqBuilderOpen] = useState(false);
+  const [linkHover, setLinkHover] = useState([]);
 
   const set = (fn) => mutate((s) => fn(s.sessionDraft));
 
@@ -953,7 +1054,10 @@ function Workspace({ state, mutate, onFinish }) {
             </div>
             <ul className="evtlist__rows">
               {d.events.map((r) => (
-                <EventListRow key={r.id} row={r} chars={chars} consequences={d.consequences} mutate={mutate} />
+                <EventListRow
+                  key={r.id} row={r} state={state} chars={chars} consequences={d.consequences} mutate={mutate}
+                  highlightIds={linkHover} onHoverTarget={setLinkHover}
+                />
               ))}
             </ul>
           </div>
@@ -983,7 +1087,10 @@ function Workspace({ state, mutate, onFinish }) {
             </div>
             <ul className="evtlist__rows">
               {d.consequences.map((r) => (
-                <ConseqListRow key={r.id} row={r} chars={chars} events={d.events} mutate={mutate} />
+                <ConseqListRow
+                  key={r.id} row={r} state={state} chars={chars} events={d.events} mutate={mutate}
+                  highlightIds={linkHover} onHoverTarget={setLinkHover}
+                />
               ))}
             </ul>
           </div>
@@ -1073,41 +1180,55 @@ const TRAIT_STATUS_LABEL = {
  * conséquence si présente) dans la séance, et ajoute une ligne dans le
  * résumé MJ.
  */
-function EventBuilderModal({ state, mutate, defaultCharId, onClose }) {
+function EventBuilderModal({ state, mutate, defaultCharId, editEvent, onClose }) {
   const chars = [...(state.characters || [])].sort((a, b) =>
     (a.name || '').localeCompare(b.name || '', 'fr', { sensitivity: 'base' })
   );
-  const [charIds, setCharIds] = useState(defaultCharId ? [defaultCharId] : []);
-  const [description, setDescription] = useState('');
-  const [addConseq, setAddConseq] = useState(false);
-  const [conseqEffect, setConseqEffect] = useState('');
+  const [charIds, setCharIds] = useState(
+    editEvent ? [...(editEvent.charIds || [])] : (defaultCharId ? [defaultCharId] : [])
+  );
+  const [description, setDescription] = useState(editEvent ? (editEvent.description || '') : '');
+  const [conseqs, setConseqs] = useState([]); // [{ id, effect }] — conséquences en plus, ajoutées à la validation
 
   const toggleChar = (cid) =>
     setCharIds((ids) => (ids.indexOf(cid) >= 0 ? ids.filter((x) => x !== cid) : [...ids, cid]));
+
+  const addConseqField = () => setConseqs((list) => [...list, { id: uid(), effect: '' }]);
+  const setConseqEffect = (id, v) =>
+    setConseqs((list) => list.map((c) => (c.id === id ? { ...c, effect: v } : c)));
+  const removeConseqField = (id) => setConseqs((list) => list.filter((c) => c.id !== id));
 
   const names = charIds
     .map((id) => (chars.find((c) => c.id === id) || {}).name)
     .filter(Boolean)
     .join(', ') || '—';
 
-  const canSubmit = charIds.length > 0 && description.trim();
+  const canSubmit = !!description.trim();
 
   const submit = () => {
     if (!canSubmit) return;
     mutate((s) => {
       const dr = s.sessionDraft;
       const desc = description.trim();
-      const eid = uid();
       dr.events = dr.events || [];
-      dr.events.push({ id: eid, description: desc, charIds: [...charIds] });
+      let eid;
+      if (editEvent) {
+        eid = editEvent.id;
+        const ev = dr.events.find((e) => e.id === eid);
+        if (ev) { ev.description = desc; ev.charIds = [...charIds]; }
+      } else {
+        eid = uid();
+        dr.events.push({ id: eid, description: desc, charIds: [...charIds] });
+      }
 
-      if (addConseq && conseqEffect.trim()) {
-        dr.consequences = dr.consequences || [];
+      dr.consequences = dr.consequences || [];
+      conseqs.forEach((c) => {
+        if (!c.effect.trim()) return;
         dr.consequences.push({
           id: uid(), trigger: names + ' ont fait : ' + desc,
-          effect: conseqEffect.trim(), charIds: [...charIds], eventId: eid
+          effect: c.effect.trim(), charIds: [...charIds], eventId: eid
         });
-      }
+      });
 
       const { selSession } = resolvePrepLink(s);
       rebuildSummary(dr, selSession);
@@ -1118,7 +1239,7 @@ function EventBuilderModal({ state, mutate, defaultCharId, onClose }) {
   return (
     <div className="modal" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="modal__card evtbuilder" onClick={(e) => e.stopPropagation()}>
-        <h3 className="modal__title">Ajouter un événement</h3>
+        <h3 className="modal__title">{editEvent ? 'Modifier l’événement' : 'Ajouter un événement'}</h3>
 
         <div className="evtbuilder__body">
           <div className="evtbuilder__chars">
@@ -1149,36 +1270,32 @@ function EventBuilderModal({ state, mutate, defaultCharId, onClose }) {
               />
             </label>
 
-            {!addConseq ? (
-              <button className="tbtn" type="button" onClick={() => setAddConseq(true)}>
-                ＋ conséquence
-              </button>
-            ) : (
-              <div className="evtbuilder__conseq">
+            {conseqs.map((c) => (
+              <div key={c.id} className="evtbuilder__conseq">
                 <p className="evtbuilder__conseq-trigger">{names} ont fait : {description.trim() || '…'}</p>
                 <label className="flabel">
                   Donc…
                   <textarea
                     className="finput finput--area" placeholder="Ce que ça déclenchera…"
-                    value={conseqEffect}
-                    onChange={(e) => setConseqEffect(e.target.value)}
+                    value={c.effect}
+                    onChange={(e) => setConseqEffect(c.id, e.target.value)}
                   />
                 </label>
-                <button
-                  className="tbtn" type="button"
-                  onClick={() => { setAddConseq(false); setConseqEffect(''); }}
-                >
-                  retirer la conséquence
+                <button className="tbtn" type="button" onClick={() => removeConseqField(c.id)}>
+                  retirer cette conséquence
                 </button>
               </div>
-            )}
+            ))}
+            <button className="tbtn" type="button" onClick={addConseqField}>
+              ＋ conséquence
+            </button>
           </div>
         </div>
 
         <div className="modal__actions">
           <button className="tbtn" type="button" onClick={onClose}>Annuler</button>
           <button className="btn-primary" type="button" disabled={!canSubmit} onClick={submit}>
-            Ajouter
+            {editEvent ? 'Enregistrer' : 'Ajouter'}
           </button>
         </div>
       </div>
@@ -1188,19 +1305,25 @@ function EventBuilderModal({ state, mutate, defaultCharId, onClose }) {
 
 /**
  * Builder de conséquence : même modèle que le builder d'événement — liste de
- * personnages à cocher à gauche (au plus un, la conséquence ne lie qu'un seul
- * personnage), champs Si / Alors à droite.
+ * personnages à cocher à gauche, champs Si / Alors à droite. `editConseq`
+ * bascule le builder en édition d'une conséquence existante.
  */
-function ConsequenceBuilderModal({ state, mutate, defaultCharId, onClose }) {
+function ConsequenceBuilderModal({ state, mutate, defaultCharId, defaultEventId, editConseq, onClose }) {
   const chars = [...(state.characters || [])].sort((a, b) =>
     (a.name || '').localeCompare(b.name || '', 'fr', { sensitivity: 'base' })
   );
   const existingEvents = state.sessionDraft.events || [];
-  const [charIds, setCharIds] = useState(defaultCharId ? [defaultCharId] : []);
-  const [triggerMode, setTriggerMode] = useState(existingEvents.length ? 'existing' : 'new');
-  const [selectedEventId, setSelectedEventId] = useState('');
-  const [newEventDesc, setNewEventDesc] = useState('');
-  const [effect, setEffect] = useState('');
+  const defaultEvent = defaultEventId ? existingEvents.find((e) => e.id === defaultEventId) : null;
+  const [charIds, setCharIds] = useState(
+    editConseq ? [...(editConseq.charIds || [])]
+      : defaultEvent ? [...(defaultEvent.charIds || [])] : (defaultCharId ? [defaultCharId] : [])
+  );
+  const [triggerMode, setTriggerMode] = useState(
+    editConseq ? (editConseq.eventId ? 'existing' : 'new') : (existingEvents.length ? 'existing' : 'new')
+  );
+  const [selectedEventId, setSelectedEventId] = useState((editConseq && editConseq.eventId) || defaultEventId || '');
+  const [newEventDesc, setNewEventDesc] = useState((editConseq && !editConseq.eventId) ? (editConseq.trigger || '') : '');
+  const [effect, setEffect] = useState(editConseq ? (editConseq.effect || '') : '');
 
   const toggleChar = (cid) =>
     setCharIds((ids) => (ids.indexOf(cid) >= 0 ? ids.filter((x) => x !== cid) : [...ids, cid]));
@@ -1218,24 +1341,33 @@ function ConsequenceBuilderModal({ state, mutate, defaultCharId, onClose }) {
     if (!canSubmit) return;
     mutate((s) => {
       const dr = s.sessionDraft;
+      dr.events = dr.events || [];
       let eventId = null;
       let triggerText = '';
 
       if (triggerMode === 'existing' && selectedEventId) {
-        const ev = (dr.events || []).find((e) => e.id === selectedEventId);
+        const ev = dr.events.find((e) => e.id === selectedEventId);
         eventId = selectedEventId;
         triggerText = ev ? ev.description : '';
-      } else if (triggerMode === 'new' && newEventDesc.trim()) {
+      } else if (triggerMode === 'new' && !editConseq && newEventDesc.trim()) {
+        // création : le texte devient un nouvel événement, lié à la conséquence
         eventId = uid();
-        dr.events = dr.events || [];
         dr.events.push({ id: eventId, description: newEventDesc.trim(), charIds: [...charIds] });
+        triggerText = newEventDesc.trim();
+      } else if (triggerMode === 'new') {
+        // édition en texte libre : ne crée pas un nouvel événement à chaque sauvegarde
         triggerText = newEventDesc.trim();
       }
 
       dr.consequences = dr.consequences || [];
-      dr.consequences.push({
-        id: uid(), trigger: triggerText, effect: effect.trim(), charIds: [...charIds], eventId
-      });
+      if (editConseq) {
+        const c = dr.consequences.find((x) => x.id === editConseq.id);
+        if (c) { c.trigger = triggerText; c.effect = effect.trim(); c.charIds = [...charIds]; c.eventId = eventId; }
+      } else {
+        dr.consequences.push({
+          id: uid(), trigger: triggerText, effect: effect.trim(), charIds: [...charIds], eventId
+        });
+      }
 
       const { selSession } = resolvePrepLink(s);
       rebuildSummary(dr, selSession);
@@ -1246,7 +1378,7 @@ function ConsequenceBuilderModal({ state, mutate, defaultCharId, onClose }) {
   return (
     <div className="modal" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="modal__card evtbuilder" onClick={(e) => e.stopPropagation()}>
-        <h3 className="modal__title">Ajouter une conséquence</h3>
+        <h3 className="modal__title">{editConseq ? 'Modifier la conséquence' : 'Ajouter une conséquence'}</h3>
 
         <div className="evtbuilder__body">
           <div className="evtbuilder__chars">
@@ -1317,7 +1449,7 @@ function ConsequenceBuilderModal({ state, mutate, defaultCharId, onClose }) {
         <div className="modal__actions">
           <button className="tbtn" type="button" onClick={onClose}>Annuler</button>
           <button className="btn-primary" type="button" disabled={!canSubmit} onClick={submit}>
-            Ajouter
+            {editConseq ? 'Enregistrer' : 'Ajouter'}
           </button>
         </div>
       </div>
