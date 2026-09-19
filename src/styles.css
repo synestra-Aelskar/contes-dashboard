@@ -125,6 +125,7 @@ input,textarea,button,select{ font:inherit; }
 .status[data-on="0"] i{ background:var(--blood); }
 .status[data-on="0"]{ color:var(--blood); }
 .status[data-on="saving"] i{ background:var(--gilt); }
+.headrow__left .status{ justify-content:flex-start; margin:6px 0 4px; }
 .status__user{ color:var(--fg-dim); text-transform:none; letter-spacing:0; }
 .status__logout{ background:none; border:none; color:var(--fg-dim); font-family:var(--f-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; cursor:pointer; padding:0; }
 .status__logout:hover{ color:var(--blood); }

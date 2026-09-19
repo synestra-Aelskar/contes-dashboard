@@ -88,6 +88,20 @@ export default function Dashboard({ session }) {
     ? [{ key: 'parametres', label: 'Paramètres', active: activeView === 'parametres', onClick: () => setView('parametres') }]
     : [];
 
+  const statusBar = (
+    <span className="status" data-on={STATUS_ON[status] || '0'}>
+      <i />
+      <span>{STATUS_TEXT[status] || status}</span>
+      {role === 'admin' && <span className="status__user"> · {(session.user.email || '').split('@')[0]}</span>}
+      <button className="status__logout" type="button" onClick={() => setPrefsOpen(true)}>
+        Préférences
+      </button>
+      <button className="status__logout" type="button" onClick={() => supabase.auth.signOut()}>
+        Quitter
+      </button>
+    </span>
+  );
+
   return (
     <main className="page">
       <header className="head">
@@ -95,6 +109,7 @@ export default function Dashboard({ session }) {
           <div className="headrow__left">
             <p className="eyebrow">Tableau de bord · Animation JdR</p>
             <h1>Les Contes Malveillants</h1>
+            {statusBar}
             {role === 'admin' ? (
               <>
                 <p className="lede">
@@ -120,17 +135,6 @@ export default function Dashboard({ session }) {
               </button>
             )}
             <WorldDate state={state} mutate={mutate} readOnly={role !== 'admin'} />
-            <span className="status" data-on={STATUS_ON[status] || '0'}>
-              <i />
-              <span>{STATUS_TEXT[status] || status}</span>
-              {role === 'admin' && <span className="status__user"> · {(session.user.email || '').split('@')[0]}</span>}
-              <button className="status__logout" type="button" onClick={() => setPrefsOpen(true)}>
-                Préférences
-              </button>
-              <button className="status__logout" type="button" onClick={() => supabase.auth.signOut()}>
-                Quitter
-              </button>
-            </span>
           </div>
         </div>
         <div className="divider"><i /></div>
