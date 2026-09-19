@@ -403,7 +403,10 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 .aelskar__eyebrow{ font-family:var(--f-mono); font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--fg-dim); }
 .aelskar__main{ font-family:var(--f-display); font-weight:600; font-size:25px; line-height:1.2; color:var(--fg); max-width:34ch; }
 .aelskar__face:hover .aelskar__main{ color:var(--blood); }
-.aelskar__face--static{ cursor:default; }
+.aelskar__face--static{ cursor:default; gap:1px; }
+.aelskar__main--small{ font-size:17px; max-width:none; }
+.aelskar__sub--small{ font-size:13px; }
+
 .aelskar__face--static:hover .aelskar__main{ color:var(--fg); }
 .aelskar__sub{ font-family:var(--f-body); font-size:15px; line-height:1.35; color:var(--fg-dim); }
 .aelskar__num{ font-family:var(--f-mono); font-size:12px; letter-spacing:.03em; color:var(--fg-dim); opacity:.85; }

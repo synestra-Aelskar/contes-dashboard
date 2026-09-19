@@ -34,10 +34,8 @@ export default function WorldDate({ state, mutate, readOnly = false }) {
         <WorldClock hours={liveHour} />
         <div className="aelskar aelskar--readonly">
           <div className="aelskar__face aelskar__face--static">
-            <span className="aelskar__eyebrow">Présent de la campagne</span>
-            <span className="aelskar__main">{aelDayCycle(displayDate)}<br />{aelSeasonLine(displayDate)}</span>
-            <span className="aelskar__sub">{aelTextLine2(displayDate)}</span>
-            <span className="aelskar__num">{aelNumeric(displayDate)}</span>
+            <span className="aelskar__main aelskar__main--small">{aelDayCycle(displayDate)}, {aelSeasonLine(displayDate)}</span>
+            <span className="aelskar__sub aelskar__sub--small">{aelTextLine2(displayDate)}</span>
           </div>
         </div>
       </div>
