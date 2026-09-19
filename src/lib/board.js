@@ -55,6 +55,8 @@ function normalize(raw) {
   if (typeof out.aelCarryHours !== 'number' || !Number.isFinite(out.aelCarryHours)) out.aelCarryHours = 0;
   out.secrets.forEach((sec) => {
     if (typeof sec.title !== 'string') sec.title = '';
+    if (!Array.isArray(sec.tags)) sec.tags = [];
+    if (!sec.playerTags || typeof sec.playerTags !== 'object') sec.playerTags = {};
     if (!Array.isArray(sec.blocks)) {
       // Ancien format : un seul texte + champs libres. Le texte devient le 1er bloc, cache.
       sec.blocks = [{ id: 'b_' + sec.id, text: typeof sec.secret === 'string' ? sec.secret : '', revealedTo: [] }];
