@@ -31,20 +31,19 @@ export default function WorldDate({ state, mutate, readOnly = false }) {
   if (readOnly) {
     return (
       <div className="aelskar-row">
-        <WorldClock hours={liveHour} />
         <div className="aelskar aelskar--readonly">
           <div className="aelskar__face aelskar__face--static">
             <span className="aelskar__main aelskar__main--small">{aelDayCycle(displayDate)}, {aelSeasonLine(displayDate)}</span>
             <span className="aelskar__sub aelskar__sub--small">{aelTextLine2(displayDate)}</span>
           </div>
         </div>
+        <WorldClock hours={liveHour} />
       </div>
     );
   }
 
   return (
     <div className="aelskar-row">
-      <WorldClock hours={liveHour} />
       <div className={'aelskar' + (open ? ' is-open' : '')}>
         <button
           className="aelskar__face" type="button" aria-expanded={open}
@@ -64,6 +63,7 @@ export default function WorldDate({ state, mutate, readOnly = false }) {
           />
         )}
       </div>
+      <WorldClock hours={liveHour} />
     </div>
   );
 }
