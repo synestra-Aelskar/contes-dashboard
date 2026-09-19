@@ -646,6 +646,23 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 
 .zone-pane{ display:flex; flex-direction:column; gap:14px; }
 .campaign-info{ display:flex; gap:12px; flex-wrap:wrap; }
+/* Secrets par blocs */
+.secret-card{ gap:12px; }
+.secret-block{ display:flex; flex-direction:column; gap:6px; padding-top:8px; border-top:1px solid var(--rule); }
+.secret-block__head{ display:flex; align-items:center; gap:10px; min-width:0; }
+.secret-block__label{ font-family:var(--f-mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--fg-dim); flex:none; }
+.secret-block__who{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:var(--f-mono); font-size:9.5px; letter-spacing:.06em; color:var(--fg-dim); opacity:.8; }
+.secret-block__who.is-revealed{ color:var(--gilt); opacity:1; }
+.secret-block__gear{ flex:none; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; background:none; border:1px solid var(--rule); border-radius:3px; color:var(--fg-dim); cursor:pointer; padding:0; }
+.secret-block__gear:hover{ color:var(--gilt); border-color:var(--gilt); }
+.secret-block__remove{ flex:none; }
+.secret-card__text{ margin:0; font-family:var(--f-body); font-size:13.5px; line-height:1.55; color:var(--fg); white-space:pre-wrap; }
+.secret-card__text + .secret-card__text{ padding-top:10px; border-top:1px solid var(--rule); }
+.secret-modal{ gap:12px; }
+.secret-modal__group{ display:flex; flex-direction:column; gap:6px; }
+.secret-modal__row{ display:flex; align-items:center; gap:10px; font-family:var(--f-body); font-size:14px; color:var(--fg); cursor:pointer; padding:4px 6px; border-radius:3px; }
+.secret-modal__row:hover{ background:var(--bg); }
+.secret-modal__row input{ accent-color:var(--gilt); }
 .campaign-info__field{ display:flex; flex-direction:column; gap:5px; flex:1 1 160px; min-width:0; }
 .campaign-info__field--wide{ flex:3 1 320px; }
 .campaign-info__label{ font-family:var(--f-mono); font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--fg-dim); }

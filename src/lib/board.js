@@ -53,6 +53,17 @@ function normalize(raw) {
   if (!Array.isArray(out.settings.timeTypes)) out.settings.timeTypes = [];
   if (!Array.isArray(out.settings.accounts)) out.settings.accounts = [];
   if (typeof out.aelCarryHours !== 'number' || !Number.isFinite(out.aelCarryHours)) out.aelCarryHours = 0;
+  out.secrets.forEach((sec) => {
+    if (typeof sec.title !== 'string') sec.title = '';
+    if (!Array.isArray(sec.blocks)) {
+      // Ancien format : un seul texte + champs libres. Le texte devient le 1er bloc, cache.
+      sec.blocks = [{ id: 'b_' + sec.id, text: typeof sec.secret === 'string' ? sec.secret : '', revealedTo: [] }];
+    }
+    sec.blocks.forEach((b) => {
+      if (typeof b.text !== 'string') b.text = '';
+      if (!Array.isArray(b.revealedTo)) b.revealedTo = [];
+    });
+  });
   if (!out.campaign || typeof out.campaign !== 'object') out.campaign = { actNumber: '', actTitle: '' };
   if (typeof out.campaign.actNumber !== 'string') out.campaign.actNumber = '';
   if (typeof out.campaign.actTitle !== 'string') out.campaign.actTitle = '';

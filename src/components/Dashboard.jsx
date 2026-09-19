@@ -78,7 +78,7 @@ export default function Dashboard({ session }) {
     if (out.sessionId) goToSession(out.sessionId);
   }
 
-  const shared = { state, mutate, goToSession };
+  const shared = { state, mutate, goToSession, role, userId: session.user.id };
   let ViewComp = null;
   if (activeView === 'personnages') ViewComp = role === 'player' ? PersonnageJoueur : Personnages;
   else if (activeView === 'parametres') ViewComp = Parametres;
