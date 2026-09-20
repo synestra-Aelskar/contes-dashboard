@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { uid } from '../../lib/util.js';
 import { useSyncedField } from '../../lib/useSyncedField.js';
@@ -7,6 +7,7 @@ import { aelValid, aelTextLine1 } from '../../lib/aelskar.js';
 import { makeTimeBlock, blockHours, blocksTotalHours, fmtDuration } from '../../lib/timeblocks.js';
 import { resolveBlockXp, sessionTotal, BRANCH_LABELS, BRANCH_KIND_VAR, BRANCH_ORDER } from '../../lib/prepsession.js';
 import { levelForXp } from '../../lib/xpCalibreur.js';
+import { pruneDraftToParticipants } from '../../lib/session.js';
 import AelPicker from '../AelPicker.jsx';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -28,6 +29,7 @@ function XpParticipantsPicker({ chars, charIds, pos, onToggle, onToggleAll, onCl
           <SelectAllCheckbox allOn={allOn} someOn={someOn} onToggle={onToggleAll} />
           <span>{allOn ? 'Tout décocher' : 'Tout cocher'}</span>
         </label>
+        {chars.length === 0 && <p className="empty">Il n’y a aucun participant.</p>}
         <ul className="xp-picker__list">
           {chars.map((c) => (
             <li key={c.id}>
@@ -116,6 +118,40 @@ function XpLine({ row, chars, mutate }) {
         ×
       </button>
     </div>
+  );
+}
+
+/**
+ * Sélecteur de date en infobulle : sorti du flux (portail, position fixe),
+ * posé à droite du champ qui l'ouvre, ou juste en dessous si la place manque
+ * à droite, et recadré dans l'écran. Un clic à côté le ferme.
+ */
+function AelPickerPopover({ anchorRef, onClose, ...pickerProps }) {
+  const ref = useRef(null);
+  const [pos, setPos] = useState(null);
+  useLayoutEffect(() => {
+    const a = anchorRef.current, el = ref.current;
+    if (!a || !el) return;
+    const r = a.getBoundingClientRect();
+    const w = el.offsetWidth, h = el.offsetHeight, m = 8;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
+    let left, top;
+    if (r.right + m + w <= vw - m) { left = r.right + m; top = r.top; }
+    else { left = r.left; top = r.bottom + 6; }
+    setPos({ left: clamp(left, m, vw - w - m), top: clamp(top, m, vh - h - m) });
+  }, [anchorRef]);
+  return createPortal(
+    <>
+      <div className="ssnparticipants__menu-backdrop" onClick={onClose} />
+      <div
+        ref={ref} className="aelpick-pop" onClick={(e) => e.stopPropagation()}
+        style={pos ? { top: pos.top, left: pos.left } : { top: 0, left: 0, visibility: 'hidden' }}
+      >
+        <AelPicker {...pickerProps} />
+      </div>
+    </>,
+    document.body
   );
 }
 
@@ -948,12 +984,20 @@ function SummaryField({ value, onChange, onCommit, events, consequences, chars }
 
 /* --- vue principale --------------------------------------------- */
 
+/** Personnages cochés comme participants de la séance en cours (ordre de la liste des personnages). */
+function presentChars(state) {
+  const ids = (state.sessionDraft && state.sessionDraft.participants) || [];
+  return (state.characters || []).filter((c) => ids.indexOf(c.id) >= 0);
+}
+
 function Workspace({ state, mutate, onFinish }) {
   const d = state.sessionDraft;
-  const chars = state.characters || [];
+  // seuls les participants cochés apparaissent dans les activités de la séance
+  const chars = presentChars(state);
   const [title, setTitle, titleRef] = useSyncedField(d.title);
   const [date, setDate, dateRef] = useSyncedField(d.date);
   const [pickOpen, setPickOpen] = useState(false);
+  const aelBtnRef = useRef(null);
   const [eventBuilderOpen, setEventBuilderOpen] = useState(false);
   const [conseqBuilderOpen, setConseqBuilderOpen] = useState(false);
   const [linkHover, setLinkHover] = useState([]);
@@ -963,7 +1007,7 @@ function Workspace({ state, mutate, onFinish }) {
   return (
     <div className="ssn">
       <div className="ssn__bar">
-        <span className="ssn__live">Séance en cours</span>
+        <span className="ssn__live">Session en cours - Séance n°{(state.sessions || []).length + 1}</span>
         <button className="btn-primary btn-primary--stop" type="button" onClick={onFinish}>
           ⏹ Terminer la séance
         </button>
@@ -991,11 +1035,12 @@ function Workspace({ state, mutate, onFinish }) {
           </label>
           <div className="ssn-idheader__field ssn-idheader__field--wide">
             <span className="flabel">Date en jeu (Aelskar)</span>
-            <button className="finput aelpick-trigger" type="button" onClick={() => setPickOpen((v) => !v)}>
+            <button ref={aelBtnRef} className="finput aelpick-trigger" type="button" onClick={() => setPickOpen((v) => !v)}>
               {aelValid(d.aelDate) ? aelTextLine1(d.aelDate) + ' — An ' + d.aelDate.year : 'Choisir la date en jeu…'}
             </button>
             {pickOpen && (
-              <AelPicker
+              <AelPickerPopover
+                anchorRef={aelBtnRef} onClose={() => setPickOpen(false)}
                 cur={aelValid(d.aelDate) ? d.aelDate : campaignDate(state)}
                 onPick={(x) => { set((dr) => { dr.aelDate = x; }); setPickOpen(false); }}
                 onToday={() => { set((dr) => { dr.aelDate = clone(campaignDate(state)); }); setPickOpen(false); }}
@@ -1142,14 +1187,6 @@ function charXpTotal(charId, xpRows) {
   );
 }
 
-/** Garantit une ligne d'XP (à 0) pour ce personnage — confirme sa présence sans écraser une ligne déjà saisie. */
-function ensureXpRow(dr, charId) {
-  dr.xp = dr.xp || [];
-  if (!dr.xp.some((r) => (r.charIds || []).indexOf(charId) >= 0)) {
-    dr.xp.push({ id: uid(), reason: '', branchKey: null, amount: '0', charIds: [charId] });
-  }
-}
-
 /**
  * Case à 3 états, posée dans l'en-tête de colonne (au-dessus des cases de
  * chaque ligne) : sa position seule indique qu'elle coche/décoche tout.
@@ -1168,6 +1205,19 @@ function SelectAllCheckbox({ allOn, someOn, onToggle }) {
   );
 }
 
+/** Ligne « Tout cocher / Tout décocher » posée au-dessus d'une liste de personnages à cocher. */
+function CharsSelectAll({ chars, charIds, onToggleAll }) {
+  if (!chars.length) return null;
+  const allOn = chars.every((c) => charIds.indexOf(c.id) >= 0);
+  const someOn = chars.some((c) => charIds.indexOf(c.id) >= 0);
+  return (
+    <label className="xp-picker__all">
+      <SelectAllCheckbox allOn={allOn} someOn={someOn} onToggle={onToggleAll} />
+      <span>{allOn ? 'Tout décocher' : 'Tout cocher'}</span>
+    </label>
+  );
+}
+
 const TRAIT_STATUS_LABEL = {
   draft: 'Brouillon', pending: 'En attente', creating: 'En création', accepted: 'Créé', refused: 'Refusé'
 };
@@ -1181,7 +1231,7 @@ const TRAIT_STATUS_LABEL = {
  * résumé MJ.
  */
 function EventBuilderModal({ state, mutate, defaultCharId, editEvent, onClose }) {
-  const chars = [...(state.characters || [])].sort((a, b) =>
+  const chars = [...presentChars(state)].sort((a, b) =>
     (a.name || '').localeCompare(b.name || '', 'fr', { sensitivity: 'base' })
   );
   const [charIds, setCharIds] = useState(
@@ -1198,6 +1248,8 @@ function EventBuilderModal({ state, mutate, defaultCharId, editEvent, onClose })
 
   const toggleChar = (cid) =>
     setCharIds((ids) => (ids.indexOf(cid) >= 0 ? ids.filter((x) => x !== cid) : [...ids, cid]));
+  const toggleAllChars = () =>
+    setCharIds(chars.every((c) => charIds.indexOf(c.id) >= 0) ? [] : chars.map((c) => c.id));
 
   const addConseqField = () => setConseqs((list) => [...list, { id: uid(), effect: '' }]);
   const setConseqEffect = (id, v) =>
@@ -1229,20 +1281,22 @@ function EventBuilderModal({ state, mutate, defaultCharId, editEvent, onClose })
 
       dr.consequences = dr.consequences || [];
       const trigger = names + ' ont fait : ' + desc;
-      const keptExistingIds = [];
+      const keptIds = [];
       conseqs.forEach((c) => {
         const effect = c.effect.trim();
         if (!effect) return;
         if (c.existingId) {
-          keptExistingIds.push(c.existingId);
+          keptIds.push(c.existingId);
           const existing = dr.consequences.find((x) => x.id === c.existingId);
           if (existing) { existing.trigger = trigger; existing.effect = effect; existing.charIds = [...charIds]; existing.eventId = eid; }
         } else {
-          dr.consequences.push({ id: uid(), trigger, effect, charIds: [...charIds], eventId: eid });
+          const newId = uid();
+          keptIds.push(newId);
+          dr.consequences.push({ id: newId, trigger, effect, charIds: [...charIds], eventId: eid });
         }
       });
-      // conséquences déjà liées à cet événement, retirées ou vidées dans le builder → supprimées
-      dr.consequences = dr.consequences.filter((c) => c.eventId !== eid || keptExistingIds.indexOf(c.id) >= 0);
+      // conséquences déjà liées à cet événement, retirées ou vidées dans le builder → supprimées (les nouvelles sont conservées)
+      dr.consequences = dr.consequences.filter((c) => c.eventId !== eid || keptIds.indexOf(c.id) >= 0);
 
       const { selSession } = resolvePrepLink(s);
       rebuildSummary(dr, selSession);
@@ -1258,6 +1312,8 @@ function EventBuilderModal({ state, mutate, defaultCharId, editEvent, onClose })
         <div className="evtbuilder__body">
           <div className="evtbuilder__chars">
             <span className="flabel">Personnages concernés</span>
+            {chars.length === 0 && <p className="empty">Il n’y a aucun participant.</p>}
+            <CharsSelectAll chars={chars} charIds={charIds} onToggleAll={toggleAllChars} />
             <ul className="evtbuilder__charlist">
               {chars.map((c) => (
                 <li key={c.id}>
@@ -1323,7 +1379,7 @@ function EventBuilderModal({ state, mutate, defaultCharId, editEvent, onClose })
  * bascule le builder en édition d'une conséquence existante.
  */
 function ConsequenceBuilderModal({ state, mutate, defaultCharId, defaultEventId, editConseq, onClose }) {
-  const chars = [...(state.characters || [])].sort((a, b) =>
+  const chars = [...presentChars(state)].sort((a, b) =>
     (a.name || '').localeCompare(b.name || '', 'fr', { sensitivity: 'base' })
   );
   const existingEvents = state.sessionDraft.events || [];
@@ -1341,6 +1397,8 @@ function ConsequenceBuilderModal({ state, mutate, defaultCharId, defaultEventId,
 
   const toggleChar = (cid) =>
     setCharIds((ids) => (ids.indexOf(cid) >= 0 ? ids.filter((x) => x !== cid) : [...ids, cid]));
+  const toggleAllChars = () =>
+    setCharIds(chars.every((c) => charIds.indexOf(c.id) >= 0) ? [] : chars.map((c) => c.id));
 
   const selectEvent = (evId) => {
     setSelectedEventId(evId);
@@ -1397,6 +1455,8 @@ function ConsequenceBuilderModal({ state, mutate, defaultCharId, defaultEventId,
         <div className="evtbuilder__body">
           <div className="evtbuilder__chars">
             <span className="flabel">Personnages concernés</span>
+            {chars.length === 0 && <p className="empty">Il n’y a aucun participant.</p>}
+            <CharsSelectAll chars={chars} charIds={charIds} onToggleAll={toggleAllChars} />
             <ul className="evtbuilder__charlist">
               {chars.map((c) => (
                 <li key={c.id}>
@@ -1582,14 +1642,13 @@ function ParticipantsPanel({ state, mutate }) {
     const dr = s.sessionDraft;
     dr.participants = dr.participants || [];
     const i = dr.participants.indexOf(cid);
-    if (i >= 0) { dr.participants.splice(i, 1); } else { dr.participants.push(cid); ensureXpRow(dr, cid); }
+    if (i >= 0) { dr.participants.splice(i, 1); pruneDraftToParticipants(dr); } else { dr.participants.push(cid); }
   });
 
   const toggleAll = () => mutate((s) => {
     const dr = s.sessionDraft;
-    if (allOn) { dr.participants = []; return; }
+    if (allOn) { dr.participants = []; pruneDraftToParticipants(dr); return; }
     dr.participants = chars.map((c) => c.id);
-    chars.forEach((c) => ensureXpRow(dr, c.id));
   });
 
   return (
@@ -1636,17 +1695,14 @@ export default function SessionEnCours({ state, mutate, onFinish, onClose }) {
   const d = state.sessionDraft;
   if (!d) return null;
   return (
-    <div className="ssnpanel" role="dialog" aria-modal="true">
+    <div className="ssnpanel" role="dialog" aria-modal="true" aria-label="Session en cours">
       <ParticipantsPanel state={state} mutate={mutate} />
       <div className="ssnpanel__card">
-        <div className="ssnpanel__head">
-          <h2 className="ssnpanel__title">{d.title || 'Séance en cours'}</h2>
-          <button className="ssnpanel__close" type="button" onClick={onClose} aria-label="Fermer le panneau">×</button>
-        </div>
         <div className="ssnpanel__body">
           <Workspace state={state} mutate={mutate} onFinish={onFinish} />
         </div>
       </div>
+      <button className="ssnpanel__close" type="button" onClick={onClose} aria-label="Fermer le panneau">×</button>
     </div>
   );
 }

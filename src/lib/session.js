@@ -55,6 +55,21 @@ export function sessionGaps(d) {
 }
 
 /**
+ * Règle : seuls les participants cochés de la séance peuvent apparaître dans
+ * ses activités (XP, événements, conséquences). Retire des `charIds` de chaque
+ * activité tout personnage qui n'est plus (ou n'a jamais été) coché.
+ */
+export function pruneDraftToParticipants(d) {
+  if (!d) return;
+  const present = new Set(d.participants || []);
+  const keep = (ids) => (ids || []).filter((id) => present.has(id));
+
+  (d.xp || []).forEach((r) => { r.charIds = keep(r.charIds); });
+  (d.events || []).forEach((e) => { e.charIds = keep(e.charIds); });
+  (d.consequences || []).forEach((c) => { c.charIds = keep(c.charIds); });
+}
+
+/**
  * Mutation de clôture : pousse le brouillon dans le journal + sur les onglets
  * personnages + conséquences / horloges / à ne pas oublier, puis vide le brouillon.
  * Renvoie l'id de la séance créée (via le paramètre `out`).
@@ -62,6 +77,7 @@ export function sessionGaps(d) {
 export function finishDraft(s, out) {
   const d = s.sessionDraft;
   if (!d) return;
+  pruneDraftToParticipants(d);
   const sid = d.id;
   const findChar = (id) => (s.characters || []).find((c) => c.id === id);
 
