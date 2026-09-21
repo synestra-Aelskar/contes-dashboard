@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase, BUCKET } from '../supabase';
 import { XP_DEFAULT_STATE, normalizeXpState } from './xpCalibreur.js';
 import { uid } from './util.js';
+import { vrValid } from './valrazkah.js';
+import { aelValid } from './aelskar.js';
 import { ALL_VIEWS, defaultMenuTree, usedViewKeys } from './menu.js';
 
 const ROW_ID = 'main';
@@ -23,7 +25,7 @@ export const EMPTY_STATE = {
   characters: [], sessionDraft: null, zones: [], sessionZero: { blocks: [] }, fichesTechniques: [],
   xpCalibreur: XP_DEFAULT_STATE, ddCalc: null, prepSessions: [],
   settings: { timeTypes: [], accounts: [], menu: [] },
-  aelCarryHours: 0, threads: [], campaign: { actNumber: '', actTitle: '' }
+  vrLink: null, aelCarryHours: 0, threads: [], campaign: { actNumber: '', actTitle: '' }
 };
 
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -52,6 +54,8 @@ function normalize(raw) {
   if (!out.settings || typeof out.settings !== 'object') out.settings = { timeTypes: [], accounts: [] };
   if (!Array.isArray(out.settings.timeTypes)) out.settings.timeTypes = [];
   if (!Array.isArray(out.settings.accounts)) out.settings.accounts = [];
+  if (!out.vrLink || !aelValid(out.vrLink.ael) || !vrValid(out.vrLink.vr)) out.vrLink = null;
+  if (out.vrLink && !Number.isFinite(out.vrLink.eraStart)) delete out.vrLink.eraStart;
   if (typeof out.aelCarryHours !== 'number' || !Number.isFinite(out.aelCarryHours)) out.aelCarryHours = 0;
   out.secrets.forEach((sec) => {
     if (typeof sec.title !== 'string') sec.title = '';

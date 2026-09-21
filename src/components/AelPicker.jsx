@@ -7,7 +7,7 @@ import {
  * Sélecteur Année -> Saison -> Cycle -> Jour + navigation.
  * props: cur (date), onPick(date), onToday(), midLabel
  */
-export default function AelPicker({ cur, onPick, onToday, midLabel }) {
+export default function AelPicker({ cur, onPick, onToday, midLabel, topSlot }) {
   const [yearText, setYearText] = useState(String(cur.year));
   useEffect(() => { setYearText(String(cur.year)); }, [cur.year]);
 
@@ -44,6 +44,7 @@ export default function AelPicker({ cur, onPick, onToday, midLabel }) {
 
   return (
     <div className="aelpick">
+      {topSlot}
       <div className="aelpick__field">
         <span className="aelpick__label">Année</span>
         <div className="aelpick__yrow">
