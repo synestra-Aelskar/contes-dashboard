@@ -323,7 +323,16 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
     };
   }, []);
 
-  const elements = useMemo(() => (tableau.elements || []).map((e) => (preview && preview[e.id] ? { ...e, ...preview[e.id] } : e)), [tableau.elements, preview]);
+  const elements = useMemo(() => {
+    const base = (tableau.elements || []).map((e) => (preview && preview[e.id] ? { ...e, ...preview[e.id] } : e));
+    // Le tracé en cours (outil dessin) n'existe pas encore dans tableau.elements :
+    // on l'ajoute depuis l'aperçu pour un retour visuel pendant qu'on trace.
+    if (preview) {
+      const baseIds = new Set((tableau.elements || []).map((e) => e.id));
+      Object.values(preview).forEach((v) => { if (v && v.kind && !baseIds.has(v.id)) base.push(v); });
+    }
+    return base;
+  }, [tableau.elements, preview]);
   const connections = tableau.connections || [];
 
   const patchBoard = (fn) => mutate((s) => { const t = s.tableaux.find((x) => x.id === tableau.id); if (t) fn(t); });
