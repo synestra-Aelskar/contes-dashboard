@@ -627,7 +627,12 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 .pj__avatarpick__opt .pj__msgavatar{ width:26px; height:26px; }
 .pj__avatarpick__opt .pj__msgavatar__ph{ font-size:12px; }
 .pj__avatarpick__url{ flex:1 1 160px; min-width:120px; }
+.pj__avatarpick__current{ flex:none; }
+.pj__avatarpick__current .pj__msgavatar{ width:26px; height:26px; border-color:var(--kind,var(--gilt)); }
+.pj__avatarpick__current .pj__msgavatar__ph{ font-size:12px; }
 .pj__threadcompose{ display:flex; flex-direction:column; gap:8px; }
+.tb-composehead{ display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+.tb-composepreview{ min-height:66px; white-space:pre-wrap; }
 
 .pj__participants{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
 .pj__particip{

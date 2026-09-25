@@ -210,6 +210,7 @@ export function ThreadMessages({
 }) {
   const [text, setText] = useState('');
   const [rawView, setRawView] = useState(false);
+  const [composePreview, setComposePreview] = useState(false);
   const composeRef = useRef(null);
   const options = posterOptions || [];
   const [avatarUrl, setAvatarUrl] = useState(() => lsGet(avatarStorageKey) || (options[0] && options[0].url) || '');
@@ -218,6 +219,10 @@ export function ThreadMessages({
   function choose(url) {
     setAvatarUrl(url || '');
     if (avatarStorageKey) lsSet(avatarStorageKey, url || '');
+  }
+
+  function commitCustomAvatar() {
+    if (customDraft.trim()) { choose(customDraft.trim()); setCustomDraft(''); }
   }
 
   function send() {
@@ -280,6 +285,9 @@ export function ThreadMessages({
         {(options.length > 0 || allowCustomAvatar) && (
           <div className="pj__avatarpick">
             <span className="chr__muted">Poster avec l’avatar de :</span>
+            <span className="pj__avatarpick__current" title="Avatar actuel">
+              <Avatar url={avatarUrl} label={authorName} />
+            </span>
             {options.map((p) => (
               <button
                 key={p.id} type="button" title={p.name}
@@ -291,19 +299,31 @@ export function ThreadMessages({
             ))}
             {allowCustomAvatar && (
               <input
-                className="field field--mono pj__avatarpick__url" type="text" placeholder="ou lien d’image…"
+                className="field field--mono pj__avatarpick__url" type="text" placeholder="ou lien d’image… (Entrée pour valider)"
                 value={customDraft}
                 onChange={(e) => setCustomDraft(e.target.value)}
-                onBlur={() => { if (customDraft.trim()) { choose(customDraft.trim()); setCustomDraft(''); } }}
+                onBlur={commitCustomAvatar}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commitCustomAvatar(); } }}
               />
             )}
           </div>
         )}
-        <FormatBar composeRef={composeRef} text={text} setText={setText} />
-        <textarea
-          ref={composeRef} className="notes" placeholder="Écrire un message…" rows={3}
-          value={text} onChange={(e) => setText(e.target.value)}
-        />
+        <div className="tb-composehead">
+          <FormatBar composeRef={composeRef} text={text} setText={setText} />
+          <button className="tbtn" type="button" onClick={() => setComposePreview((v) => !v)}>
+            {composePreview ? 'Revenir à l’édition' : 'Aperçu (affichage normal)'}
+          </button>
+        </div>
+        {composePreview ? (
+          <div className="notes tb-composepreview">
+            {text.trim() ? parseFormatted(text, 'compose') : <span className="chr__muted">Rien à prévisualiser.</span>}
+          </div>
+        ) : (
+          <textarea
+            ref={composeRef} className="notes" placeholder="Écrire un message…" rows={3}
+            value={text} onChange={(e) => setText(e.target.value)}
+          />
+        )}
         <button className="btn-primary" type="button" onClick={send}>Envoyer</button>
       </div>
     </div>
