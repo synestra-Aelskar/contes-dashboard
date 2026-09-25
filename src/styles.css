@@ -556,9 +556,22 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 .pj__traits{ display:flex; flex-direction:column; gap:12px; }
 .pj__nav--row{ flex-direction:row; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
 .pj__nav--sub{ margin-bottom:20px; padding-top:10px; border-top:1px solid var(--rule); }
+.pj__pills{ display:inline-flex; gap:3px; margin-left:6px; vertical-align:middle; }
+.pj__pill{
+  display:inline-flex; align-items:center; justify-content:center; min-width:15px; height:15px; padding:0 3px;
+  border-radius:8px; font-family:var(--f-mono); font-size:9px; letter-spacing:0; color:#fff;
+}
+.pj__pill--accepted{ background:var(--kind-data); }
+.pj__pill--creating{ background:var(--gilt); }
+.pj__pill--pending{ background:var(--kind-zone); }
+.pj__pill--refused{ background:var(--blood); }
 .pj__trait{ border:1px solid var(--rule); border-radius:3px; padding:12px; display:flex; flex-direction:column; gap:8px; background:var(--surface); }
-.pj__traithead{ display:flex; justify-content:space-between; align-items:center; }
-.pj__traitstatus{ font-family:var(--f-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
+.pj__traithead{ display:flex; align-items:center; gap:9px; }
+.pj__traithead--toggle{ width:100%; text-align:left; background:none; border:none; padding:0; cursor:pointer; font:inherit; color:inherit; }
+.pj__traitchev{ flex:none; display:inline-block; font-size:10px; color:var(--fg-dim); transition:transform .15s ease; }
+.pj__traitchev.is-open{ transform:rotate(90deg); }
+.pj__traitname{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--fg); font-size:13.5px; }
+.pj__traitstatus{ flex:none; font-family:var(--f-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
 .pj__traitstatus--draft{ color:var(--fg-dim); }
 .pj__traitstatus--pending{ color:var(--gilt); }
 .pj__traitstatus--creating{ color:var(--gilt); }

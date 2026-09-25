@@ -11,6 +11,19 @@ function accountLabelFor(char, accounts) {
   return acc ? (acc.label || acc.email) : 'Sans compte lié';
 }
 
+/** Quatre pastilles de comptage : accepté (vert), en cours de création
+ * (orange), en attente (bleu), refusé (rouge) — masquées quand à zéro. */
+function StatusPills({ accepted, creating, pending, refused }) {
+  return (
+    <span className="pj__pills">
+      {accepted > 0 && <span className="pj__pill pj__pill--accepted">{accepted}</span>}
+      {creating > 0 && <span className="pj__pill pj__pill--creating">{creating}</span>}
+      {pending > 0 && <span className="pj__pill pj__pill--pending">{pending}</span>}
+      {refused > 0 && <span className="pj__pill pj__pill--refused">{refused}</span>}
+    </span>
+  );
+}
+
 /** Recap MJ des traits qui attendent une action : à valider/refuser, ou déjà
  * validés et à créer en jeu (Necronicon) avant confirmation finale.
  * Onglet par compte, puis onglet par personnage — sinon la liste plate
@@ -23,7 +36,9 @@ export default function Validations({ state, mutate }) {
     .map((c) => {
       const pending = (c.traits || []).filter((t) => t.status === 'pending');
       const creating = (c.traits || []).filter((t) => t.status === 'creating');
-      return { char: c, pending, creating, total: pending.length + creating.length };
+      const accepted = (c.traits || []).filter((t) => t.status === 'accepted');
+      const refused = (c.traits || []).filter((t) => t.status === 'refused');
+      return { char: c, pending, creating, accepted, refused, total: pending.length + creating.length };
     })
     .filter((e) => e.total > 0);
   const total = charEntries.reduce((n, e) => n + e.total, 0);
@@ -79,7 +94,11 @@ export default function Validations({ state, mutate }) {
                   className={'pj__navbtn' + (selEntry && selEntry.char.id === e.char.id ? ' is-active' : '')}
                   onClick={() => selectChar(e.char.id)}
                 >
-                  {e.char.name || 'Sans nom'}<span className="count"> ({e.total})</span>
+                  {e.char.name || 'Sans nom'}
+                  <StatusPills
+                    accepted={e.accepted.length} creating={e.creating.length}
+                    pending={e.pending.length} refused={e.refused.length}
+                  />
                 </button>
               ))}
             </nav>
