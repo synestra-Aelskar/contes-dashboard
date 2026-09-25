@@ -3,6 +3,7 @@ import { uid, lsGet, lsSet } from '../lib/util.js';
 import { uploadScreenshot } from '../lib/board.js';
 import { toast } from '../lib/toast.js';
 import { useSyncedField } from '../lib/useSyncedField.js';
+import { getUiScale, applyUiScale } from '../lib/prefs.js';
 
 /**
  * Tableau blanc infini (façon Miro) : canvas pannable/zoomable, éléments
@@ -308,7 +309,17 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
+    // Le canvas a besoin de coordonnées souris pixel-perfect ; le `zoom` CSS
+    // (préférence Taille d'affichage) déforme MouseEvent.clientX/Y sous un
+    // élément `position:fixed` dans certaines versions de Chromium — c'est
+    // ce qui causait le décalage du cadre de sélection et du menu clic
+    // droit. On neutralise le zoom pendant que le tableau est ouvert, et on
+    // restaure la préférence de l'utilisateur en sortant.
+    document.documentElement.style.zoom = '1';
+    return () => {
+      document.body.style.overflow = prev;
+      applyUiScale(getUiScale());
+    };
   }, []);
 
   const elements = useMemo(() => (tableau.elements || []).map((e) => (preview && preview[e.id] ? { ...e, ...preview[e.id] } : e)), [tableau.elements, preview]);
