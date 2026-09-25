@@ -14,7 +14,7 @@ function Glyph({ viewKey, label }) {
   return <span className="sidebar__initials" aria-hidden="true">{initials(label)}</span>;
 }
 
-function ViewItem({ node, depth, active, onSelect, compact }) {
+function ViewItem({ node, depth, active, onSelect, compact, badge }) {
   const label = VIEW_LABEL[node.viewKey] || node.viewKey;
   return (
     <button
@@ -27,11 +27,12 @@ function ViewItem({ node, depth, active, onSelect, compact }) {
     >
       <Glyph viewKey={node.viewKey} label={label} />
       <span className="sidebar__label">{label}</span>
+      {badge > 0 && <span className="sidebar__badge">{badge}</span>}
     </button>
   );
 }
 
-function GroupItem({ node, depth, view, onSelect, compact, openMap, toggleOpen }) {
+function GroupItem({ node, depth, view, onSelect, compact, openMap, toggleOpen, badges }) {
   const isOpen = compact || openMap[node.id] !== false;
   return (
     <div className={'sidebar__group' + (compact ? ' sidebar__group--rail' : '')}>
@@ -53,14 +54,14 @@ function GroupItem({ node, depth, view, onSelect, compact, openMap, toggleOpen }
       )}
       {isOpen && (node.children || []).map((c) => (
         c.type === 'view'
-          ? <ViewItem key={c.id} node={c} depth={depth + 1} active={view === c.viewKey} onSelect={onSelect} compact={compact} />
-          : <GroupItem key={c.id} node={c} depth={depth + 1} view={view} onSelect={onSelect} compact={compact} openMap={openMap} toggleOpen={toggleOpen} />
+          ? <ViewItem key={c.id} node={c} depth={depth + 1} active={view === c.viewKey} onSelect={onSelect} compact={compact} badge={badges && badges[c.viewKey]} />
+          : <GroupItem key={c.id} node={c} depth={depth + 1} view={view} onSelect={onSelect} compact={compact} openMap={openMap} toggleOpen={toggleOpen} badges={badges} />
       ))}
     </div>
   );
 }
 
-export default function Sidebar({ tree, view, setView, footerItems, topSlot }) {
+export default function Sidebar({ tree, view, setView, footerItems, topSlot, badges }) {
   const [compact, setCompact] = useState(lsGet('ccm.sidebarCompact') === '1');
   const [openMap, setOpenMap] = useState({});
   const toggleOpen = (id) => setOpenMap((m) => ({ ...m, [id]: m[id] === false ? true : false }));
@@ -77,8 +78,8 @@ export default function Sidebar({ tree, view, setView, footerItems, topSlot }) {
       <div className="sidebar__items">
         {tree.map((n) => (
           n.type === 'view'
-            ? <ViewItem key={n.id} node={n} depth={0} active={view === n.viewKey} onSelect={setView} compact={compact} />
-            : <GroupItem key={n.id} node={n} depth={0} view={view} onSelect={setView} compact={compact} openMap={openMap} toggleOpen={toggleOpen} />
+            ? <ViewItem key={n.id} node={n} depth={0} active={view === n.viewKey} onSelect={setView} compact={compact} badge={badges && badges[n.viewKey]} />
+            : <GroupItem key={n.id} node={n} depth={0} view={view} onSelect={setView} compact={compact} openMap={openMap} toggleOpen={toggleOpen} badges={badges} />
         ))}
       </div>
       {footerItems && footerItems.length > 0 && (

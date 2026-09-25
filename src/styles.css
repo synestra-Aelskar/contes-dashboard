@@ -172,6 +172,11 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
   border:1px solid currentColor; border-radius:3px; font-size:8px; letter-spacing:.04em; opacity:.85;
 }
 .sidebar__label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; transition:opacity .15s ease; }
+.sidebar__badge{
+  flex:none; margin-left:auto; min-width:16px; height:16px; padding:0 4px; display:inline-flex; align-items:center; justify-content:center;
+  border-radius:8px; background:var(--blood); color:var(--bg); font-family:var(--f-mono); font-size:9px; letter-spacing:0;
+}
+.sidebar.is-compact .sidebar__badge{ display:none; }
 .sidebar__grouphead{
   display:flex; align-items:center; gap:6px; width:100%; text-align:left; background:none; border:none;
   padding:7px 10px; font-family:var(--f-mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase;

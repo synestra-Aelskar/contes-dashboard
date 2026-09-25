@@ -20,6 +20,7 @@ import Oublis from './views/Oublis.jsx';
 import Epreuves from './views/Epreuves.jsx';
 import Personnages from './views/Personnages.jsx';
 import PersonnageJoueur from './views/PersonnageJoueur.jsx';
+import Validations from './views/Validations.jsx';
 import Zones from './views/Zones.jsx';
 import FicheTechnique from './views/FicheTechnique.jsx';
 import XpCalibreur from './views/XpCalibreur.jsx';
@@ -41,8 +42,16 @@ const VIEW_COMPONENTS = {
   liens: Liens, journal: Journal, consequences: Consequences, horloges: Horloges,
   secrets: Secrets, oublis: Oublis, epreuves: Epreuves, zones: Zones,
   fichetechnique: FicheTechnique, xpcalibreur: XpCalibreur, equilibrage: Equilibrage, prepsession: PrepSession,
-  'backstage-mj': BackstageMJ
+  'backstage-mj': BackstageMJ, 'personnages-joueurs': Personnages, validations: Validations
 };
+
+function pendingValidationsCount(state) {
+  let n = 0;
+  (state.characters || []).forEach((c) => (c.traits || []).forEach((t) => {
+    if (t.status === 'pending' || t.status === 'creating') n += 1;
+  }));
+  return n;
+}
 
 export default function Dashboard({ session }) {
   const role = session.user.user_metadata?.role === 'player' ? 'player' : 'admin';
@@ -91,10 +100,12 @@ export default function Dashboard({ session }) {
 
   const shared = { state, mutate, goToSession, role, userId: session.user.id };
   let ViewComp = null;
-  if (activeView === 'personnages') ViewComp = role === 'player' ? PersonnageJoueur : Personnages;
+  if (activeView === 'personnages') ViewComp = PersonnageJoueur;
   else if (activeView === 'parametres') ViewComp = Parametres;
   else if (activeView === 'tableaudebord') ViewComp = TableauDeBord;
   else ViewComp = VIEW_COMPONENTS[activeView] || null;
+
+  const badges = role === 'admin' ? { validations: pendingValidationsCount(state) } : undefined;
 
   const footerItems = role === 'admin'
     ? [{ key: 'parametres', label: 'Paramètres', active: activeView === 'parametres', onClick: () => setView('parametres') }]
@@ -158,10 +169,10 @@ export default function Dashboard({ session }) {
       </header>
 
       <div className="dash-body">
-        <Sidebar tree={tree} view={activeView} setView={setView} footerItems={footerItems} topSlot={sessionButton} />
+        <Sidebar tree={tree} view={activeView} setView={setView} footerItems={footerItems} topSlot={sessionButton} badges={badges} />
         <div className={'dash-main view view--' + (activeView || 'empty')}>
           {ViewComp
-            ? (activeView === 'personnages' && role === 'player'
+            ? (activeView === 'personnages'
               ? <ViewComp state={state} mutate={mutate} userId={session.user.id} goToSession={goToSession} />
               : <ViewComp {...shared} />)
             : <p className="empty">Aucune vue accessible pour l’instant.</p>}

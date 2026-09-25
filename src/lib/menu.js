@@ -11,7 +11,9 @@ export const ALL_VIEWS = [
   ['secrets', 'Secrets'],
   ['oublis', 'À ne pas oublier'],
   ['epreuves', 'Épreuves & infos'],
-  ['personnages', 'Personnages'],
+  ['personnages', 'Mes personnages'],
+  ['personnages-joueurs', 'Personnages joueurs'],
+  ['validations', 'Validations'],
   ['zones', 'Zone'],
   ['fichetechnique', 'Fiche Technique'],
   ['xpcalibreur', "Calibreur d'XP"],
@@ -24,9 +26,9 @@ export const VIEW_LABEL = Object.fromEntries(ALL_VIEWS);
 export const ROLES = [['admin', 'Admin'], ['player', 'Joueur']];
 
 /** Arbre par défaut : toutes les vues à plat, admin uniquement, sauf
- * Personnages (admin + joueur — c'est la fiche perso en libre-service côté
- * joueur), pour reproduire exactement le comportement d'avant cette
- * fonctionnalité. */
+ * « Mes personnages » (admin + joueur — c'est la fiche perso en libre-service,
+ * pour son propre personnage, qu'on soit MJ ou joueur), pour reproduire
+ * exactement le comportement d'avant cette fonctionnalité. */
 export function defaultMenuTree() {
   return ALL_VIEWS.map(([key]) => ({
     id: uid(),

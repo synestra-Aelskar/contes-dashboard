@@ -5,6 +5,7 @@ import { levelForXp } from '../../lib/xpCalibreur.js';
 import SessionLink from '../SessionLink.jsx';
 import CharIdPanel from '../CharIdPanel.jsx';
 import ThreadBoard from '../ThreadBoard.jsx';
+import TraitAdminBlock from '../TraitAdminBlock.jsx';
 
 const TABS = [
   ['info', 'Informations'],
@@ -313,67 +314,6 @@ function CharPane({ state, char, mutate, goToSession }) {
   );
 }
 
-function TraitAdminBlock({ char, trait, mutate }) {
-  const [mjNote, setMjNote, mjRef] = useSyncedField(trait.mjNote);
-  const patch = (fn) =>
-    mutate((s) => {
-      const c = s.characters.find((x) => x.id === char.id);
-      const t = c && (c.traits || []).find((x) => x.id === trait.id);
-      if (t) fn(t);
-    });
-
-  return (
-    <div className={'pj__trait pj__trait--' + trait.status}>
-      <div className="pj__traithead">
-        <span className={'pj__traitstatus pj__traitstatus--' + trait.status}>{TRAIT_STATUS_LABEL[trait.status]}</span>
-      </div>
-      <p><b>{trait.name || 'Sans nom'}</b></p>
-      <p className="chr__recaptxt">{trait.narrativeDesc || '—'}</p>
-      <p className="chr__recaptxt"><i>{trait.technicalDesc || '—'}</i></p>
-      {trait.status === 'pending' && (
-        <>
-          <label className="flabel">
-            Note MJ (motif du refus, si refusé)
-            <input
-              ref={mjRef} className="field" type="text" placeholder="Optionnel"
-              value={mjNote}
-              onChange={(e) => { const v = e.target.value; setMjNote(v); patch((t) => { t.mjNote = v; }); }}
-              onBlur={() => patch((t) => { t.mjNote = mjNote.trim(); })}
-            />
-          </label>
-          <div className="card__actions">
-            <button className="btn-primary" type="button" onClick={() => patch((t) => { t.status = 'creating'; })}>Valider</button>
-            <button className="tbtn" type="button" onClick={() => patch((t) => { t.status = 'refused'; })}>Refuser</button>
-          </div>
-        </>
-      )}
-      {trait.status === 'creating' && (
-        <>
-          <p className="chr__muted">Validé — reste à le créer en jeu (Necronicon), puis à confirmer ici.</p>
-          <div className="card__actions">
-            <button className="btn-primary" type="button" onClick={() => patch((t) => { t.status = 'accepted'; })}>Créé en jeu ✓</button>
-            <button className="tbtn" type="button" onClick={() => patch((t) => { t.status = 'pending'; })}>Repasser en attente</button>
-          </div>
-        </>
-      )}
-      {trait.status === 'accepted' && (
-        <div className="card__actions">
-          <button className="tbtn" type="button" onClick={() => patch((t) => { t.status = 'creating'; })}>Pas encore créé en jeu</button>
-          <button className="tbtn" type="button" onClick={() => patch((t) => { t.status = 'pending'; })}>Repasser en attente</button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-const TRAIT_STATUS_LABEL = {
-  draft: 'Brouillon',
-  pending: 'En attente de validation',
-  creating: 'En cours de création',
-  accepted: 'Créé en jeu',
-  refused: 'Refusé'
-};
-
 /* --- sommaire par compte (arbre) ----------------------------------- */
 
 function AccountNode({ account, chars, selId, onSelect }) {
@@ -421,13 +361,6 @@ export default function Personnages({ state, mutate, goToSession }) {
 
   const select = (id) => { setSelId(id); lsSet('ccm.char', id); };
 
-  const pending = [];
-  const creating = [];
-  chars.forEach((c) => (c.traits || []).forEach((t) => {
-    if (t.status === 'pending') pending.push({ char: c, trait: t });
-    else if (t.status === 'creating') creating.push({ char: c, trait: t });
-  }));
-
   function addChar() {
     const c = {
       id: uid(), name: 'Nouveau personnage', artUrl: '', mjNote: '', race: '', description: '', qualite: '', defaut: '', peurs: '',
@@ -443,39 +376,9 @@ export default function Personnages({ state, mutate, goToSession }) {
   return (
     <section className="chapter">
       <div className="chapter__head">
-        <h2>Personnages<span className="count"> ({chars.length})</span></h2>
+        <h2>Personnages joueurs<span className="count"> ({chars.length})</span></h2>
         <button className="tbtn" type="button" onClick={addChar}>＋ nouveau personnage</button>
       </div>
-
-      {pending.length > 0 && (
-        <div className="chr__block">
-          <h4 className="chr__h">Traits en attente de validation<span className="count"> ({pending.length})</span></h4>
-          <ul className="chr__list">
-            {pending.map(({ char, trait }) => (
-              <li key={trait.id}>
-                <button className="tbtn" type="button" onClick={() => select(char.id)}>
-                  {char.name || 'Sans nom'} — {trait.name || 'Trait sans nom'}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {creating.length > 0 && (
-        <div className="chr__block">
-          <h4 className="chr__h">Traits validés, à créer en jeu<span className="count"> ({creating.length})</span></h4>
-          <ul className="chr__list">
-            {creating.map(({ char, trait }) => (
-              <li key={trait.id}>
-                <button className="tbtn" type="button" onClick={() => select(char.id)}>
-                  {char.name || 'Sans nom'} — {trait.name || 'Trait sans nom'}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       {!chars.length ? (
         <p className="empty">
