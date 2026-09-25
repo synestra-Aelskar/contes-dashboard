@@ -77,7 +77,7 @@ function InviteModal({ state, tableau, mutate, mineId, onClose }) {
   );
 }
 
-function BoardRow({ state, tableau, isOwner, onOpen, onDelete, onInvite }) {
+function BoardRow({ state, tableau, isOwner, canDelete, onOpen, onDelete, onInvite }) {
   const chars = state.characters || [];
   const ownerName = (chars.find((c) => c.id === tableau.ownerId) || {}).name;
   return (
@@ -93,21 +93,23 @@ function BoardRow({ state, tableau, isOwner, onOpen, onDelete, onInvite }) {
             <button type="button" onClick={onInvite}>inviter</button>
           </div>
         )}
-        <button className="fiche-row__del" type="button" title="Supprimer" aria-label="Supprimer" onClick={onDelete}>
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-            <path d="M10 11v6" />
-            <path d="M14 11v6" />
-            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-          </svg>
-        </button>
+        {canDelete && (
+          <button className="fiche-row__del" type="button" title="Supprimer" aria-label="Supprimer" onClick={onDelete}>
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M10 11v6" />
+              <path d="M14 11v6" />
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+            </svg>
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
-export default function TableauList({ state, mutate, userId, scope }) {
+export default function TableauList({ state, mutate, userId, role, scope }) {
   const chars = state.characters || [];
   const mine = chars.find((c) => c.ownerId === userId);
   const boards = state.tableaux || [];
@@ -157,6 +159,7 @@ export default function TableauList({ state, mutate, userId, scope }) {
           {list.map((t) => (
             <BoardRow
               key={t.id} state={state} tableau={t} isOwner={t.ownerId === mine.id}
+              canDelete={role === 'admin' || t.ownerId === mine.id}
               onOpen={() => setOpenId(t.id)} onDelete={() => deleteBoard(t.id)} onInvite={() => setInviteId(t.id)}
             />
           ))}
