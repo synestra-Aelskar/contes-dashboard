@@ -65,7 +65,10 @@ function GroupItem({ node, depth, view, onSelect, compact, openMap, toggleOpen, 
 }
 
 export default function Sidebar({ tree, view, setView, footerItems, topSlot, badges, state }) {
-  const [compact, setCompact] = useState(lsGet('ccm.sidebarCompact') === '1');
+  const [compact, setCompact] = useState(() => {
+    const v = lsGet('ccm.sidebarCompact');
+    return v === null ? true : v === '1'; // replié par défaut tant que l'utilisateur n'a pas choisi
+  });
   const [openMap, setOpenMap] = useState({});
   const toggleOpen = (id) => setOpenMap((m) => ({ ...m, [id]: m[id] === false ? true : false }));
 
