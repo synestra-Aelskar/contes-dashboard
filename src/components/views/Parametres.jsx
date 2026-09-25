@@ -407,6 +407,7 @@ function ViewNodeRow({ node, mutate, containers, depth, currentContainer, index,
   const dz = useDropTarget(node, currentContainer, index, drag);
   return (
     <div className={'menuedit__row' + dz.className} style={{ marginLeft: depth * 18 }} onDragOver={dz.onDragOver} onDrop={dz.onDrop}>
+      <span className="menuedit__chev" style={{ visibility: 'hidden' }} />
       <DragHandle node={node} drag={drag} />
       <div className="menuedit__reorder">
         <button className="tbtn" type="button" disabled={isFirst} onClick={() => mutate((s) => { s.settings.menu = moveSibling(s.settings.menu, node.id, -1); })}>▲</button>
@@ -426,7 +427,7 @@ function ViewNodeRow({ node, mutate, containers, depth, currentContainer, index,
   );
 }
 
-function GroupNodeRow({ node, mutate, depth, containerId, index, isFirst, isLast, drag }) {
+function GroupNodeRow({ node, mutate, depth, containerId, index, isFirst, isLast, drag, open, onToggle, hasChildren }) {
   const [name, setName, nameRef] = useSyncedField(node.name);
   const patchName = (v) => mutate((s) => { s.settings.menu = renameNode(s.settings.menu, node.id, v); });
   const dz = useDropTarget(node, containerId, index, drag);
@@ -436,6 +437,13 @@ function GroupNodeRow({ node, mutate, depth, containerId, index, isFirst, isLast
       style={{ marginLeft: depth * 18 }}
       onDragOver={dz.onDragOver} onDrop={dz.onDrop}
     >
+      <button
+        type="button" className="menuedit__chev" onClick={onToggle}
+        style={{ visibility: hasChildren ? 'visible' : 'hidden' }}
+        aria-label={open ? 'replier' : 'déplier'}
+      >
+        {open ? '▾' : '▸'}
+      </button>
       <DragHandle node={node} drag={drag} />
       <div className="menuedit__reorder">
         <button className="tbtn" type="button" disabled={isFirst} onClick={() => mutate((s) => { s.settings.menu = moveSibling(s.settings.menu, node.id, -1); })}>▲</button>
@@ -476,6 +484,8 @@ function OrdreMenuPane({ state, mutate }) {
   const [draggedId, setDraggedId] = useState(null);
   const [overRow, setOverRow] = useState(null);
   const [overMode, setOverMode] = useState(null);
+  const [openMap, setOpenMap] = useState({});
+  const toggleOpen = (id) => setOpenMap((m) => ({ ...m, [id]: m[id] === false ? true : false }));
   const dropRef = useRef(null);
 
   const drag = {
@@ -507,10 +517,15 @@ function OrdreMenuPane({ state, mutate }) {
           />
         );
       }
+      const hasChildren = !!(n.children && n.children.length);
+      const isOpen = openMap[n.id] !== false;
       return (
         <div key={n.id}>
-          <GroupNodeRow node={n} mutate={mutate} depth={depth} containerId={containerId} index={i} isFirst={isFirst} isLast={isLast} drag={drag} />
-          {n.children && n.children.length > 0 && renderNodes(n.children, depth + 1, n.id)}
+          <GroupNodeRow
+            node={n} mutate={mutate} depth={depth} containerId={containerId} index={i} isFirst={isFirst} isLast={isLast} drag={drag}
+            open={isOpen} onToggle={() => toggleOpen(n.id)} hasChildren={hasChildren}
+          />
+          {isOpen && hasChildren && renderNodes(n.children, depth + 1, n.id)}
         </div>
       );
     });
