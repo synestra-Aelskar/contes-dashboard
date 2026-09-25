@@ -65,7 +65,7 @@ function XpRow({ char, row, mutate, sessions, goToSession }) {
   );
 }
 
-function AdminInfoTab({ char, mutate }) {
+function AdminInfoTab({ char, mutate, accounts }) {
   const [description, setDescription, descRef] = useSyncedField(char.description);
   const [qualite, setQualite, qRef] = useSyncedField(char.qualite);
   const [defaut, setDefaut, dRef] = useSyncedField(char.defaut);
@@ -77,6 +77,18 @@ function AdminInfoTab({ char, mutate }) {
 
   return (
     <div className="chr__main">
+      <label className="flabel">
+        Compte lié
+        <select
+          className="field" value={char.ownerId || ''}
+          onChange={(e) => patch((c) => { c.ownerId = e.target.value || null; })}
+        >
+          <option value="">— aucun compte —</option>
+          {accounts.map((a) => (
+            <option key={a.userId} value={a.userId}>{a.label || a.email}</option>
+          ))}
+        </select>
+      </label>
       <label className="flabel">
         Description
         <textarea
@@ -279,7 +291,7 @@ function AdminBackstageTab({ state, char, mutate }) {
   );
 }
 
-function CharPane({ state, char, mutate, goToSession }) {
+function CharPane({ state, char, mutate, goToSession, accounts }) {
   const [tab, setTab] = useState(lsGet('ccm.charTab') || 'info');
   const patch = (fn) =>
     mutate((s) => { const c = s.characters.find((x) => x.id === char.id); if (c) fn(c); });
@@ -293,7 +305,7 @@ function CharPane({ state, char, mutate, goToSession }) {
   else if (tab === 'journal') content = <AdminJournalTab char={char} />;
   else if (tab === 'traits') content = <AdminTraitsTab char={char} mutate={mutate} />;
   else if (tab === 'backstage') content = <AdminBackstageTab state={state} char={char} mutate={mutate} />;
-  else content = <AdminInfoTab char={char} mutate={mutate} />;
+  else content = <AdminInfoTab char={char} mutate={mutate} accounts={accounts} />;
 
   return (
     <div className="pj">
@@ -316,7 +328,7 @@ function CharPane({ state, char, mutate, goToSession }) {
 
 /* --- sommaire par compte (arbre) ----------------------------------- */
 
-function AccountNode({ account, chars, selId, onSelect }) {
+function AccountNode({ account, chars, selId, onSelect, onDelete }) {
   const [open, setOpen] = useState(true);
   const linked = chars.filter((c) => account.userId && c.ownerId === account.userId);
   return (
@@ -340,6 +352,12 @@ function AccountNode({ account, chars, selId, onSelect }) {
                 <span className="zone-node__chev" style={{ visibility: 'hidden' }} />
                 <button className="zone-node__label" type="button" onClick={() => onSelect(c.id)}>
                   {c.name || 'Sans nom'}
+                </button>
+                <button
+                  className="tbtn chr__x" type="button" aria-label="supprimer le personnage"
+                  onClick={() => onDelete(c)}
+                >
+                  ×
                 </button>
               </div>
             </div>
@@ -370,6 +388,12 @@ export default function Personnages({ state, mutate, goToSession }) {
     select(c.id);
   }
 
+  function deleteChar(c) {
+    if (!window.confirm('Supprimer le personnage « ' + (c.name || 'Sans nom') + ' » ?')) return;
+    mutate((s) => { s.characters = s.characters.filter((x) => x.id !== c.id); });
+    if (selId === c.id) select(null);
+  }
+
   const linkedAccountIds = new Set(accounts.filter((a) => a.userId).map((a) => a.userId));
   const unlinked = chars.filter((c) => !c.ownerId || !linkedAccountIds.has(c.ownerId));
 
@@ -389,7 +413,7 @@ export default function Personnages({ state, mutate, goToSession }) {
         <div className="zones">
           <div className="zone-tree">
             {accounts.filter((a) => a.userId).map((a) => (
-              <AccountNode key={a.id} account={a} chars={chars} selId={selId} onSelect={select} />
+              <AccountNode key={a.id} account={a} chars={chars} selId={selId} onSelect={select} onDelete={deleteChar} />
             ))}
             {unlinked.length > 0 && (
               <div className="zone-node">
@@ -405,6 +429,12 @@ export default function Personnages({ state, mutate, goToSession }) {
                         <button className="zone-node__label" type="button" onClick={() => select(c.id)}>
                           {c.name || 'Sans nom'}
                         </button>
+                        <button
+                          className="tbtn chr__x" type="button" aria-label="supprimer le personnage"
+                          onClick={() => deleteChar(c)}
+                        >
+                          ×
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -413,7 +443,7 @@ export default function Personnages({ state, mutate, goToSession }) {
             )}
           </div>
           {sel ? (
-            <CharPane key={sel.id} state={state} char={sel} mutate={mutate} goToSession={goToSession} />
+            <CharPane key={sel.id} state={state} char={sel} mutate={mutate} goToSession={goToSession} accounts={accounts.filter((a) => a.userId)} />
           ) : (
             <p className="empty">Sélectionne un personnage dans la liste à gauche.</p>
           )}
