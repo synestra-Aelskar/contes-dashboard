@@ -430,7 +430,7 @@ export default function PersonnageJoueur({ state, mutate, userId, goToSession })
         ))}
         <button className="tbtn" type="button" onClick={createChar}>＋ créer un personnage</button>
       </nav>
-      <div className="pj">
+      <div className={'pj' + (tab === 'backstage' ? ' pj--wide' : '')}>
         <nav className="pj__nav">
           {TABS.map(([key, label]) => (
             <button
@@ -443,7 +443,7 @@ export default function PersonnageJoueur({ state, mutate, userId, goToSession })
           ))}
         </nav>
         <div className="pj__body">{content}</div>
-        <CharIdPanel char={mine} patch={patch} level={level} />
+        {tab !== 'backstage' && <CharIdPanel char={mine} patch={patch} level={level} />}
       </div>
     </section>
   );

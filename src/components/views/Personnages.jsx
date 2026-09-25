@@ -308,7 +308,7 @@ function CharPane({ state, char, mutate, goToSession, accounts }) {
   else content = <AdminInfoTab char={char} mutate={mutate} accounts={accounts} />;
 
   return (
-    <div className="pj">
+    <div className={'pj' + (tab === 'backstage' ? ' pj--wide' : '')}>
       <nav className="pj__nav">
         {TABS.map(([key, label]) => (
           <button
@@ -321,7 +321,7 @@ function CharPane({ state, char, mutate, goToSession, accounts }) {
         ))}
       </nav>
       <div className="pj__body">{content}</div>
-      <CharIdPanel char={char} patch={patch} level={level} />
+      {tab !== 'backstage' && <CharIdPanel char={char} patch={patch} level={level} />}
     </div>
   );
 }
