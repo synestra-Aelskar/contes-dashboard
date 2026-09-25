@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { uid, lsGet, lsSet } from '../../lib/util.js';
 import { useSyncedField } from '../../lib/useSyncedField.js';
 import { PLAYER_EMAIL_DOMAIN } from '../../lib/playerAuth.js';
+import { uploadScreenshot } from '../../lib/board.js';
+import { toast } from '../../lib/toast.js';
 
 /* Un secret = un titre + des tags MJ + autant de blocs que l'on veut. Chaque
  * bloc est caché par défaut ; la roue crantée choisit, personnage par
@@ -190,6 +192,25 @@ function scrollTo(elId) {
   if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+/** Colle une ou plusieurs images (Ctrl+V) sur un bloc de secret : uploade
+ * chaque image du presse-papiers et les ajoute à `block.images`. */
+async function pasteImagesOnBlock(ev, addImage, setUploading) {
+  const items = (ev.clipboardData && ev.clipboardData.items) || [];
+  const imgItems = Array.from(items).filter((it) => it.type && it.type.indexOf('image') === 0);
+  if (!imgItems.length) return;
+  ev.preventDefault();
+  setUploading(true);
+  for (const item of imgItems) {
+    try {
+      const url = await uploadScreenshot(item.getAsFile());
+      addImage(url);
+    } catch (_) {
+      toast('Image illisible / envoi impossible');
+    }
+  }
+  setUploading(false);
+}
+
 /* ---------- MJ ---------- */
 
 function RevealModal({ state, block, onToggle, onClose, share, excludeIds }) {
@@ -235,12 +256,15 @@ function RevealModal({ state, block, onToggle, onClose, share, excludeIds }) {
 function SecretBlock({ state, s, b, index, mutate, expanded, onExpand }) {
   const [text, setText, textRef] = useSyncedField(b.text);
   const [open, setOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const patchBlock = (fn) =>
     mutate((st) => {
       const x = st.secrets.find((y) => y.id === s.id);
       const blk = x && (x.blocks || []).find((z) => z.id === b.id);
       if (blk) fn(blk);
     });
+  const addImage = (url) => patchBlock((x) => { x.images = x.images || []; x.images.push({ id: uid(), url }); });
+  const removeImage = (imgId) => patchBlock((x) => { x.images = (x.images || []).filter((im) => im.id !== imgId); });
   const names = (b.revealedTo || []).map((id) => {
     const c = (state.characters || []).find((x) => x.id === id);
     return c ? (c.name || 'Personnage') : null;
@@ -281,15 +305,31 @@ function SecretBlock({ state, s, b, index, mutate, expanded, onExpand }) {
         </button>
       </div>
       {expanded ? (
-        <textarea
-          ref={textRef}
-          className="finput finput--area secret-block__text" placeholder="Morceau du secret…"
-          value={text}
-          autoFocus
-          rows={Math.min(10, Math.max(3, Math.ceil((text || '').length / 60) + (text || '').split('\n').length - 1))}
-          onChange={(e) => { const v = e.target.value; setText(v); patchBlock((x) => { x.text = v; }); }}
-          onBlur={() => patchBlock((x) => { x.text = text; })}
-        />
+        <>
+          <textarea
+            ref={textRef}
+            className="finput finput--area secret-block__text" placeholder="Morceau du secret… (colle une ou plusieurs images ici)"
+            value={text}
+            autoFocus
+            rows={Math.min(10, Math.max(3, Math.ceil((text || '').length / 60) + (text || '').split('\n').length - 1))}
+            onChange={(e) => { const v = e.target.value; setText(v); patchBlock((x) => { x.text = v; }); }}
+            onBlur={() => patchBlock((x) => { x.text = text; })}
+            onPaste={(e) => pasteImagesOnBlock(e, addImage, setUploading)}
+          />
+          {uploading && <p className="chr__muted">Envoi de l’image…</p>}
+          {(b.images || []).length > 0 && (
+            <div className="pj__shots">
+              {b.images.map((img) => (
+                <div key={img.id} className="pj__shot">
+                  <a href={img.url} target="_blank" rel="noopener noreferrer">
+                    <img className="pj__shotimg" src={img.url} alt="" />
+                  </a>
+                  <button className="tbtn chr__x" type="button" aria-label="retirer l’image" onClick={() => removeImage(img.id)}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       ) : null}
       {open && (
         <RevealModal
@@ -347,7 +387,7 @@ function SecretCard({ state, s, mutate, open, onToggle }) {
               className="tbtn" type="button"
               onClick={() => {
                 const id = uid();
-                patch((x) => { x.blocks = x.blocks || []; x.blocks.push({ id, text: '', revealedTo: [], playerTags: {} }); });
+                patch((x) => { x.blocks = x.blocks || []; x.blocks.push({ id, text: '', revealedTo: [], playerTags: {}, images: [] }); });
                 setOpenBlock(id);
               }}
             >
@@ -413,6 +453,15 @@ function PlayerBlockCard({ state, secret, block, userId, mutate, open, onToggle 
         <>
           {secret.title && <p className="chr__muted">Issu de : {secret.title}</p>}
           <p className="secret-card__text">{block.text}</p>
+          {(block.images || []).length > 0 && (
+            <div className="pj__shots">
+              {block.images.map((img) => (
+                <a key={img.id} className="pj__shot" href={img.url} target="_blank" rel="noopener noreferrer">
+                  <img className="pj__shotimg" src={img.url} alt="" />
+                </a>
+              ))}
+            </div>
+          )}
           <TagEditor tags={mine} onChange={setMine} placeholder="mon tag…" tone="mine" />
         </>
       )}
@@ -500,7 +549,7 @@ export default function Secrets({ state, mutate, role, userId }) {
           className="tbtn" type="button"
           onClick={() => {
             const id = uid();
-            mutate((s) => { s.secrets.push({ id, title: '', tags: [], blocks: [{ id: uid(), text: '', revealedTo: [], playerTags: {} }] }); });
+            mutate((s) => { s.secrets.push({ id, title: '', tags: [], blocks: [{ id: uid(), text: '', revealedTo: [], playerTags: {}, images: [] }] }); });
             toggle(id, true);
           }}
         >

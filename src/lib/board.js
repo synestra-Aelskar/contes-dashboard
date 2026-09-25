@@ -88,11 +88,12 @@ function normalize(raw) {
     if (!Array.isArray(sec.tags)) sec.tags = [];
     if (!Array.isArray(sec.blocks)) {
       // Ancien format : un seul texte + champs libres. Le texte devient le 1er bloc, cache.
-      sec.blocks = [{ id: 'b_' + sec.id, text: typeof sec.secret === 'string' ? sec.secret : '', revealedTo: [], playerTags: {} }];
+      sec.blocks = [{ id: 'b_' + sec.id, text: typeof sec.secret === 'string' ? sec.secret : '', revealedTo: [], playerTags: {}, images: [] }];
     }
     sec.blocks.forEach((b) => {
       if (typeof b.text !== 'string') b.text = '';
       if (!Array.isArray(b.revealedTo)) b.revealedTo = [];
+      if (!Array.isArray(b.images)) b.images = [];
       // Tags perso par joueur, DÉPLACÉS du secret (sec.playerTags, obsolète) au
       // bloc : chaque joueur classe ses blocs révélés indépendamment.
       if (!b.playerTags || typeof b.playerTags !== 'object') b.playerTags = {};
