@@ -2,8 +2,39 @@ import { useState } from 'react';
 import { uid, lsGet, lsSet } from '../lib/util.js';
 import { toast } from '../lib/toast.js';
 
-export function ThreadMessages({ thread, mutate, authorId, authorName }) {
+function avatarForMessage(m, chars) {
+  if (m.avatarUrl) return m.avatarUrl;
+  const c = (chars || []).find((x) => x.id === m.authorId);
+  return (c && c.artUrl) || '';
+}
+
+function Avatar({ url, label }) {
+  return (
+    <div className="pj__msgavatar">
+      {url ? <img src={url} alt="" /> : <span className="pj__msgavatar__ph">{(label || '?')[0]}</span>}
+    </div>
+  );
+}
+
+/**
+ * Messages d'un thread, avec avatar à droite de chaque message (portrait du
+ * personnage qui poste, ou une image choisie/collée côté MJ puisqu'il n'a
+ * pas de personnage unique). `posterOptions` liste les personnages dont
+ * l'utilisateur courant peut porter l'avatar au moment d'écrire (un seul
+ * choix pour un joueur normal, ses personnages s'il en avait plusieurs) ;
+ * `allowCustomAvatar` (MJ) ajoute un champ pour coller un lien d'image
+ * directement — jamais affiché en clair aux joueurs, seule l'image l'est.
+ */
+export function ThreadMessages({ thread, mutate, authorId, authorName, chars, posterOptions, allowCustomAvatar, avatarStorageKey }) {
   const [text, setText] = useState('');
+  const options = posterOptions || [];
+  const [avatarUrl, setAvatarUrl] = useState(() => lsGet(avatarStorageKey) || (options[0] && options[0].url) || '');
+  const [customDraft, setCustomDraft] = useState('');
+
+  function choose(url) {
+    setAvatarUrl(url || '');
+    if (avatarStorageKey) lsSet(avatarStorageKey, url || '');
+  }
 
   function send() {
     const t = text.trim();
@@ -12,7 +43,7 @@ export function ThreadMessages({ thread, mutate, authorId, authorName }) {
       const th = (s.threads || []).find((x) => x.id === thread.id);
       if (th) {
         th.messages = th.messages || [];
-        th.messages.push({ id: uid(), authorId, authorName, text: t, createdAt: new Date().toISOString() });
+        th.messages.push({ id: uid(), authorId, authorName, text: t, avatarUrl, createdAt: new Date().toISOString() });
       }
     });
     setText('');
@@ -37,17 +68,42 @@ export function ThreadMessages({ thread, mutate, authorId, authorName }) {
       </div>
       <div className="pj__threadmsgs">
         {(thread.messages || []).map((m) => (
-          <div key={m.id} className={'pj__msg' + (m.authorId === authorId ? ' pj__msg--mine' : '')}>
-            <div className="pj__msghead">
-              <b>{m.authorName || '—'}</b>
-              <span className="chr__muted">{m.createdAt ? new Date(m.createdAt).toLocaleString('fr-FR') : ''}</span>
+          <div key={m.id} className={'pj__msgrow' + (m.authorId === authorId ? ' pj__msgrow--mine' : '')}>
+            <div className="pj__msg">
+              <div className="pj__msghead">
+                <b>{m.authorName || '—'}</b>
+                <span className="chr__muted">{m.createdAt ? new Date(m.createdAt).toLocaleString('fr-FR') : ''}</span>
+              </div>
+              <p className="pj__msgtext">{m.text}</p>
             </div>
-            <p className="pj__msgtext">{m.text}</p>
+            <Avatar url={avatarForMessage(m, chars)} label={m.authorName} />
           </div>
         ))}
         {!((thread.messages || []).length) && <p className="chr__muted">Aucun message pour l’instant.</p>}
       </div>
       <div className="pj__threadcompose">
+        {(options.length > 0 || allowCustomAvatar) && (
+          <div className="pj__avatarpick">
+            <span className="chr__muted">Poster avec l’avatar de :</span>
+            {options.map((p) => (
+              <button
+                key={p.id} type="button" title={p.name}
+                className={'pj__avatarpick__opt' + (avatarUrl === p.url ? ' is-active' : '')}
+                onClick={() => choose(p.url)}
+              >
+                <Avatar url={p.url} label={p.name} />
+              </button>
+            ))}
+            {allowCustomAvatar && (
+              <input
+                className="field field--mono pj__avatarpick__url" type="text" placeholder="ou lien d’image…"
+                value={customDraft}
+                onChange={(e) => setCustomDraft(e.target.value)}
+                onBlur={() => { if (customDraft.trim()) { choose(customDraft.trim()); setCustomDraft(''); } }}
+              />
+            )}
+          </div>
+        )}
         <textarea
           className="notes" placeholder="Écrire un message…" rows={3}
           value={text} onChange={(e) => setText(e.target.value)}
@@ -67,12 +123,16 @@ export function ThreadMessages({ thread, mutate, authorId, authorName }) {
  */
 export default function ThreadBoard({ state, mutate, scopeCharId, authorId, authorName, canCreate, storageKey }) {
   const allThreads = state.threads || [];
-  const otherChars = (state.characters || []).filter((c) => c.id !== scopeCharId && c.ownerId);
+  const chars = state.characters || [];
+  const otherChars = chars.filter((c) => c.id !== scopeCharId && c.ownerId);
   const mine = allThreads.filter((t) => t.participantIds.includes(scopeCharId) || t.createdBy === scopeCharId);
   const [selId, setSelId] = useState(lsGet(storageKey) || (mine[0] && mine[0].id) || null);
   const sel = mine.find((t) => t.id === selId) || mine[0] || null;
   const [title, setTitle] = useState('');
   const [invited, setInvited] = useState([]);
+
+  const me = chars.find((c) => c.id === scopeCharId);
+  const posterOptions = me ? [{ id: me.id, name: me.name || authorName, url: me.artUrl || '' }] : [];
 
   function select(id) { setSelId(id); lsSet(storageKey, id); }
 
@@ -124,7 +184,10 @@ export default function ThreadBoard({ state, mutate, scopeCharId, authorId, auth
         )}
       </div>
       {sel ? (
-        <ThreadMessages key={sel.id} thread={sel} mutate={mutate} authorId={authorId} authorName={authorName} />
+        <ThreadMessages
+          key={sel.id} thread={sel} mutate={mutate} authorId={authorId} authorName={authorName}
+          chars={chars} posterOptions={posterOptions} avatarStorageKey={storageKey + '.avatar'}
+        />
       ) : (
         <p className="empty">
           {canCreate

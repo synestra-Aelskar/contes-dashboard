@@ -589,11 +589,23 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 .pj__threadhead{ display:flex; align-items:center; gap:10px; padding-bottom:10px; border-bottom:1px solid var(--rule); }
 .pj__threadstatus{ font-family:var(--f-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--kind-data); }
 .pj__threadstatus.is-closed{ color:var(--fg-dim); }
-.pj__threadmsgs{ display:flex; flex-direction:column; gap:10px; max-height:420px; overflow-y:auto; }
-.pj__msg{ border:1px solid var(--rule); border-radius:3px; padding:8px 10px; background:var(--surface); }
-.pj__msg--mine{ border-color:var(--kind,var(--gilt)); }
+.pj__threadmsgs{ display:flex; flex-direction:column; gap:10px; max-height:55vh; overflow-y:auto; padding-right:4px; }
+.pj__msgrow{ display:flex; align-items:flex-start; gap:8px; }
+.pj__msg{ flex:1; min-width:0; border:1px solid var(--rule); border-radius:3px; padding:8px 10px; background:var(--surface); }
+.pj__msgrow--mine .pj__msg{ border-color:var(--kind,var(--gilt)); }
 .pj__msghead{ display:flex; justify-content:space-between; gap:8px; font-size:11px; }
 .pj__msgtext{ margin:6px 0 0; font-size:13px; white-space:pre-wrap; }
+.pj__msgavatar{
+  flex:none; width:32px; height:32px; border-radius:50%; overflow:hidden; background:var(--bg);
+  border:1px solid var(--rule); display:flex; align-items:center; justify-content:center;
+}
+.pj__msgavatar img{ width:100%; height:100%; object-fit:cover; display:block; }
+.pj__msgavatar__ph{ font-family:var(--f-mono); font-size:12px; color:var(--fg-dim); text-transform:uppercase; }
+.pj__avatarpick{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.pj__avatarpick__opt{ flex:none; padding:0; background:none; border:2px solid transparent; border-radius:50%; cursor:pointer; }
+.pj__avatarpick__opt.is-active{ border-color:var(--kind,var(--gilt)); }
+.pj__avatarpick__opt .pj__msgavatar{ width:26px; height:26px; }
+.pj__avatarpick__url{ flex:1 1 160px; min-width:120px; }
 .pj__threadcompose{ display:flex; flex-direction:column; gap:8px; }
 
 /* --- tableau XP ---

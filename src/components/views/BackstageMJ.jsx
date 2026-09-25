@@ -39,6 +39,8 @@ export default function BackstageMJ({ state, mutate }) {
   const chars = state.characters || [];
   const accounts = (state.settings && state.settings.accounts) || [];
   const nameOf = (id) => (chars.find((c) => c.id === id) || {}).name || 'Sans nom';
+  const mjChars = chars.filter((c) => accounts.some((a) => a.role === 'admin' && a.userId === c.ownerId));
+  const posterOptions = mjChars.map((c) => ({ id: c.id, name: c.name || 'MJ', url: c.artUrl || '' }));
 
   const accountMap = new Map();
   threads.forEach((t) => {
@@ -100,7 +102,10 @@ export default function BackstageMJ({ state, mutate }) {
                 ))}
               </div>
               {sel ? (
-                <ThreadMessages key={sel.id} thread={sel} mutate={mutate} authorId={MJ_AUTHOR_ID} authorName="MJ" />
+                <ThreadMessages
+                  key={sel.id} thread={sel} mutate={mutate} authorId={MJ_AUTHOR_ID} authorName="MJ"
+                  chars={chars} posterOptions={posterOptions} allowCustomAvatar avatarStorageKey="ccm.mjThread.avatar"
+                />
               ) : (
                 <p className="empty">Sélectionne un thread.</p>
               )}

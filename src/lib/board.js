@@ -117,6 +117,7 @@ function normalize(raw) {
     t.messages.forEach((m) => {
       if (typeof m.text !== 'string') m.text = '';
       if (typeof m.authorName !== 'string') m.authorName = '';
+      if (typeof m.avatarUrl !== 'string') m.avatarUrl = '';
     });
   });
   if (!out.sessionZero || typeof out.sessionZero !== 'object') out.sessionZero = { blocks: [] };
