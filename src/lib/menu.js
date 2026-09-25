@@ -17,6 +17,7 @@ export const ALL_VIEWS = [
   ['zones', 'Zone'],
   ['fichetechnique', 'Fiche Technique'],
   ['fichenarrative', 'Créateur de narration'],
+  ['tableaux', "Tableau d'enquête"],
   ['xpcalibreur', "Calibreur d'XP"],
   ['equilibrage', 'Équilibrage DD'],
   ['prepsession', 'Prep Session'],
@@ -35,7 +36,7 @@ export function defaultMenuTree() {
     id: uid(),
     type: 'view',
     viewKey: key,
-    visibility: key === 'personnages' ? ['admin', 'player'] : ['admin']
+    visibility: (key === 'personnages' || key === 'tableaux') ? ['admin', 'player'] : ['admin']
   }));
 }
 

@@ -26,6 +26,7 @@ import FicheTechnique from './views/FicheTechnique.jsx';
 import FicheTechniqueDoc from './views/FicheTechniqueDoc.jsx';
 import FicheNarrative from './views/FicheNarrative.jsx';
 import FicheNarrativeDoc from './views/FicheNarrativeDoc.jsx';
+import TableauEnquete from './views/TableauEnquete.jsx';
 import XpCalibreur from './views/XpCalibreur.jsx';
 import Equilibrage from './views/Equilibrage.jsx';
 import PrepSession from './views/PrepSession.jsx';
@@ -45,7 +46,7 @@ const VIEW_COMPONENTS = {
   liens: Liens, journal: Journal, consequences: Consequences, horloges: Horloges,
   secrets: Secrets, oublis: Oublis, epreuves: Epreuves, zones: Zones,
   fichetechnique: FicheTechnique, fichenarrative: FicheNarrative, xpcalibreur: XpCalibreur, equilibrage: Equilibrage, prepsession: PrepSession,
-  'backstage-mj': BackstageMJ, 'personnages-joueurs': Personnages, validations: Validations
+  'backstage-mj': BackstageMJ, 'personnages-joueurs': Personnages, validations: Validations, tableaux: TableauEnquete
 };
 
 const DOC_COMPONENTS = { fichetechnique: FicheTechniqueDoc, fichenarrative: FicheNarrativeDoc };

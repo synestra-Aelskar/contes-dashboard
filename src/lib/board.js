@@ -23,6 +23,7 @@ export const EMPTY_STATE = {
   ],
   sessions: [], consequences: [], clocks: [], secrets: [], reminders: [], epreuves: [],
   characters: [], sessionDraft: null, zones: [], sessionZero: { blocks: [] }, fichesTechniques: [], fichesNarratives: [],
+  tableaux: [],
   xpCalibreur: XP_DEFAULT_STATE, ddCalc: null, prepSessions: [],
   settings: { timeTypes: [], accounts: [], menu: [] },
   vrLink: null, aelCarryHours: 0, threads: [], campaign: { actNumber: '', actTitle: '' }
@@ -94,7 +95,10 @@ function normalize(raw) {
   } else {
     const used = usedViewKeys(out.settings.menu);
     ALL_VIEWS.forEach(([key]) => {
-      if (!used.has(key)) out.settings.menu.push({ id: uid(), type: 'view', viewKey: key, visibility: ['admin'] });
+      if (!used.has(key)) {
+        const visibility = key === 'tableaux' ? ['admin', 'player'] : ['admin'];
+        out.settings.menu.push({ id: uid(), type: 'view', viewKey: key, visibility });
+      }
     });
   }
   // Migration ponctuelle : la première fois que « Créateur de narration »
@@ -164,6 +168,32 @@ function normalize(raw) {
         if (typeof b.url !== 'string') b.url = '';
         if (typeof b.caption !== 'string') b.caption = '';
       }
+    });
+  });
+  if (!Array.isArray(out.tableaux)) out.tableaux = [];
+  out.tableaux.forEach((t) => {
+    if (typeof t.titre !== 'string') t.titre = '';
+    if (t.kind !== 'perso' && t.kind !== 'groupe') t.kind = 'perso';
+    if (typeof t.ownerId !== 'string') t.ownerId = null;
+    if (!Array.isArray(t.participantIds)) t.participantIds = [];
+    if (!Array.isArray(t.elements)) t.elements = [];
+    if (!Array.isArray(t.connections)) t.connections = [];
+    t.elements.forEach((e) => {
+      if (typeof e.x !== 'number') e.x = 0;
+      if (typeof e.y !== 'number') e.y = 0;
+      if (typeof e.w !== 'number') e.w = 200;
+      if (typeof e.h !== 'number') e.h = 120;
+      if (typeof e.rot !== 'number') e.rot = 0;
+      if (typeof e.z !== 'number') e.z = 0;
+      if (typeof e.locked !== 'boolean') e.locked = false;
+      if (typeof e.text !== 'string') e.text = '';
+      if (typeof e.color !== 'string') e.color = '';
+      if (typeof e.url !== 'string') e.url = '';
+      if (typeof e.shape !== 'string') e.shape = 'rect';
+      if (!Array.isArray(e.points)) e.points = [];
+    });
+    t.connections.forEach((c) => {
+      if (c.kind !== 'line' && c.kind !== 'arrow') c.kind = 'arrow';
     });
   });
   // Migration ponctuelle : l'ancien document unique « Session Zéro » devient la
