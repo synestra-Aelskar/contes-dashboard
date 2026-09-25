@@ -43,6 +43,20 @@ function syncDocNodes(menu, docKind, items) {
   return pruneMissingDocs(menu, docKind, validIds);
 }
 
+/** Retire du menu toute vue statique dont la clé n'existe plus (registre
+ * ALL_VIEWS retravaillé) — utilisé pour purger un nœud devenu orphelin. */
+function removeViewKey(menu, viewKey) {
+  function walk(nodes) {
+    const out = [];
+    for (const n of nodes || []) {
+      if (n.type === 'view' && n.viewKey === viewKey) continue;
+      out.push(n.children ? { ...n, children: walk(n.children) } : n);
+    }
+    return out;
+  }
+  return walk(menu);
+}
+
 function normalize(raw) {
   const base = clone(EMPTY_STATE);
   const d = raw && typeof raw === 'object' ? raw : {};
@@ -96,11 +110,15 @@ function normalize(raw) {
     const used = usedViewKeys(out.settings.menu);
     ALL_VIEWS.forEach(([key]) => {
       if (!used.has(key)) {
-        const visibility = key === 'tableaux' ? ['admin', 'player'] : ['admin'];
+        const visibility = (key === 'tableaux-perso' || key === 'tableaux-groupe') ? ['admin', 'player'] : ['admin'];
         out.settings.menu.push({ id: uid(), type: 'view', viewKey: key, visibility });
       }
     });
   }
+  // Migration ponctuelle : l'ancien « Tableau d'enquête » unique (une seule
+  // vue) est remplacé par trois vues séparées (Mes tableaux / Tableaux de
+  // groupe / Tableaux MJ, ajoutées ci-dessus) — on retire l'ancien nœud.
+  out.settings.menu = removeViewKey(out.settings.menu, 'tableaux');
   // Migration ponctuelle : la première fois que « Créateur de narration »
   // apparaît (encore à la racine), on le range dans une catégorie
   // « Narrations » dédiée plutôt que de le laisser à plat.
@@ -173,7 +191,7 @@ function normalize(raw) {
   if (!Array.isArray(out.tableaux)) out.tableaux = [];
   out.tableaux.forEach((t) => {
     if (typeof t.titre !== 'string') t.titre = '';
-    if (t.kind !== 'perso' && t.kind !== 'groupe') t.kind = 'perso';
+    if (t.kind !== 'perso' && t.kind !== 'groupe' && t.kind !== 'mj') t.kind = 'perso';
     if (typeof t.ownerId !== 'string') t.ownerId = null;
     if (!Array.isArray(t.participantIds)) t.participantIds = [];
     if (!Array.isArray(t.elements)) t.elements = [];

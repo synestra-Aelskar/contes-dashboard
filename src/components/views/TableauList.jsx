@@ -1,14 +1,21 @@
 import { useState } from 'react';
-import { uid, lsGet, lsSet } from '../../lib/util.js';
+import { uid } from '../../lib/util.js';
 import { PLAYER_EMAIL_DOMAIN } from '../../lib/playerAuth.js';
 import TableauCanvas from '../TableauCanvas.jsx';
 
 /**
  * Tableau d'enquête — tableau blanc infini façon Miro, intégré au dashboard.
- * Chaque personnage (joueur OU MJ, via « Mes personnages ») possède ses
- * propres tableaux (« Mes tableaux », invitables) et peut en créer dans le
- * pot commun « Tableaux de groupe ». Le MJ voit en plus tous les tableaux.
+ * Trois pots de tableaux, chacun sa propre vue de menu (placement libre,
+ * visibilité par nœud comme n'importe quelle vue) : « Mes tableaux »
+ * (perso, invitables), « Tableaux de groupe » (pot commun) et « Tableaux
+ * MJ » (pot réservé aux comptes admin par défaut).
  */
+
+const SCOPES = {
+  perso: { title: 'Mes tableaux', createLabel: '＋ Nouveau tableau', emptyHint: 'Aucun tableau perso pour l’instant.' },
+  groupe: { title: 'Tableaux de groupe', createLabel: '＋ Nouveau tableau de groupe', emptyHint: 'Aucun tableau de groupe pour l’instant.' },
+  mj: { title: 'Tableaux MJ', createLabel: '＋ Nouveau tableau MJ', emptyHint: 'Aucun tableau MJ pour l’instant.' }
+};
 
 function accountLabel(account) {
   if (!account) return '';
@@ -79,7 +86,7 @@ function BoardRow({ state, tableau, isOwner, onOpen, onDelete, onInvite }) {
         {tableau.titre.trim() || 'Sans titre'}
         <span className="count"> · {tableau.elements.length} élément{tableau.elements.length > 1 ? 's' : ''}</span>
       </button>
-      {tableau.kind === 'groupe' && ownerName && <span className="chr__muted">par {ownerName}</span>}
+      {tableau.kind !== 'perso' && ownerName && <span className="chr__muted">par {ownerName}</span>}
       <div className="fiche-row__group">
         {isOwner && (
           <div className="fiche-row__actions">
@@ -100,32 +107,29 @@ function BoardRow({ state, tableau, isOwner, onOpen, onDelete, onInvite }) {
   );
 }
 
-export default function TableauEnquete({ state, mutate, role, userId }) {
+export default function TableauList({ state, mutate, userId, scope }) {
   const chars = state.characters || [];
   const mine = chars.find((c) => c.ownerId === userId);
   const boards = state.tableaux || [];
-  const [tabRaw, setTabRaw] = useState(lsGet('ccm.tabTab') || 'perso');
-  const tab = (tabRaw === 'tous' && role !== 'admin') ? 'perso' : tabRaw;
   const [openId, setOpenId] = useState(null);
   const [inviteId, setInviteId] = useState(null);
+  const conf = SCOPES[scope];
 
   if (!mine) {
     return (
       <section className="chapter">
-        <div className="chapter__head"><h2>Tableau d’enquête</h2></div>
+        <div className="chapter__head"><h2>{conf.title}</h2></div>
         <p className="empty">Il te faut d’abord un personnage pour avoir tes propres tableaux — vois « Mes personnages ».</p>
       </section>
     );
   }
 
-  function setTab(t) { setTabRaw(t); lsSet('ccm.tabTab', t); }
+  const list = scope === 'perso'
+    ? boards.filter((t) => t.kind === 'perso' && (t.ownerId === mine.id || (t.participantIds || []).includes(mine.id)))
+    : boards.filter((t) => t.kind === scope);
 
-  const persoBoards = boards.filter((t) => t.kind === 'perso' && (t.ownerId === mine.id || (t.participantIds || []).includes(mine.id)));
-  const groupeBoards = boards.filter((t) => t.kind === 'groupe');
-  const list = tab === 'perso' ? persoBoards : tab === 'groupe' ? groupeBoards : boards;
-
-  function createBoard(kind) {
-    const t = { id: uid(), titre: 'Nouveau tableau', kind, ownerId: mine.id, participantIds: [], elements: [], connections: [] };
+  function createBoard() {
+    const t = { id: uid(), titre: 'Nouveau tableau', kind: scope, ownerId: mine.id, participantIds: [], elements: [], connections: [] };
     mutate((s) => { s.tableaux.push(t); });
     setOpenId(t.id);
   }
@@ -144,26 +148,10 @@ export default function TableauEnquete({ state, mutate, role, userId }) {
 
   return (
     <section className="chapter">
-      <div className="chapter__head"><h2>Tableau d’enquête</h2></div>
-
-      <nav className="pj__nav pj__nav--row">
-        <button type="button" className={'pj__navbtn' + (tab === 'perso' ? ' is-active' : '')} onClick={() => setTab('perso')}>
-          Mes tableaux<span className="count"> ({persoBoards.length})</span>
-        </button>
-        <button type="button" className={'pj__navbtn' + (tab === 'groupe' ? ' is-active' : '')} onClick={() => setTab('groupe')}>
-          Tableaux de groupe<span className="count"> ({groupeBoards.length})</span>
-        </button>
-        {role === 'admin' && (
-          <button type="button" className={'pj__navbtn' + (tab === 'tous' ? ' is-active' : '')} onClick={() => setTab('tous')}>
-            Tous les tableaux<span className="count"> ({boards.length})</span>
-          </button>
-        )}
-      </nav>
+      <div className="chapter__head"><h2>{conf.title}<span className="count"> ({list.length})</span></h2></div>
 
       {!list.length ? (
-        <p className="empty">
-          {tab === 'perso' ? 'Aucun tableau perso pour l’instant.' : tab === 'groupe' ? 'Aucun tableau de groupe pour l’instant.' : 'Aucun tableau pour l’instant.'}
-        </p>
+        <p className="empty">{conf.emptyHint}</p>
       ) : (
         <div className="fiche-list">
           {list.map((t) => (
@@ -175,13 +163,9 @@ export default function TableauEnquete({ state, mutate, role, userId }) {
         </div>
       )}
 
-      {tab !== 'tous' && (
-        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 22 }}>
-          <button className="btn-primary" type="button" onClick={() => createBoard(tab === 'groupe' ? 'groupe' : 'perso')}>
-            ＋ Nouveau tableau{tab === 'groupe' ? ' de groupe' : ''}
-          </button>
-        </div>
-      )}
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 22 }}>
+        <button className="btn-primary" type="button" onClick={createBoard}>{conf.createLabel}</button>
+      </div>
 
       {inviteTarget && (
         <InviteModal state={state} tableau={inviteTarget} mutate={mutate} mineId={mine.id} onClose={() => setInviteId(null)} />
