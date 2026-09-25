@@ -77,7 +77,7 @@ function strokeDash(el) {
   return `${g * 1.6} ${g}`;
 }
 
-function ElementBox({ el, selected, onDown, onContext, editing, onStartEdit, onStopEdit, onTextChange }) {
+function ElementBox({ el, selected, onDown, onContext, editing, onStartEdit, onStopEdit, onTextChange, children }) {
   const title = `Créé par ${el.createdByName || '?'}${el.updatedByName && el.updatedByName !== el.createdByName ? ` · modifié par ${el.updatedByName}` : ''}`;
   return (
     <div
@@ -109,6 +109,7 @@ function ElementBox({ el, selected, onDown, onContext, editing, onStartEdit, onS
           }}
         />
       )}
+      {children}
     </div>
   );
 }
@@ -117,14 +118,14 @@ function ElementVisual({ el }) {
   const fontFamily = FONT_STACK[el.font] || FONT_STACK[''];
   if (el.kind === 'note') {
     return (
-      <div style={{ width: '100%', height: '100%', background: el.color || COLORS[0], color: '#221c10', padding: 12, borderRadius: 3, boxShadow: '0 6px 18px rgba(0,0,0,.35)', fontFamily, fontSize: 14, lineHeight: 1.4, whiteSpace: 'pre-wrap', overflow: 'hidden' }}>
+      <div style={{ width: '100%', height: '100%', background: el.color || COLORS[0], color: '#221c10', padding: 12, borderRadius: 3, boxShadow: '0 6px 18px rgba(0,0,0,.35)', fontFamily, fontSize: 14, lineHeight: 1.4, whiteSpace: 'pre-wrap', overflow: 'auto' }}>
         {el.text}
       </div>
     );
   }
   if (el.kind === 'text') {
     return (
-      <div style={{ width: '100%', height: '100%', color: '#e8e2d6', padding: 4, fontFamily, fontSize: 16, lineHeight: 1.4, whiteSpace: 'pre-wrap', overflow: 'hidden' }}>
+      <div style={{ width: '100%', height: '100%', color: '#e8e2d6', padding: 4, fontFamily, fontSize: 16, lineHeight: 1.4, whiteSpace: 'pre-wrap', overflow: 'auto' }}>
         {el.text || <span style={{ opacity: 0.4 }}>Texte…</span>}
       </div>
     );
