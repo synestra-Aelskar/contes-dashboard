@@ -311,18 +311,17 @@ export function ThreadMessages({
         <div className="tb-composehead">
           <FormatBar composeRef={composeRef} text={text} setText={setText} />
           <button className="tbtn" type="button" onClick={() => setComposePreview((v) => !v)}>
-            {composePreview ? 'Revenir à l’édition' : 'Aperçu (affichage normal)'}
+            {composePreview ? 'Masquer l’aperçu' : 'Aperçu (affichage normal)'}
           </button>
         </div>
-        {composePreview ? (
+        <textarea
+          ref={composeRef} className="notes" placeholder="Écrire un message…" rows={3}
+          value={text} onChange={(e) => setText(e.target.value)}
+        />
+        {composePreview && (
           <div className="notes tb-composepreview">
             {text.trim() ? parseFormatted(text, 'compose') : <span className="chr__muted">Rien à prévisualiser.</span>}
           </div>
-        ) : (
-          <textarea
-            ref={composeRef} className="notes" placeholder="Écrire un message…" rows={3}
-            value={text} onChange={(e) => setText(e.target.value)}
-          />
         )}
         <button className="btn-primary" type="button" onClick={send}>Envoyer</button>
       </div>
