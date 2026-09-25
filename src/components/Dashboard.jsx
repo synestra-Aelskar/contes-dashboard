@@ -181,17 +181,23 @@ export default function Dashboard({ session }) {
         <div className="divider"><i /></div>
       </header>
 
-      <div className="dash-body">
-        <Sidebar tree={tree} view={activeView} setView={setView} footerItems={footerItems} topSlot={sessionButton} badges={badges} state={state} />
-        <div className={'dash-main view view--' + (activeView || 'empty')}>
-          {ViewComp
-            ? (activeView === 'personnages'
-              ? <ViewComp state={state} mutate={mutate} userId={session.user.id} goToSession={goToSession} />
-              : docKind
-                ? <ViewComp {...shared} ficheId={docId} setView={setView} />
-                : <ViewComp {...shared} />)
-            : <p className="empty">Aucune vue accessible pour l’instant.</p>}
+      <div className="page__scroll">
+        <div className="dash-body">
+          <Sidebar tree={tree} view={activeView} setView={setView} footerItems={footerItems} topSlot={sessionButton} badges={badges} state={state} />
+          <div className={'dash-main view view--' + (activeView || 'empty')}>
+            {ViewComp
+              ? (activeView === 'personnages'
+                ? <ViewComp state={state} mutate={mutate} userId={session.user.id} goToSession={goToSession} />
+                : docKind
+                  ? <ViewComp {...shared} ficheId={docId} setView={setView} />
+                  : <ViewComp {...shared} />)
+              : <p className="empty">Aucune vue accessible pour l’instant.</p>}
+          </div>
         </div>
+
+        <footer className="foot">
+          Dernière mise à jour · {state.updated ? fmtDateLong(state.updated) : '—'} — enregistrée à chaque modification.
+        </footer>
       </div>
 
       {startConfirmOpen && (
@@ -221,10 +227,6 @@ export default function Dashboard({ session }) {
       )}
 
       {prefsOpen && <Preferences onClose={() => setPrefsOpen(false)} state={state} role={role} />}
-
-      <footer className="foot">
-        Dernière mise à jour · {state.updated ? fmtDateLong(state.updated) : '—'} — enregistrée à chaque modification.
-      </footer>
     </main>
   );
 }
