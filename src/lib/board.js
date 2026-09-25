@@ -108,6 +108,7 @@ function normalize(raw) {
     if (typeof t.title !== 'string') t.title = '';
     if (!Array.isArray(t.participantIds)) t.participantIds = [];
     if (!Array.isArray(t.messages)) t.messages = [];
+    if (typeof t.closed !== 'boolean') t.closed = false;
     t.messages.forEach((m) => {
       if (typeof m.text !== 'string') m.text = '';
       if (typeof m.authorName !== 'string') m.authorName = '';

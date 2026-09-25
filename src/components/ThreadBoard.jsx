@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { uid, lsGet, lsSet } from '../lib/util.js';
 import { toast } from '../lib/toast.js';
 
-function ThreadMessages({ thread, mutate, authorId, authorName }) {
+export function ThreadMessages({ thread, mutate, authorId, authorName }) {
   const [text, setText] = useState('');
 
   function send() {
@@ -18,8 +18,23 @@ function ThreadMessages({ thread, mutate, authorId, authorName }) {
     setText('');
   }
 
+  function toggleClosed() {
+    mutate((s) => {
+      const th = (s.threads || []).find((x) => x.id === thread.id);
+      if (th) th.closed = !th.closed;
+    });
+  }
+
   return (
     <div className="pj__thread">
+      <div className="pj__threadhead">
+        <span className={'pj__threadstatus' + (thread.closed ? ' is-closed' : '')}>
+          {thread.closed ? 'Clôturé' : 'Ouvert'}
+        </span>
+        <button className="tbtn" type="button" onClick={toggleClosed}>
+          {thread.closed ? 'Rouvrir le sujet' : 'Clôturer le sujet'}
+        </button>
+      </div>
       <div className="pj__threadmsgs">
         {(thread.messages || []).map((m) => (
           <div key={m.id} className={'pj__msg' + (m.authorId === authorId ? ' pj__msg--mine' : '')}>
@@ -68,7 +83,7 @@ export default function ThreadBoard({ state, mutate, scopeCharId, authorId, auth
   function createThread() {
     const t = title.trim();
     if (!t) { toast('Titre du thread requis'); return; }
-    const thread = { id: uid(), title: t, participantIds: [scopeCharId, ...invited], messages: [], createdBy: scopeCharId, createdAt: new Date().toISOString() };
+    const thread = { id: uid(), title: t, participantIds: [scopeCharId, ...invited], messages: [], createdBy: scopeCharId, createdAt: new Date().toISOString(), closed: false };
     mutate((s) => { s.threads = s.threads || []; s.threads.push(thread); });
     setTitle(''); setInvited([]);
     select(thread.id);
@@ -84,6 +99,7 @@ export default function ThreadBoard({ state, mutate, scopeCharId, authorId, auth
             onClick={() => select(t.id)}
           >
             <span className="journal__title">{t.title || 'Sans titre'}</span>
+            {t.closed && <span className="chr__muted"> (clôturé)</span>}
           </button>
         ))}
         {canCreate && (
