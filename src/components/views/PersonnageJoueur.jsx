@@ -369,21 +369,27 @@ function BackstageTab({ state, char, mutate }) {
 
 /**
  * Vue « joueur » de l'onglet Personnage : un joueur ne voit et ne peut
- * éditer que SON personnage (rattaché par char.ownerId === son user id
- * Supabase). XP / événements / résumés MJ restent en lecture seule (ce
- * sont des enregistrements du MJ) ; la Note MJ n'est jamais exposée ici.
+ * éditer que SES personnages (rattachés par char.ownerId === son user id
+ * Supabase — il peut en avoir plusieurs, sélectionnés via l'onglet du haut).
+ * XP / événements / résumés MJ restent en lecture seule (ce sont des
+ * enregistrements du MJ) ; la Note MJ n'est jamais exposée ici.
  */
 export default function PersonnageJoueur({ state, mutate, userId, goToSession }) {
   const chars = state.characters || [];
-  const mine = chars.find((c) => c.ownerId === userId);
+  const myChars = chars.filter((c) => c.ownerId === userId);
+  const [charId, setCharId] = useState(lsGet('ccm.pjChar'));
+  const mine = myChars.find((c) => c.id === charId) || myChars[0] || null;
   const [tab, setTab] = useState(lsGet('ccm.pjTab') || 'info');
 
-  function createMine() {
+  function selectChar(id) { setCharId(id); lsSet('ccm.pjChar', id); }
+
+  function createChar() {
     const c = {
       id: uid(), name: 'Nouveau personnage', artUrl: '', mjNote: '', race: '', description: '', qualite: '', defaut: '', peurs: '',
       xp: [], events: [], recaps: [], journal: [], traits: [], ownerId: userId
     };
     mutate((s) => { s.characters.push(c); });
+    selectChar(c.id);
   }
 
   if (!mine) {
@@ -391,7 +397,7 @@ export default function PersonnageJoueur({ state, mutate, userId, goToSession })
       <section className="chapter">
         <div className="chapter__head"><h2>Personnage</h2></div>
         <p className="empty">Tu n’as pas encore de personnage.</p>
-        <button className="btn-primary" type="button" onClick={createMine}>＋ créer mon personnage</button>
+        <button className="btn-primary" type="button" onClick={createChar}>＋ créer mon personnage</button>
       </section>
     );
   }
@@ -412,6 +418,18 @@ export default function PersonnageJoueur({ state, mutate, userId, goToSession })
   return (
     <section className="chapter">
       <div className="chapter__head"><h2>{mine.name || 'Personnage'}</h2></div>
+      <nav className="pj__nav pj__nav--row">
+        {myChars.map((c) => (
+          <button
+            key={c.id} type="button"
+            className={'pj__navbtn' + (c.id === mine.id ? ' is-active' : '')}
+            onClick={() => selectChar(c.id)}
+          >
+            {c.name.trim() || 'Sans nom'}
+          </button>
+        ))}
+        <button className="tbtn" type="button" onClick={createChar}>＋ créer un personnage</button>
+      </nav>
       <div className="pj">
         <nav className="pj__nav">
           {TABS.map(([key, label]) => (
