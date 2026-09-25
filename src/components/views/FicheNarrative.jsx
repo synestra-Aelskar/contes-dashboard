@@ -3,6 +3,7 @@ import { uid } from '../../lib/util.js';
 import { useSyncedField } from '../../lib/useSyncedField.js';
 import { uploadScreenshot } from '../../lib/board.js';
 import { toast } from '../../lib/toast.js';
+import { getUiScale, applyUiScale } from '../../lib/prefs.js';
 
 /**
  * Fiche narrative — créateur de narration en défilement continu : un grand
@@ -210,7 +211,16 @@ export function FicheNarrativeEditor({ fiche, mutate, onBack, onDelete, initialR
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
+    // Cet éditeur est en position:fixed plein écran ; sous un zoom CSS ≠ 100%
+    // (préférence Taille d'affichage), les clics sur les boutons fixes (×,
+    // Retour) atterrissent visuellement décalés de leur vraie cible dans
+    // certaines versions de Chromium — on neutralise le zoom pendant que
+    // l'éditeur est ouvert et on restaure la préférence en sortant.
+    document.documentElement.style.zoom = '1';
+    return () => {
+      document.body.style.overflow = prev;
+      applyUiScale(getUiScale());
+    };
   }, []);
 
   const patchFiche = (fn) => mutate((s) => {

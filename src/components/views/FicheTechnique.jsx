@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useState } from 'react';
 import { uid } from '../../lib/util.js';
 import { useSyncedField } from '../../lib/useSyncedField.js';
+import { getUiScale, applyUiScale } from '../../lib/prefs.js';
 
 /**
  * Fiche Technique — créateur de documents à blocs (PNJ, lieu, créature, règle
@@ -402,7 +403,15 @@ export function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead, canE
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
+    // Éditeur en position:fixed plein écran ; sous un zoom CSS ≠ 100%
+    // (préférence Taille d'affichage), les boutons fixes (×, retour)
+    // deviennent décalés de leur vraie cible dans certaines versions de
+    // Chromium — voir le même correctif sur le Tableau d'enquête.
+    document.documentElement.style.zoom = '1';
+    return () => {
+      document.body.style.overflow = prev;
+      applyUiScale(getUiScale());
+    };
   }, []);
 
   const patchFiche = (fn) => mutate((s) => {

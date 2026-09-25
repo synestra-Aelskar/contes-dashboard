@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { lsGet, lsSet } from '../lib/util.js';
-import { routeKeyOf, labelForNode } from '../lib/menu.js';
+import { routeKeyOf, labelForNode, groupContainsView } from '../lib/menu.js';
 import SidebarIcon, { ChevronIcon, hasIcon } from './SidebarIcons.jsx';
 
 function initials(label) {
@@ -36,7 +36,10 @@ function ViewItem({ node, depth, active, onSelect, compact, badge, state }) {
 }
 
 function GroupItem({ node, depth, view, onSelect, compact, openMap, toggleOpen, badges, state }) {
-  const isOpen = compact || openMap[node.id] !== false;
+  // Replié par défaut, sauf la catégorie qui contient la vue active — mais
+  // un choix explicite de l'utilisateur (ouvert/fermé) prend toujours le pas.
+  const explicit = openMap[node.id];
+  const isOpen = compact || (explicit !== undefined ? explicit : groupContainsView(node, view));
   return (
     <div className={'sidebar__group' + (compact ? ' sidebar__group--rail' : '')}>
       {compact ? (
@@ -48,7 +51,7 @@ function GroupItem({ node, depth, view, onSelect, compact, openMap, toggleOpen, 
         <button
           type="button" className="sidebar__grouphead"
           style={{ paddingLeft: 10 + depth * 14 }}
-          onClick={() => toggleOpen(node.id)}
+          onClick={() => toggleOpen(node.id, isOpen)}
           aria-expanded={isOpen}
         >
           <span className={'sidebar__chev' + (isOpen ? ' is-open' : '')}><ChevronIcon dir="right" size={11} /></span>
@@ -70,7 +73,7 @@ export default function Sidebar({ tree, view, setView, footerItems, topSlot, bad
     return v === null ? true : v === '1'; // replié par défaut tant que l'utilisateur n'a pas choisi
   });
   const [openMap, setOpenMap] = useState({});
-  const toggleOpen = (id) => setOpenMap((m) => ({ ...m, [id]: m[id] === false ? true : false }));
+  const toggleOpen = (id, current) => setOpenMap((m) => ({ ...m, [id]: !current }));
 
   function toggleCompact() {
     const v = !compact;
@@ -80,6 +83,14 @@ export default function Sidebar({ tree, view, setView, footerItems, topSlot, bad
 
   return (
     <nav className={'sidebar' + (compact ? ' is-compact' : '')} aria-label="Navigation">
+      <button
+        className="sidebar__toggle sidebar__toggle--top" type="button" onClick={toggleCompact}
+        data-label={compact ? 'Déplier le menu' : 'Réduire le menu'}
+        aria-label={compact ? 'Déplier le menu' : 'Réduire le menu'}
+      >
+        <ChevronIcon dir={compact ? 'right' : 'left'} size={13} />
+        <span className="sidebar__label">Réduire</span>
+      </button>
       {topSlot && <div className="sidebar__top">{topSlot}</div>}
       <div className="sidebar__items">
         {tree.map((n) => (
@@ -104,14 +115,6 @@ export default function Sidebar({ tree, view, setView, footerItems, topSlot, bad
           ))}
         </div>
       )}
-      <button
-        className="sidebar__toggle" type="button" onClick={toggleCompact}
-        data-label={compact ? 'Déplier le menu' : 'Réduire le menu'}
-        aria-label={compact ? 'Déplier le menu' : 'Réduire le menu'}
-      >
-        <ChevronIcon dir={compact ? 'right' : 'left'} size={13} />
-        <span className="sidebar__label">Réduire</span>
-      </button>
     </nav>
   );
 }

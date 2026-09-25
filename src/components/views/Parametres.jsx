@@ -485,7 +485,7 @@ function OrdreMenuPane({ state, mutate }) {
   const [overRow, setOverRow] = useState(null);
   const [overMode, setOverMode] = useState(null);
   const [openMap, setOpenMap] = useState({});
-  const toggleOpen = (id) => setOpenMap((m) => ({ ...m, [id]: m[id] === false ? true : false }));
+  const toggleOpen = (id, current) => setOpenMap((m) => ({ ...m, [id]: !current }));
   const dropRef = useRef(null);
 
   const drag = {
@@ -518,12 +518,12 @@ function OrdreMenuPane({ state, mutate }) {
         );
       }
       const hasChildren = !!(n.children && n.children.length);
-      const isOpen = openMap[n.id] !== false;
+      const isOpen = openMap[n.id] === true;
       return (
         <div key={n.id}>
           <GroupNodeRow
             node={n} mutate={mutate} depth={depth} containerId={containerId} index={i} isFirst={isFirst} isLast={isLast} drag={drag}
-            open={isOpen} onToggle={() => toggleOpen(n.id)} hasChildren={hasChildren}
+            open={isOpen} onToggle={() => toggleOpen(n.id, isOpen)} hasChildren={hasChildren}
           />
           {isOpen && hasChildren && renderNodes(n.children, depth + 1, n.id)}
         </div>

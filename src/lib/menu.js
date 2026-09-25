@@ -53,8 +53,14 @@ function effectiveVisibility(node, ancestors) {
 /** Tout nœud qui n'est pas un conteneur (catégorie/sous-catégorie) est une
  * feuille navigable — une vue statique (registre ALL_VIEWS) ou un document
  * dynamique (ex. une fiche technique précise). */
-function isLeaf(n) {
+export function isLeaf(n) {
   return n.type !== 'category' && n.type !== 'subcategory';
+}
+
+/** Vrai si la vue active (`view`, une routeKey) se trouve quelque part sous
+ * ce nœud — sert à déplier automatiquement la catégorie qui la contient. */
+export function groupContainsView(node, view) {
+  return (node.children || []).some((c) => (isLeaf(c) ? routeKeyOf(c) === view : groupContainsView(c, view)));
 }
 
 /** Clé de routage d'une feuille, utilisée comme `view` dans Dashboard :

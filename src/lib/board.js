@@ -158,10 +158,28 @@ function normalize(raw) {
     if (!Array.isArray(t.participantIds)) t.participantIds = [];
     if (!Array.isArray(t.messages)) t.messages = [];
     if (typeof t.closed !== 'boolean') t.closed = false;
+    if (typeof t.archived !== 'boolean') t.archived = false;
     t.messages.forEach((m) => {
       if (typeof m.text !== 'string') m.text = '';
       if (typeof m.authorName !== 'string') m.authorName = '';
       if (typeof m.avatarUrl !== 'string') m.avatarUrl = '';
+    });
+    // Historique d'accès par personnage : segments [{from, to}] d'indices de
+    // messages visibles (to:null = toujours ouvert). Permet d'inviter
+    // quelqu'un « à partir de là » ou en accès complet, et de l'exclure puis
+    // le réinviter plus tard sans lui redonner ce qu'il a manqué entre-temps.
+    if (!t.accessLog || typeof t.accessLog !== 'object') t.accessLog = {};
+    Object.keys(t.accessLog).forEach((cid) => {
+      if (!Array.isArray(t.accessLog[cid])) t.accessLog[cid] = [];
+      t.accessLog[cid].forEach((seg) => {
+        if (typeof seg.from !== 'number') seg.from = 0;
+        if (typeof seg.to !== 'number' && seg.to !== null) seg.to = null;
+      });
+    });
+    // Rétrocompatibilité : tout participant déjà présent sans historique
+    // d'accès est considéré en accès complet depuis le début.
+    t.participantIds.forEach((cid) => {
+      if (!t.accessLog[cid] || !t.accessLog[cid].length) t.accessLog[cid] = [{ from: 0, to: null }];
     });
   });
   if (!out.sessionZero || typeof out.sessionZero !== 'object') out.sessionZero = { blocks: [] };
