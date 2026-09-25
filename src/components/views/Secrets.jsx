@@ -3,13 +3,18 @@ import { uid, lsGet, lsSet } from '../../lib/util.js';
 import { useSyncedField } from '../../lib/useSyncedField.js';
 import { PLAYER_EMAIL_DOMAIN } from '../../lib/playerAuth.js';
 
-/* Un secret = un titre + des tags + autant de blocs que l'on veut. Chaque bloc
- * est caché par défaut ; la roue crantée choisit, personnage par personnage
- * (triés par joueur·euse), à qui il est révélé. Côté joueur, seuls les blocs
- * révélés à l'un de SES personnages apparaissent, et chacun·e peut poser ses
- * propres tags (s.playerTags[userId]) pour s'y retrouver.
+/* Un secret = un titre + des tags MJ + autant de blocs que l'on veut. Chaque
+ * bloc est caché par défaut ; la roue crantée choisit, personnage par
+ * personnage (triés par joueur·euse), à qui il est révélé.
+ * Côté joueur, chaque bloc révélé devient une carte indépendante (plus de
+ * regroupement par secret) : à sa première apparition il porte le tag
+ * « Non-classé » ; c'est au joueur de le retaguer pour relier entre eux les
+ * blocs qui appartiennent au même fil, le tag étant personnel (chaque
+ * joueur·euse ayant accès au bloc peut le classer différemment).
  * Les cartes sont repliées par défaut ; l'index à droite (titres + tags) ouvre
- * et fait défiler jusqu'au secret voulu. */
+ * et fait défiler jusqu'à l'élément voulu. */
+
+const NON_CLASSE = 'Non-classé';
 
 function accountLabel(account) {
   if (!account) return '';
@@ -39,12 +44,20 @@ function groupCharacters(state) {
   return out;
 }
 
-function charName(state, id) {
-  const c = (state.characters || []).find((x) => x.id === id);
-  return c ? (c.name || 'Personnage') : null;
+const normTag = (t) => (t || '').trim().replace(/\s+/g, ' ');
+
+/** Tags personnels du joueur sur ce bloc, ou [« Non-classé »] par défaut
+ * tant qu'il ne les a pas encore modifiés. */
+function playerTagsFor(block, userId) {
+  const t = block.playerTags && Array.isArray(block.playerTags[userId]) ? block.playerTags[userId] : [];
+  return t.length ? t : [NON_CLASSE];
 }
 
-const normTag = (t) => (t || '').trim().replace(/\s+/g, ' ');
+function blockTitle(b) {
+  const t = (b.text || '').trim().split('\n')[0];
+  if (!t) return 'Élément';
+  return t.length > 60 ? t.slice(0, 60) + '…' : t;
+}
 
 /* ---------- Tags ---------- */
 
@@ -88,9 +101,9 @@ function TagEditor({ tags, onChange, placeholder, tone }) {
   );
 }
 
-/* ---------- Index à droite ---------- */
+/* ---------- Index à droite (générique : items déjà {id, title, tags}) ---------- */
 
-function SecretIndex({ items, tagFilter, setTagFilter, openSet, onPick, allTags, userId }) {
+function SecretIndex({ items, tagFilter, setTagFilter, openIds, onPick, allTags }) {
   return (
     <aside className="secret-index">
       <span className="card__label">Index</span>
@@ -115,40 +128,46 @@ function SecretIndex({ items, tagFilter, setTagFilter, openSet, onPick, allTags,
       )}
       <div className="secret-index__grid">
         {!items.length && <p className="empty">Rien pour ce tag.</p>}
-        {items.map((s) => {
-          const mine = userId && s.playerTags && Array.isArray(s.playerTags[userId]) ? s.playerTags[userId] : [];
-          const tags = [...(s.tags || []), ...mine];
-          return (
-            <button
-              key={s.id} type="button"
-              className={'secret-index__tile' + (openSet.has(s.id) ? ' is-active' : '')}
-              onClick={() => onPick(s.id)}
-              title={s.title || 'Sans titre'}
-            >
-              <span className="secret-index__tiletitle">{s.title || <em>Sans titre</em>}</span>
-              {tags.length > 0 && <span className="secret-index__tiletags">{tags.join(' · ')}</span>}
-            </button>
-          );
-        })}
+        {items.map((it) => (
+          <button
+            key={it.id} type="button"
+            className={'secret-index__tile' + (openIds.has(it.id) ? ' is-active' : '')}
+            onClick={() => onPick(it.id)}
+            title={it.title}
+          >
+            <span className="secret-index__tiletitle">{it.title || <em>Sans titre</em>}</span>
+            {it.tags.length > 0 && <span className="secret-index__tiletags">{it.tags.join(' · ')}</span>}
+          </button>
+        ))}
       </div>
     </aside>
   );
 }
 
-/** Tags fusionnés (MJ + les miens) avec leur fréquence, triés par nom. */
-function collectTags(list, userId) {
+/** Tags MJ fusionnés avec leur fréquence, triés par nom (index MJ). */
+function collectTags(list) {
   const counts = new Map();
   list.forEach((s) => {
-    const mine = userId && s.playerTags && Array.isArray(s.playerTags[userId]) ? s.playerTags[userId] : [];
-    new Set([...(s.tags || []), ...mine]).forEach((t) => counts.set(t, (counts.get(t) || 0) + 1));
+    new Set(s.tags || []).forEach((t) => counts.set(t, (counts.get(t) || 0) + 1));
   });
   return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0], 'fr'));
 }
-
-function secretHasTag(s, tag, userId) {
+function secretHasTag(s, tag) {
   if (!tag) return true;
-  const mine = userId && s.playerTags && Array.isArray(s.playerTags[userId]) ? s.playerTags[userId] : [];
-  return (s.tags || []).includes(tag) || mine.includes(tag);
+  return (s.tags || []).includes(tag);
+}
+
+/** Idem, mais sur les tags personnels du joueur, par bloc (index joueur). */
+function collectBlockTags(entries, userId) {
+  const counts = new Map();
+  entries.forEach(({ block }) => {
+    new Set(playerTagsFor(block, userId)).forEach((t) => counts.set(t, (counts.get(t) || 0) + 1));
+  });
+  return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0], 'fr'));
+}
+function blockHasTag(entry, tag, userId) {
+  if (!tag) return true;
+  return playerTagsFor(entry.block, userId).includes(tag);
 }
 
 /* Ouverture / repli mémorisés localement (par navigateur). */
@@ -166,8 +185,8 @@ function useOpenSet(key) {
   return [open, toggle];
 }
 
-function scrollTo(id) {
-  const el = document.getElementById('secret-' + id);
+function scrollTo(elId) {
+  const el = document.getElementById(elId);
   if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -222,7 +241,10 @@ function SecretBlock({ state, s, b, index, mutate, expanded, onExpand }) {
       const blk = x && (x.blocks || []).find((z) => z.id === b.id);
       if (blk) fn(blk);
     });
-  const names = (b.revealedTo || []).map((id) => charName(state, id)).filter(Boolean);
+  const names = (b.revealedTo || []).map((id) => {
+    const c = (state.characters || []).find((x) => x.id === id);
+    return c ? (c.name || 'Personnage') : null;
+  }).filter(Boolean);
 
   return (
     <div className={'secret-block' + (expanded ? ' is-open' : '')}>
@@ -325,7 +347,7 @@ function SecretCard({ state, s, mutate, open, onToggle }) {
               className="tbtn" type="button"
               onClick={() => {
                 const id = uid();
-                patch((x) => { x.blocks = x.blocks || []; x.blocks.push({ id, text: '', revealedTo: [] }); });
+                patch((x) => { x.blocks = x.blocks || []; x.blocks.push({ id, text: '', revealedTo: [], playerTags: {} }); });
                 setOpenBlock(id);
               }}
             >
@@ -347,71 +369,59 @@ function SecretCard({ state, s, mutate, open, onToggle }) {
   );
 }
 
-/* ---------- Joueur ---------- */
+/* ---------- Joueur : chaque bloc révélé = une carte indépendante ---------- */
 
-function PlayerSecretCard({ state, s, blocks, userId, mutate, open, onToggle }) {
-  const mine = (s.playerTags && Array.isArray(s.playerTags[userId])) ? s.playerTags[userId] : [];
-  const [current, setCurrent] = useState(blocks[0] ? blocks[0].id : null);
-  const [shareId, setShareId] = useState(null);
+function PlayerBlockCard({ state, secret, block, userId, mutate, open, onToggle }) {
+  const mine = playerTagsFor(block, userId);
+  const [shareOpen, setShareOpen] = useState(false);
   const myCharIds = new Set((state.characters || []).filter((c) => c.ownerId === userId).map((c) => c.id));
-  const shareBlock = shareId ? blocks.find((b) => b.id === shareId) : null;
-  const shareWith = (blockId, charId) => mutate((st) => {
-    const x = st.secrets.find((y) => y.id === s.id);
-    const b = x && (x.blocks || []).find((z) => z.id === blockId);
+
+  const shareWith = (charId) => mutate((st) => {
+    const x = st.secrets.find((y) => y.id === secret.id);
+    const b = x && (x.blocks || []).find((z) => z.id === block.id);
     if (!b) return;
     b.revealedTo = Array.isArray(b.revealedTo) ? b.revealedTo : [];
     if (!b.revealedTo.includes(charId)) b.revealedTo.push(charId);
   });
   const setMine = (tags) => mutate((st) => {
-    const x = st.secrets.find((y) => y.id === s.id);
-    if (!x) return;
-    x.playerTags = x.playerTags && typeof x.playerTags === 'object' ? x.playerTags : {};
-    x.playerTags[userId] = tags;
+    const x = st.secrets.find((y) => y.id === secret.id);
+    const b = x && (x.blocks || []).find((z) => z.id === block.id);
+    if (!b) return;
+    b.playerTags = b.playerTags && typeof b.playerTags === 'object' ? b.playerTags : {};
+    b.playerTags[userId] = tags;
   });
+
   return (
-    <div id={'secret-' + s.id} className={'card secret-card' + (open ? ' is-open' : '')}>
+    <div id={'secret-block-' + block.id} className={'card secret-card' + (open ? ' is-open' : '')}>
       <div className="secret-card__head">
-        <button type="button" className="secret-card__toggle" onClick={() => onToggle(s.id)} aria-expanded={open}>
+        <button type="button" className="secret-card__toggle" onClick={() => onToggle(block.id)} aria-expanded={open}>
           <span className={'secret-card__chev' + (open ? ' is-open' : '')}>›</span>
-          <span className="secret-card__title">{s.title || <em>Secret</em>}</span>
+          <span className="secret-card__title">{blockTitle(block)}</span>
         </button>
-        <span className="secret-card__meta">{blocks.length} élément{blocks.length > 1 ? 's' : ''}</span>
+        <button
+          className="secret-block__gear" type="button" title="Partager avec un autre personnage" aria-label="Partager avec un autre personnage"
+          onClick={() => setShareOpen(true)}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+            <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
+          </svg>
+        </button>
       </div>
-      {!open && <TagChips tags={[...(s.tags || []), ...mine]} />}
+      {!open && <TagChips tags={mine} tone="mine" />}
       {open && (
         <>
-          {blocks.map((b, i) => (
-            <div key={b.id} className={'secret-block' + (current === b.id ? ' is-open' : '')}>
-              <div
-                className="secret-block__head" role="button" tabIndex={0}
-                onClick={() => setCurrent(current === b.id ? null : b.id)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCurrent(current === b.id ? null : b.id); } }}
-              >
-                <span className="secret-block__label">{i + 1}</span>
-                <span className="secret-block__who">élément {i + 1}</span>
-                <button
-                  className="secret-block__gear" type="button" title="Partager avec un autre personnage" aria-label="Partager avec un autre personnage"
-                  onClick={(e) => { e.stopPropagation(); setShareId(b.id); }}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
-                    <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
-                  </svg>
-                </button>
-              </div>
-              {current === b.id && <p className="secret-card__text">{b.text}</p>}
-            </div>
-          ))}
-          {shareBlock && (
-            <RevealModal
-              state={state} block={shareBlock} share excludeIds={myCharIds}
-              onToggle={(id) => shareWith(shareBlock.id, id)}
-              onClose={() => setShareId(null)}
-            />
-          )}
-          <TagChips tags={s.tags || []} />
-          <TagEditor tags={mine} onChange={setMine} placeholder="mes tags…" tone="mine" />
+          {secret.title && <p className="chr__muted">Issu de : {secret.title}</p>}
+          <p className="secret-card__text">{block.text}</p>
+          <TagEditor tags={mine} onChange={setMine} placeholder="mon tag…" tone="mine" />
         </>
+      )}
+      {shareOpen && (
+        <RevealModal
+          state={state} block={block} share excludeIds={myCharIds}
+          onToggle={(id) => shareWith(id)}
+          onClose={() => setShareOpen(false)}
+        />
       )}
     </div>
   );
@@ -419,38 +429,46 @@ function PlayerSecretCard({ state, s, blocks, userId, mutate, open, onToggle }) 
 
 function PlayerSecrets({ state, mutate, userId }) {
   const mineChars = new Set((state.characters || []).filter((c) => c.ownerId === userId).map((c) => c.id));
-  const visible = useMemo(() => (state.secrets || [])
-    .map((s) => ({ s, blocks: (s.blocks || []).filter((b) => (b.revealedTo || []).some((id) => mineChars.has(id)) && (b.text || '').trim()) }))
-    .filter((x) => x.blocks.length), [state.secrets, state.characters, userId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const entries = useMemo(() => {
+    const out = [];
+    (state.secrets || []).forEach((s) => {
+      (s.blocks || []).forEach((b) => {
+        if ((b.revealedTo || []).some((id) => mineChars.has(id)) && (b.text || '').trim()) out.push({ secret: s, block: b });
+      });
+    });
+    return out;
+  }, [state.secrets, state.characters, userId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [tagFilter, setTagFilter] = useState('');
   const [openSet, toggle] = useOpenSet('ccm.secretsOpen.player');
-  const [activeId, setActiveId] = useState(null);
-  const allTags = collectTags(visible.map((x) => x.s), userId);
-  const shown = visible.filter((x) => secretHasTag(x.s, tagFilter, userId));
-  const opened = shown.filter((x) => openSet.has(x.s.id));
+  const allTags = collectBlockTags(entries, userId);
+  const shown = entries.filter((e) => blockHasTag(e, tagFilter, userId));
+  const opened = shown.filter((e) => openSet.has(e.block.id));
   const pick = (id) => {
     const willOpen = !openSet.has(id);
-    toggle(id); setActiveId(id);
-    if (willOpen) setTimeout(() => scrollTo(id), 30);
+    toggle(id);
+    if (willOpen) setTimeout(() => scrollTo('secret-block-' + id), 30);
   };
 
   return (
     <section className="chapter">
-      <div className="chapter__head"><h2>Secrets<span className="count"> ({visible.length})</span></h2></div>
-      {!visible.length ? (
+      <div className="chapter__head"><h2>Secrets<span className="count"> ({entries.length})</span></h2></div>
+      {!entries.length ? (
         <p className="empty">Aucun secret ne vous a été révélé pour l’instant.</p>
       ) : (
         <div className="secret-layout">
           <div className="secret-list">
-            {!opened.length && <p className="empty secret-list__hint">Choisis un secret dans l’index.</p>}
-            {opened.map(({ s, blocks }) => (
-              <PlayerSecretCard
-                key={s.id} state={state} s={s} blocks={blocks} userId={userId} mutate={mutate}
-                open onToggle={(id) => { toggle(id, false); setActiveId(null); }}
+            {!opened.length && <p className="empty secret-list__hint">Choisis un élément dans l’index.</p>}
+            {opened.map(({ secret, block }) => (
+              <PlayerBlockCard
+                key={block.id} state={state} secret={secret} block={block} userId={userId} mutate={mutate}
+                open onToggle={(id) => toggle(id, false)}
               />
             ))}
           </div>
-          <SecretIndex items={shown.map((x) => x.s)} tagFilter={tagFilter} setTagFilter={setTagFilter} openSet={openSet} onPick={pick} allTags={allTags} userId={userId} />
+          <SecretIndex
+            items={shown.map(({ block }) => ({ id: block.id, title: blockTitle(block), tags: playerTagsFor(block, userId) }))}
+            tagFilter={tagFilter} setTagFilter={setTagFilter} openIds={openSet} onPick={pick} allTags={allTags}
+          />
         </div>
       )}
     </section>
@@ -462,17 +480,16 @@ function PlayerSecrets({ state, mutate, userId }) {
 export default function Secrets({ state, mutate, role, userId }) {
   const [tagFilter, setTagFilter] = useState('');
   const [openSet, toggle] = useOpenSet('ccm.secretsOpen');
-  const [activeId, setActiveId] = useState(null);
   if (role === 'player') return <PlayerSecrets state={state} mutate={mutate} userId={userId} />;
 
   const secrets = state.secrets || [];
-  const allTags = collectTags(secrets, null);
-  const shown = secrets.filter((s) => secretHasTag(s, tagFilter, null));
+  const allTags = collectTags(secrets);
+  const shown = secrets.filter((s) => secretHasTag(s, tagFilter));
   const opened = shown.filter((s) => openSet.has(s.id));
   const pick = (id) => {
     const willOpen = !openSet.has(id);
-    toggle(id); setActiveId(id);
-    if (willOpen) setTimeout(() => scrollTo(id), 30);
+    toggle(id);
+    if (willOpen) setTimeout(() => scrollTo('secret-' + id), 30);
   };
 
   return (
@@ -483,8 +500,8 @@ export default function Secrets({ state, mutate, role, userId }) {
           className="tbtn" type="button"
           onClick={() => {
             const id = uid();
-            mutate((s) => { s.secrets.push({ id, title: '', tags: [], blocks: [{ id: uid(), text: '', revealedTo: [] }] }); });
-            toggle(id, true); setActiveId(id);
+            mutate((s) => { s.secrets.push({ id, title: '', tags: [], blocks: [{ id: uid(), text: '', revealedTo: [], playerTags: {} }] }); });
+            toggle(id, true);
           }}
         >
           ＋ nouveau secret
@@ -503,11 +520,14 @@ export default function Secrets({ state, mutate, role, userId }) {
             {opened.map((s) => (
               <SecretCard
                 key={s.id} state={state} s={s} mutate={mutate}
-                open onToggle={(id) => { toggle(id, false); setActiveId(null); }}
+                open onToggle={(id) => toggle(id, false)}
               />
             ))}
           </div>
-          <SecretIndex items={shown} tagFilter={tagFilter} setTagFilter={setTagFilter} openSet={openSet} onPick={pick} allTags={allTags} userId={null} />
+          <SecretIndex
+            items={shown.map((s) => ({ id: s.id, title: s.title || 'Sans titre', tags: s.tags || [] }))}
+            tagFilter={tagFilter} setTagFilter={setTagFilter} openIds={openSet} onPick={pick} allTags={allTags}
+          />
         </div>
       )}
     </section>
