@@ -1105,6 +1105,20 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 .secret-index__item:hover{ color:var(--fg); background:var(--bg); }
 .secret-index__item.is-active{ color:var(--gilt); background:var(--bg); }
 .secret-index__item em{ opacity:.7; }
+.secret-entry{ display:flex; flex-direction:column; gap:6px; padding-top:12px; margin-top:12px; border-top:1px solid var(--rule); }
+.secret-entry--first{ padding-top:0; margin-top:0; border-top:none; }
+.secret-entry__head{ display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+.secret-catlist{ display:flex; flex-direction:column; gap:3px; }
+.secret-catlist__item{ display:flex; align-items:center; gap:4px; }
+.secret-catlist__pick{ flex:1; min-width:0; display:flex; align-items:center; justify-content:space-between; gap:6px; text-align:left; background:none; border:1px solid transparent; border-radius:3px; padding:5px 7px; font-family:var(--f-body); font-size:13px; color:var(--fg-dim); cursor:pointer; }
+.secret-catlist__pick:hover{ color:var(--fg); background:var(--bg); }
+.secret-catlist__item.is-active .secret-catlist__pick{ color:var(--gilt); border-color:var(--gilt); background:var(--bg); }
+.secret-catlist__name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.secret-catlist__count{ flex:none; font-family:var(--f-mono); font-size:9.5px; color:var(--fg-dim); opacity:.75; }
+.secret-catlist__del{ flex:none; display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; background:none; border:none; color:var(--fg-dim); cursor:pointer; font-size:13px; line-height:1; }
+.secret-catlist__del:hover{ color:var(--blood); }
+.secret-catlist__add{ display:flex; gap:6px; padding-top:8px; border-top:1px solid var(--rule); }
+.secret-catlist__add .finput{ flex:1; min-width:0; padding:5px 7px; font-size:12px; }
 .secret-modal{ gap:12px; }
 .secret-modal__group{ display:flex; flex-direction:column; gap:6px; }
 .secret-modal__row{ display:flex; align-items:center; gap:10px; font-family:var(--f-body); font-size:14px; color:var(--fg); cursor:pointer; padding:4px 6px; border-radius:3px; }

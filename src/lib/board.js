@@ -26,7 +26,8 @@ export const EMPTY_STATE = {
   tableaux: [],
   xpCalibreur: XP_DEFAULT_STATE, ddCalc: null, prepSessions: [],
   settings: { timeTypes: [], accounts: [], menu: [] },
-  vrLink: null, aelCarryHours: 0, threads: [], campaign: { actNumber: '', actTitle: '' }
+  vrLink: null, aelCarryHours: 0, threads: [], campaign: { actNumber: '', actTitle: '' },
+  playerCategories: {}
 };
 
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -101,6 +102,10 @@ function normalize(raw) {
         if (!Array.isArray(b.playerTags[uidKey])) b.playerTags[uidKey] = [];
       });
     });
+  });
+  if (!out.playerCategories || typeof out.playerCategories !== 'object') out.playerCategories = {};
+  Object.keys(out.playerCategories).forEach((uidKey) => {
+    if (!Array.isArray(out.playerCategories[uidKey])) out.playerCategories[uidKey] = [];
   });
   if (!out.campaign || typeof out.campaign !== 'object') out.campaign = { actNumber: '', actTitle: '' };
   if (typeof out.campaign.actNumber !== 'string') out.campaign.actNumber = '';

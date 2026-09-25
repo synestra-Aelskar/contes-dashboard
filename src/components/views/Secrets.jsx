@@ -16,7 +16,7 @@ import { toast } from '../../lib/toast.js';
  * Les cartes sont repliées par défaut ; l'index à droite (titres + tags) ouvre
  * et fait défiler jusqu'à l'élément voulu. */
 
-const NON_CLASSE = 'Non-classé';
+const SANS_TAG = 'Sans tag';
 
 function accountLabel(account) {
   if (!account) return '';
@@ -52,13 +52,7 @@ const normTag = (t) => (t || '').trim().replace(/\s+/g, ' ');
  * tant qu'il ne les a pas encore modifiés. */
 function playerTagsFor(block, userId) {
   const t = block.playerTags && Array.isArray(block.playerTags[userId]) ? block.playerTags[userId] : [];
-  return t.length ? t : [NON_CLASSE];
-}
-
-function blockTitle(b) {
-  const t = (b.text || '').trim().split('\n')[0];
-  if (!t) return 'Élément';
-  return t.length > 60 ? t.slice(0, 60) + '…' : t;
+  return t.length ? t : [SANS_TAG];
 }
 
 /* ---------- Tags ---------- */
@@ -157,19 +151,6 @@ function collectTags(list) {
 function secretHasTag(s, tag) {
   if (!tag) return true;
   return (s.tags || []).includes(tag);
-}
-
-/** Idem, mais sur les tags personnels du joueur, par bloc (index joueur). */
-function collectBlockTags(entries, userId) {
-  const counts = new Map();
-  entries.forEach(({ block }) => {
-    new Set(playerTagsFor(block, userId)).forEach((t) => counts.set(t, (counts.get(t) || 0) + 1));
-  });
-  return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0], 'fr'));
-}
-function blockHasTag(entry, tag, userId) {
-  if (!tag) return true;
-  return playerTagsFor(entry.block, userId).includes(tag);
 }
 
 /* Ouverture / repli mémorisés localement (par navigateur). */
@@ -409,9 +390,12 @@ function SecretCard({ state, s, mutate, open, onToggle }) {
   );
 }
 
-/* ---------- Joueur : chaque bloc révélé = une carte indépendante ---------- */
+/* ---------- Joueur : notes regroupées par catégorie (tag perso) ---------- */
 
-function PlayerBlockCard({ state, secret, block, userId, mutate, open, onToggle }) {
+/** Un bloc révélé, dans le contexte d'une catégorie : texte + images + ses
+ * propres tags (pour le déplacer) + partage. Plus de titre ni de « Issu
+ * de » répétés — la catégorie sert déjà d'en-tête commun. */
+function SecretEntry({ state, secret, block, userId, mutate, first }) {
   const mine = playerTagsFor(block, userId);
   const [shareOpen, setShareOpen] = useState(false);
   const myCharIds = new Set((state.characters || []).filter((c) => c.ownerId === userId).map((c) => c.id));
@@ -432,12 +416,9 @@ function PlayerBlockCard({ state, secret, block, userId, mutate, open, onToggle 
   });
 
   return (
-    <div id={'secret-block-' + block.id} className={'card secret-card' + (open ? ' is-open' : '')}>
-      <div className="secret-card__head">
-        <button type="button" className="secret-card__toggle" onClick={() => onToggle(block.id)} aria-expanded={open}>
-          <span className={'secret-card__chev' + (open ? ' is-open' : '')}>›</span>
-          <span className="secret-card__title">{blockTitle(block)}</span>
-        </button>
+    <div id={'secret-block-' + block.id} className={'secret-entry' + (first ? ' secret-entry--first' : '')}>
+      <div className="secret-entry__head">
+        <TagChips tags={mine} tone="mine" onRemove={(t) => setMine(mine.filter((x) => x !== t))} />
         <button
           className="secret-block__gear" type="button" title="Partager avec un autre personnage" aria-label="Partager avec un autre personnage"
           onClick={() => setShareOpen(true)}
@@ -448,23 +429,17 @@ function PlayerBlockCard({ state, secret, block, userId, mutate, open, onToggle 
           </svg>
         </button>
       </div>
-      {!open && <TagChips tags={mine} tone="mine" />}
-      {open && (
-        <>
-          {secret.title && <p className="chr__muted">Issu de : {secret.title}</p>}
-          <p className="secret-card__text">{block.text}</p>
-          {(block.images || []).length > 0 && (
-            <div className="pj__shots">
-              {block.images.map((img) => (
-                <a key={img.id} className="pj__shot" href={img.url} target="_blank" rel="noopener noreferrer">
-                  <img className="pj__shotimg" src={img.url} alt="" />
-                </a>
-              ))}
-            </div>
-          )}
-          <TagEditor tags={mine} onChange={setMine} placeholder="mon tag…" tone="mine" />
-        </>
+      <p className="secret-card__text">{block.text}</p>
+      {(block.images || []).length > 0 && (
+        <div className="pj__shots">
+          {block.images.map((img) => (
+            <a key={img.id} className="pj__shot" href={img.url} target="_blank" rel="noopener noreferrer">
+              <img className="pj__shotimg" src={img.url} alt="" />
+            </a>
+          ))}
+        </div>
       )}
+      <TagEditor tags={mine} onChange={setMine} placeholder="ranger dans une autre catégorie…" tone="mine" />
       {shareOpen && (
         <RevealModal
           state={state} block={block} share excludeIds={myCharIds}
@@ -473,6 +448,45 @@ function PlayerBlockCard({ state, secret, block, userId, mutate, open, onToggle 
         />
       )}
     </div>
+  );
+}
+
+/** Liste des catégories (tags perso) à gauche : « Sans tag » toujours
+ * présente, plus celles créées par le joueur ou déjà utilisées sur un bloc.
+ * Une catégorie vide et non par défaut peut être retirée. */
+function CategoryIndex({ categories, active, onPick, onAdd, onRemove }) {
+  const [draft, setDraft] = useState('');
+  const add = () => {
+    const n = normTag(draft);
+    if (!n) return;
+    onAdd(n);
+    setDraft('');
+  };
+  return (
+    <aside className="secret-index">
+      <span className="card__label">Catégories</span>
+      <div className="secret-catlist">
+        {categories.map(([name, count]) => (
+          <div key={name} className={'secret-catlist__item' + (active === name ? ' is-active' : '')}>
+            <button type="button" className="secret-catlist__pick" onClick={() => onPick(name)}>
+              <span className="secret-catlist__name">{name}</span>
+              <span className="secret-catlist__count">{count}</span>
+            </button>
+            {name !== SANS_TAG && count === 0 && (
+              <button type="button" className="secret-catlist__del" title="Retirer cette catégorie" aria-label="Retirer cette catégorie" onClick={() => onRemove(name)}>×</button>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="secret-catlist__add">
+        <input
+          className="finput" type="text" value={draft} placeholder="nouvelle catégorie…"
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
+        />
+        <button className="tbtn" type="button" onClick={add}>＋</button>
+      </div>
+    </aside>
   );
 }
 
@@ -487,37 +501,64 @@ function PlayerSecrets({ state, mutate, userId }) {
     });
     return out;
   }, [state.secrets, state.characters, userId]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [tagFilter, setTagFilter] = useState('');
-  const [openSet, toggle] = useOpenSet('ccm.secretsOpen.player');
-  const allTags = collectBlockTags(entries, userId);
-  const shown = entries.filter((e) => blockHasTag(e, tagFilter, userId));
-  const opened = shown.filter((e) => openSet.has(e.block.id));
-  const pick = (id) => {
-    const willOpen = !openSet.has(id);
-    toggle(id);
-    if (willOpen) setTimeout(() => scrollTo('secret-block-' + id), 30);
-  };
+
+  const customCats = (state.playerCategories && state.playerCategories[userId]) || [];
+  const [active, setActive] = useState(() => lsGet('ccm.secretsCat.' + userId) || SANS_TAG);
+
+  const catMap = useMemo(() => {
+    const m = new Map();
+    m.set(SANS_TAG, []);
+    customCats.forEach((c) => { if (!m.has(c)) m.set(c, []); });
+    entries.forEach((e) => {
+      playerTagsFor(e.block, userId).forEach((t) => {
+        if (!m.has(t)) m.set(t, []);
+        m.get(t).push(e);
+      });
+    });
+    return m;
+  }, [entries, customCats, userId]);
+
+  const categories = Array.from(catMap.entries()).sort((a, b) => {
+    if (a[0] === SANS_TAG) return -1;
+    if (b[0] === SANS_TAG) return 1;
+    return a[0].localeCompare(b[0], 'fr');
+  }).map(([name, list]) => [name, list.length]);
+
+  const pick = (name) => { setActive(name); lsSet('ccm.secretsCat.' + userId, name); };
+
+  const addCategory = (name) => mutate((s) => {
+    s.playerCategories = s.playerCategories && typeof s.playerCategories === 'object' ? s.playerCategories : {};
+    const list = Array.isArray(s.playerCategories[userId]) ? s.playerCategories[userId] : [];
+    if (!list.some((x) => x.toLowerCase() === name.toLowerCase())) s.playerCategories[userId] = [...list, name];
+  });
+  const removeCategory = (name) => mutate((s) => {
+    s.playerCategories = s.playerCategories && typeof s.playerCategories === 'object' ? s.playerCategories : {};
+    const list = Array.isArray(s.playerCategories[userId]) ? s.playerCategories[userId] : [];
+    s.playerCategories[userId] = list.filter((x) => x !== name);
+  });
+
+  const activeEntries = catMap.get(active) || [];
 
   return (
     <section className="chapter">
       <div className="chapter__head"><h2>Secrets<span className="count"> ({entries.length})</span></h2></div>
-      {!entries.length ? (
+      {!entries.length && customCats.length === 0 ? (
         <p className="empty">Aucun secret ne vous a été révélé pour l’instant.</p>
       ) : (
         <div className="secret-layout">
           <div className="secret-list">
-            {!opened.length && <p className="empty secret-list__hint">Choisis un élément dans l’index.</p>}
-            {opened.map(({ secret, block }) => (
-              <PlayerBlockCard
-                key={block.id} state={state} secret={secret} block={block} userId={userId} mutate={mutate}
-                open onToggle={(id) => toggle(id, false)}
-              />
-            ))}
+            <div className="card secret-card is-open">
+              <div className="secret-card__head">
+                <span className="secret-card__title">{active}</span>
+                <span className="secret-card__meta">{activeEntries.length} note{activeEntries.length > 1 ? 's' : ''}</span>
+              </div>
+              {!activeEntries.length && <p className="empty">Rien dans cette catégorie pour l’instant.</p>}
+              {activeEntries.map(({ secret, block }, i) => (
+                <SecretEntry key={block.id} state={state} secret={secret} block={block} userId={userId} mutate={mutate} first={i === 0} />
+              ))}
+            </div>
           </div>
-          <SecretIndex
-            items={shown.map(({ block }) => ({ id: block.id, title: blockTitle(block), tags: playerTagsFor(block, userId) }))}
-            tagFilter={tagFilter} setTagFilter={setTagFilter} openIds={openSet} onPick={pick} allTags={allTags}
-          />
+          <CategoryIndex categories={categories} active={active} onPick={pick} onAdd={addCategory} onRemove={removeCategory} />
         </div>
       )}
     </section>
