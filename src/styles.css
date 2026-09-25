@@ -554,10 +554,8 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 .pj__shotimg{ width:100%; aspect-ratio:16/10; object-fit:cover; border:1px solid var(--rule); border-radius:2px; display:block; }
 
 .pj__traits{ display:flex; flex-direction:column; gap:12px; }
-.pj__valgroups{ display:flex; flex-direction:column; gap:20px; }
-.pj__valaccount{ display:flex; flex-direction:column; gap:10px; }
-.pj__valaccounthead{ margin:0; padding-bottom:6px; border-bottom:1px solid var(--rule); font-family:var(--f-body); font-size:14px; font-weight:600; color:var(--fg); }
-.pj__valchar{ display:flex; flex-direction:column; gap:8px; padding-left:10px; border-left:2px solid var(--rule); }
+.pj__nav--row{ flex-direction:row; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+.pj__nav--sub{ margin-bottom:20px; padding-top:10px; border-top:1px solid var(--rule); }
 .pj__trait{ border:1px solid var(--rule); border-radius:3px; padding:12px; display:flex; flex-direction:column; gap:8px; background:var(--surface); }
 .pj__traithead{ display:flex; justify-content:space-between; align-items:center; }
 .pj__traitstatus{ font-family:var(--f-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
