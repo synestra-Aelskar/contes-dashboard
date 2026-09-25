@@ -46,13 +46,38 @@ function effectiveVisibility(node, ancestors) {
   return ['admin'];
 }
 
+/** Tout nœud qui n'est pas un conteneur (catégorie/sous-catégorie) est une
+ * feuille navigable — une vue statique (registre ALL_VIEWS) ou un document
+ * dynamique (ex. une fiche technique précise). */
+function isLeaf(n) {
+  return n.type !== 'category' && n.type !== 'subcategory';
+}
+
+/** Clé de routage d'une feuille, utilisée comme `view` dans Dashboard :
+ * la vue statique elle-même, ou `doc:<docKind>:<docId>` pour un document. */
+export function routeKeyOf(n) {
+  return n.type === 'view' ? n.viewKey : 'doc:' + n.docKind + ':' + n.docId;
+}
+
+/** Libellé affiché d'une feuille : registre statique pour une vue, nom du
+ * document (résolu depuis `state`) pour un doc — « Sans nom » si introuvable
+ * (document supprimé entre-temps, purgé au prochain normalize). */
+export function labelForNode(n, state) {
+  if (n.type === 'view') return VIEW_LABEL[n.viewKey] || n.viewKey;
+  if (n.type === 'doc' && n.docKind === 'fichetechnique') {
+    const f = (state && state.fichesTechniques || []).find((x) => x.id === n.docId);
+    return (f && f.nom && f.nom.trim()) || 'Sans nom';
+  }
+  return n.name || 'Sans nom';
+}
+
 /** Élague l'arbre aux nœuds visibles pour ce rôle — une catégorie/sous-catégorie
  * vidée de tout enfant visible disparaît entièrement. */
 export function pruneForRole(tree, role) {
   function walk(nodes, ancestors) {
     const out = [];
     for (const n of nodes || []) {
-      if (n.type === 'view') {
+      if (isLeaf(n)) {
         if (effectiveVisibility(n, ancestors).includes(role)) out.push(n);
       } else {
         const kids = walk(n.children, [...ancestors, n]);
@@ -66,15 +91,15 @@ export function pruneForRole(tree, role) {
 
 export function firstViewKey(tree) {
   for (const n of tree || []) {
-    if (n.type === 'view') return n.viewKey;
+    if (isLeaf(n)) return routeKeyOf(n);
     const inner = firstViewKey(n.children);
     if (inner) return inner;
   }
   return null;
 }
 
-export function treeHasView(tree, viewKey) {
-  return (tree || []).some((n) => (n.type === 'view' ? n.viewKey === viewKey : treeHasView(n.children, viewKey)));
+export function treeHasView(tree, key) {
+  return (tree || []).some((n) => (isLeaf(n) ? routeKeyOf(n) === key : treeHasView(n.children, key)));
 }
 
 export function usedViewKeys(tree) {
@@ -83,6 +108,36 @@ export function usedViewKeys(tree) {
     (nodes || []).forEach((n) => { if (n.type === 'view') set.add(n.viewKey); else walk(n.children); });
   })(tree);
   return set;
+}
+
+/** Ids de documents d'un `docKind` donné déjà présents quelque part dans
+ * l'arbre (utilisé pour n'ajouter que les documents manquants). */
+export function usedDocIds(tree, docKind) {
+  const set = new Set();
+  (function walk(nodes) {
+    (nodes || []).forEach((n) => {
+      if (n.type === 'doc' && n.docKind === docKind) set.add(n.docId);
+      else walk(n.children);
+    });
+  })(tree);
+  return set;
+}
+
+/** Retire les nœuds `doc` d'un `docKind` donné dont l'id ne correspond plus à
+ * un document existant (document supprimé côté source). */
+export function pruneMissingDocs(tree, docKind, validIds) {
+  function walk(nodes) {
+    const out = [];
+    for (const n of nodes || []) {
+      if (n.type === 'doc' && n.docKind === docKind) {
+        if (validIds.has(n.docId)) out.push(n);
+        continue;
+      }
+      out.push(n.children ? { ...n, children: walk(n.children) } : n);
+    }
+    return out;
+  }
+  return walk(tree);
 }
 
 /* --- transformations pures de l'arbre (utilisées par l'éditeur Ordre menu) --- */
@@ -184,8 +239,8 @@ export function removeNode(tree, id) {
   function flattenChildren(nodes) {
     const out = [];
     for (const n of nodes || []) {
-      if (n.type === 'view') out.push(n);
-      else out.push(...flattenChildren(n.children));
+      if (n.type === 'category' || n.type === 'subcategory') out.push(...flattenChildren(n.children));
+      else out.push(n);
     }
     return out;
   }

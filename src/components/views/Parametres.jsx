@@ -3,7 +3,7 @@ import { uid, fmtDateLong } from '../../lib/util.js';
 import { useSyncedField } from '../../lib/useSyncedField.js';
 import { supabase } from '../../supabase';
 import {
-  ROLES, VIEW_LABEL, listContainers, moveViewToContainer, moveNodeToPosition, addCategory, addSubcategory,
+  ROLES, labelForNode, listContainers, moveViewToContainer, moveNodeToPosition, addCategory, addSubcategory,
   renameNode, setNodeVisibility, removeNode, moveSibling
 } from '../../lib/menu.js';
 import { PLAYER_EMAIL_DOMAIN } from '../../lib/playerAuth.js';
@@ -402,8 +402,8 @@ function useDropTarget(node, containerId, index, drag) {
   };
 }
 
-function ViewNodeRow({ node, mutate, containers, depth, currentContainer, index, isFirst, isLast, drag }) {
-  const label = VIEW_LABEL[node.viewKey] || node.viewKey;
+function ViewNodeRow({ node, mutate, containers, depth, currentContainer, index, isFirst, isLast, drag, state }) {
+  const label = labelForNode(node, state);
   const dz = useDropTarget(node, currentContainer, index, drag);
   return (
     <div className={'menuedit__row' + dz.className} style={{ marginLeft: depth * 18 }} onDragOver={dz.onDragOver} onDrop={dz.onDrop}>
@@ -499,11 +499,11 @@ function OrdreMenuPane({ state, mutate }) {
   function renderNodes(nodes, depth, containerId) {
     return nodes.map((n, i) => {
       const isFirst = i === 0, isLast = i === nodes.length - 1;
-      if (n.type === 'view') {
+      if (n.type !== 'category' && n.type !== 'subcategory') {
         return (
           <ViewNodeRow
             key={n.id} node={n} mutate={mutate} containers={containers} depth={depth}
-            currentContainer={containerId} index={i} isFirst={isFirst} isLast={isLast} drag={drag}
+            currentContainer={containerId} index={i} isFirst={isFirst} isLast={isLast} drag={drag} state={state}
           />
         );
       }

@@ -386,11 +386,11 @@ function Block({ block, index, total, read, mutate, onRemove, onAskHS }) {
 
 /* ---------- éditeur d'une fiche ---------- */
 
-function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead }) {
+export function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead, canEdit = true, backLabel = '← Fiche Technique' }) {
   const blocks = fiche.blocks;
   const [nom, setNom, nomRef] = useSyncedField(fiche.nom);
   const [sousTitre, setSousTitre, sousTitreRef] = useSyncedField(fiche.sousTitre || '');
-  const [read, setRead] = useState(!!initialRead);
+  const [read, setRead] = useState(canEdit ? !!initialRead : true);
   const [hsFrom, setHsFrom] = useState(null);
 
   useEffect(() => {
@@ -496,8 +496,10 @@ function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead }) {
       <div style={{ maxWidth: 980, margin: '0 auto' }}>
         <header style={{ padding: '32px 0 40px', borderBottom: '1px solid rgba(201,160,90,0.22)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 22 }}>
-            <button onClick={onBack} style={{ ...ghostBtn, padding: '9px 14px' }}>← Fiche Technique</button>
-            <button onClick={onDelete} style={{ ...ghostBtn, color: '#c9857e', borderColor: 'rgba(201,133,126,0.4)' }}>Supprimer cette fiche</button>
+            <button onClick={onBack} style={{ ...ghostBtn, padding: '9px 14px' }}>{backLabel}</button>
+            {canEdit && (
+              <button onClick={onDelete} style={{ ...ghostBtn, color: '#c9857e', borderColor: 'rgba(201,133,126,0.4)' }}>Supprimer cette fiche</button>
+            )}
           </div>
           <div style={{ ...label('var(--sz-acc-ink)'), fontSize: 12, letterSpacing: '0.22em', marginBottom: 22 }}>
             Fiche technique
@@ -582,7 +584,7 @@ function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead }) {
 
         {list.length > 0 && <Rule>fin de la fiche</Rule>}
 
-        {list.length > 0 && (
+        {canEdit && list.length > 0 && (
           <div style={{ padding: '10px 0 0', display: 'flex', justifyContent: 'center' }}>
             <button onClick={() => setRead((r) => !r)} style={{ ...ghostBtn, color: INK_DIM, fontSize: 11, letterSpacing: '0.18em', padding: '13px 22px' }}>
               {read ? 'Repasser en édition' : 'En mode lecture'}
@@ -590,9 +592,11 @@ function FicheEditor({ fiche, mutate, onBack, onDelete, initialRead }) {
           </div>
         )}
 
-        <p style={{ margin: '28px 0 0', fontSize: 15, color: INK_FAINT, fontStyle: 'italic', textAlign: 'center' }}>
-          Cette fiche est partagée entre les deux MJ : les modifications de l'un apparaissent chez l'autre en direct.
-        </p>
+        {canEdit && (
+          <p style={{ margin: '28px 0 0', fontSize: 15, color: INK_FAINT, fontStyle: 'italic', textAlign: 'center' }}>
+            Cette fiche est partagée entre les deux MJ : les modifications de l'un apparaissent chez l'autre en direct.
+          </p>
+        )}
       </div>
 
       {hsFrom && (

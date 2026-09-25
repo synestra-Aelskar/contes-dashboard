@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { lsGet, lsSet } from '../lib/util.js';
-import { VIEW_LABEL } from '../lib/menu.js';
+import { routeKeyOf, labelForNode } from '../lib/menu.js';
 import SidebarIcon, { ChevronIcon, hasIcon } from './SidebarIcons.jsx';
 
 function initials(label) {
@@ -8,31 +8,34 @@ function initials(label) {
   return (words.slice(0, 2).map((w) => w[0]).join('') || (label || '').slice(0, 2)).toUpperCase();
 }
 
+const isLeaf = (n) => n.type !== 'category' && n.type !== 'subcategory';
+
 /** Icône de la vue, ou ses initiales dans une pastille quand elle n'en a pas. */
-function Glyph({ viewKey, label }) {
-  if (hasIcon(viewKey)) return <SidebarIcon name={viewKey} />;
+function Glyph({ iconKey, label }) {
+  if (hasIcon(iconKey)) return <SidebarIcon name={iconKey} />;
   return <span className="sidebar__initials" aria-hidden="true">{initials(label)}</span>;
 }
 
-function ViewItem({ node, depth, active, onSelect, compact, badge }) {
-  const label = VIEW_LABEL[node.viewKey] || node.viewKey;
+function ViewItem({ node, depth, active, onSelect, compact, badge, state }) {
+  const label = labelForNode(node, state);
+  const key = routeKeyOf(node);
   return (
     <button
       type="button"
       className={'sidebar__item' + (active ? ' is-active' : '')}
       style={compact ? undefined : { paddingLeft: 10 + depth * 14 }}
-      onClick={() => onSelect(node.viewKey)}
+      onClick={() => onSelect(key)}
       data-label={label}
       aria-label={label}
     >
-      <Glyph viewKey={node.viewKey} label={label} />
+      <Glyph iconKey={node.type === 'view' ? node.viewKey : key} label={label} />
       <span className="sidebar__label">{label}</span>
       {badge > 0 && <span className="sidebar__badge">{badge}</span>}
     </button>
   );
 }
 
-function GroupItem({ node, depth, view, onSelect, compact, openMap, toggleOpen, badges }) {
+function GroupItem({ node, depth, view, onSelect, compact, openMap, toggleOpen, badges, state }) {
   const isOpen = compact || openMap[node.id] !== false;
   return (
     <div className={'sidebar__group' + (compact ? ' sidebar__group--rail' : '')}>
@@ -53,15 +56,15 @@ function GroupItem({ node, depth, view, onSelect, compact, openMap, toggleOpen, 
         </button>
       )}
       {isOpen && (node.children || []).map((c) => (
-        c.type === 'view'
-          ? <ViewItem key={c.id} node={c} depth={depth + 1} active={view === c.viewKey} onSelect={onSelect} compact={compact} badge={badges && badges[c.viewKey]} />
-          : <GroupItem key={c.id} node={c} depth={depth + 1} view={view} onSelect={onSelect} compact={compact} openMap={openMap} toggleOpen={toggleOpen} badges={badges} />
+        isLeaf(c)
+          ? <ViewItem key={c.id} node={c} depth={depth + 1} active={view === routeKeyOf(c)} onSelect={onSelect} compact={compact} badge={badges && badges[routeKeyOf(c)]} state={state} />
+          : <GroupItem key={c.id} node={c} depth={depth + 1} view={view} onSelect={onSelect} compact={compact} openMap={openMap} toggleOpen={toggleOpen} badges={badges} state={state} />
       ))}
     </div>
   );
 }
 
-export default function Sidebar({ tree, view, setView, footerItems, topSlot, badges }) {
+export default function Sidebar({ tree, view, setView, footerItems, topSlot, badges, state }) {
   const [compact, setCompact] = useState(lsGet('ccm.sidebarCompact') === '1');
   const [openMap, setOpenMap] = useState({});
   const toggleOpen = (id) => setOpenMap((m) => ({ ...m, [id]: m[id] === false ? true : false }));
@@ -77,9 +80,9 @@ export default function Sidebar({ tree, view, setView, footerItems, topSlot, bad
       {topSlot && <div className="sidebar__top">{topSlot}</div>}
       <div className="sidebar__items">
         {tree.map((n) => (
-          n.type === 'view'
-            ? <ViewItem key={n.id} node={n} depth={0} active={view === n.viewKey} onSelect={setView} compact={compact} badge={badges && badges[n.viewKey]} />
-            : <GroupItem key={n.id} node={n} depth={0} view={view} onSelect={setView} compact={compact} openMap={openMap} toggleOpen={toggleOpen} badges={badges} />
+          isLeaf(n)
+            ? <ViewItem key={n.id} node={n} depth={0} active={view === routeKeyOf(n)} onSelect={setView} compact={compact} badge={badges && badges[routeKeyOf(n)]} state={state} />
+            : <GroupItem key={n.id} node={n} depth={0} view={view} onSelect={setView} compact={compact} openMap={openMap} toggleOpen={toggleOpen} badges={badges} state={state} />
         ))}
       </div>
       {footerItems && footerItems.length > 0 && (
@@ -92,7 +95,7 @@ export default function Sidebar({ tree, view, setView, footerItems, topSlot, bad
               data-label={it.label}
               aria-label={it.label}
             >
-              <Glyph viewKey={it.key} label={it.label} />
+              <Glyph iconKey={it.key} label={it.label} />
               <span className="sidebar__label">{it.label}</span>
             </button>
           ))}

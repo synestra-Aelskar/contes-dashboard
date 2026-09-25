@@ -23,6 +23,7 @@ import PersonnageJoueur from './views/PersonnageJoueur.jsx';
 import Validations from './views/Validations.jsx';
 import Zones from './views/Zones.jsx';
 import FicheTechnique from './views/FicheTechnique.jsx';
+import FicheTechniqueDoc from './views/FicheTechniqueDoc.jsx';
 import XpCalibreur from './views/XpCalibreur.jsx';
 import Equilibrage from './views/Equilibrage.jsx';
 import PrepSession from './views/PrepSession.jsx';
@@ -99,10 +100,12 @@ export default function Dashboard({ session }) {
   }
 
   const shared = { state, mutate, goToSession, role, userId: session.user.id };
+  const ficheDocId = activeView.startsWith('doc:fichetechnique:') ? activeView.slice('doc:fichetechnique:'.length) : null;
   let ViewComp = null;
   if (activeView === 'personnages') ViewComp = PersonnageJoueur;
   else if (activeView === 'parametres') ViewComp = Parametres;
   else if (activeView === 'tableaudebord') ViewComp = TableauDeBord;
+  else if (ficheDocId) ViewComp = FicheTechniqueDoc;
   else ViewComp = VIEW_COMPONENTS[activeView] || null;
 
   const badges = role === 'admin' ? { validations: pendingValidationsCount(state) } : undefined;
@@ -169,12 +172,14 @@ export default function Dashboard({ session }) {
       </header>
 
       <div className="dash-body">
-        <Sidebar tree={tree} view={activeView} setView={setView} footerItems={footerItems} topSlot={sessionButton} badges={badges} />
+        <Sidebar tree={tree} view={activeView} setView={setView} footerItems={footerItems} topSlot={sessionButton} badges={badges} state={state} />
         <div className={'dash-main view view--' + (activeView || 'empty')}>
           {ViewComp
             ? (activeView === 'personnages'
               ? <ViewComp state={state} mutate={mutate} userId={session.user.id} goToSession={goToSession} />
-              : <ViewComp {...shared} />)
+              : ficheDocId
+                ? <ViewComp {...shared} ficheId={ficheDocId} setView={setView} />
+                : <ViewComp {...shared} />)
             : <p className="empty">Aucune vue accessible pour l’instant.</p>}
         </div>
       </div>

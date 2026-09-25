@@ -4,7 +4,7 @@ import { XP_DEFAULT_STATE, normalizeXpState } from './xpCalibreur.js';
 import { uid } from './util.js';
 import { vrValid } from './valrazkah.js';
 import { aelValid } from './aelskar.js';
-import { ALL_VIEWS, defaultMenuTree, usedViewKeys } from './menu.js';
+import { ALL_VIEWS, defaultMenuTree, usedViewKeys, usedDocIds, pruneMissingDocs } from './menu.js';
 
 const ROW_ID = 'main';
 const SAVE_DEBOUNCE = 1000;
@@ -138,6 +138,19 @@ function normalize(raw) {
       blocks: out.sessionZero.blocks
     }];
     out.sessionZero = { blocks: [] }; // migré : on vide la source pour ne pas la ressusciter si la fiche est supprimée
+  }
+  // Chaque fiche technique a son propre nœud dans le menu (placement libre en
+  // catégorie, visibilité admin/joueur par nœud) — on ajoute les manquants
+  // (admin par défaut) et on purge ceux dont la fiche a été supprimée.
+  {
+    const usedFiches = usedDocIds(out.settings.menu, 'fichetechnique');
+    out.fichesTechniques.forEach((f) => {
+      if (!usedFiches.has(f.id)) {
+        out.settings.menu.push({ id: uid(), type: 'doc', docKind: 'fichetechnique', docId: f.id, visibility: ['admin'] });
+      }
+    });
+    const validFicheIds = new Set(out.fichesTechniques.map((f) => f.id));
+    out.settings.menu = pruneMissingDocs(out.settings.menu, 'fichetechnique', validFicheIds);
   }
   out.xpCalibreur = normalizeXpState(out.xpCalibreur);
   if (typeof out.updated !== 'string') out.updated = '';
