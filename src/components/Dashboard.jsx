@@ -56,9 +56,10 @@ const DOC_COMPONENTS = { fichetechnique: FicheTechniqueDoc, fichenarrative: Fich
 
 function pendingValidationsCount(state) {
   let n = 0;
-  (state.characters || []).forEach((c) => (c.traits || []).forEach((t) => {
-    if (t.status === 'pending' || t.status === 'creating') n += 1;
-  }));
+  (state.characters || []).forEach((c) => {
+    (c.traits || []).forEach((t) => { if (t.status === 'pending' || t.status === 'creating') n += 1; });
+    (c.objects || []).forEach((t) => { if (t.status === 'pending' || t.status === 'creating') n += 1; });
+  });
   return n;
 }
 

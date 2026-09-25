@@ -12,6 +12,7 @@ const TABS = [
   ['xp', 'Suivi'],
   ['journal', 'Journal'],
   ['traits', 'Traits'],
+  ['objects', 'Objets'],
   ['backstage', 'Backstage']
 ];
 
@@ -279,6 +280,20 @@ function AdminTraitsTab({ char, mutate }) {
   );
 }
 
+function AdminObjectsTab({ char, mutate }) {
+  const objects = char.objects || [];
+  return (
+    <div className="chr__main">
+      <h4 className="chr__h">Objets<span className="count"> ({objects.length})</span></h4>
+      {objects.length ? (
+        <div className="pj__traits">
+          {objects.map((obj) => <TraitAdminBlock key={obj.id} char={char} trait={obj} mutate={mutate} field="objects" />)}
+        </div>
+      ) : <p className="empty">Aucun objet proposé par ce personnage.</p>}
+    </div>
+  );
+}
+
 function AdminBackstageTab({ state, char, mutate }) {
   return (
     <div className="chr__main">
@@ -304,6 +319,7 @@ function CharPane({ state, char, mutate, goToSession, accounts }) {
   if (tab === 'xp') content = <AdminXpTab state={state} char={char} mutate={mutate} goToSession={goToSession} />;
   else if (tab === 'journal') content = <AdminJournalTab char={char} />;
   else if (tab === 'traits') content = <AdminTraitsTab char={char} mutate={mutate} />;
+  else if (tab === 'objects') content = <AdminObjectsTab char={char} mutate={mutate} />;
   else if (tab === 'backstage') content = <AdminBackstageTab state={state} char={char} mutate={mutate} />;
   else content = <AdminInfoTab char={char} mutate={mutate} accounts={accounts} />;
 
@@ -382,7 +398,7 @@ export default function Personnages({ state, mutate, goToSession }) {
   function addChar() {
     const c = {
       id: uid(), name: 'Nouveau personnage', artUrl: '', mjNote: '', race: '', description: '', qualite: '', defaut: '', peurs: '',
-      xp: [], events: [], recaps: [], journal: [], traits: [], ownerId: null
+      xp: [], events: [], recaps: [], journal: [], traits: [], objects: [], ownerId: null
     };
     mutate((s) => { s.characters.push(c); });
     select(c.id);

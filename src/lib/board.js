@@ -158,6 +158,14 @@ function normalize(raw) {
       if (typeof t.status !== 'string') t.status = 'draft';
       if (typeof t.mjNote !== 'string') t.mjNote = '';
     });
+    if (!Array.isArray(c.objects)) c.objects = [];
+    c.objects.forEach((t) => {
+      if (typeof t.name !== 'string') t.name = '';
+      if (typeof t.narrativeDesc !== 'string') t.narrativeDesc = '';
+      if (typeof t.technicalDesc !== 'string') t.technicalDesc = '';
+      if (typeof t.status !== 'string') t.status = 'draft';
+      if (typeof t.mjNote !== 'string') t.mjNote = '';
+    });
   });
   out.threads.forEach((t) => {
     if (typeof t.title !== 'string') t.title = '';

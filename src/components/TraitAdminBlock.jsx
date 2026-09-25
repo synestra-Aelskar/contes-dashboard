@@ -9,18 +9,18 @@ export const TRAIT_STATUS_LABEL = {
   refused: 'Refusé'
 };
 
-/** Bloc de validation MJ d'un trait proposé par un joueur, replié par
- * défaut (nom + statut seuls) — la flèche déplie le contenu et les actions.
- * Validation en deux temps : « Valider » (pending → creating, à créer en
- * jeu côté Necronicon) puis « Créé en jeu ✓ » (creating → accepted), ou
- * refus. */
-export default function TraitAdminBlock({ char, trait, mutate }) {
+/** Bloc de validation MJ d'un trait (ou objet — `field="objects"`) proposé
+ * par un joueur, replié par défaut (nom + statut seuls) — la flèche déplie
+ * le contenu et les actions. Validation en deux temps : « Valider »
+ * (pending → creating, à créer en jeu côté Necronicon) puis « Créé en jeu
+ * ✓ » (creating → accepted), ou refus. */
+export default function TraitAdminBlock({ char, trait, mutate, field = 'traits' }) {
   const [open, setOpen] = useState(false);
   const [mjNote, setMjNote, mjRef] = useSyncedField(trait.mjNote);
   const patch = (fn) =>
     mutate((s) => {
       const c = s.characters.find((x) => x.id === char.id);
-      const t = c && (c.traits || []).find((x) => x.id === trait.id);
+      const t = c && (c[field] || []).find((x) => x.id === trait.id);
       if (t) fn(t);
     });
 

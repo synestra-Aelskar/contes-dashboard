@@ -13,6 +13,7 @@ const TABS = [
   ['xp', 'Suivi XP'],
   ['journal', 'Journal'],
   ['traits', 'Traits'],
+  ['objects', 'Objets'],
   ['backstage', 'Backstage']
 ];
 
@@ -238,7 +239,10 @@ function JournalTab({ char, mutate }) {
 
 /* ------------------------------- Traits --------------------------------- */
 
-function TraitBlock({ char, trait, mutate }) {
+/** Bloc joueur éditable pour un trait (`field="traits"`) ou un objet
+ * (`field="objects"`) proposé à la validation MJ — même cycle de statut,
+ * seul le libellé change. */
+function TraitBlock({ char, trait, mutate, field = 'traits', noun = 'trait' }) {
   const editable = trait.status === 'draft' || trait.status === 'refused';
   const [name, setName, nameRef] = useSyncedField(trait.name);
   const [narrativeDesc, setNarrativeDesc, narRef] = useSyncedField(trait.narrativeDesc);
@@ -247,7 +251,7 @@ function TraitBlock({ char, trait, mutate }) {
   const patch = (fn) =>
     mutate((s) => {
       const c = s.characters.find((x) => x.id === char.id);
-      const t = c && (c.traits || []).find((x) => x.id === trait.id);
+      const t = c && (c[field] || []).find((x) => x.id === trait.id);
       if (t) fn(t);
     });
 
@@ -265,10 +269,10 @@ function TraitBlock({ char, trait, mutate }) {
         <span className={'pj__traitstatus pj__traitstatus--' + trait.status}>{TRAIT_STATUS_LABEL[trait.status]}</span>
         {editable && (
           <button
-            className="tbtn chr__x" type="button" aria-label="supprimer le trait"
+            className="tbtn chr__x" type="button" aria-label={'supprimer ce ' + noun}
             onClick={() => mutate((s) => {
               const c = s.characters.find((x) => x.id === char.id);
-              if (c) c.traits = (c.traits || []).filter((x) => x.id !== trait.id);
+              if (c) c[field] = (c[field] || []).filter((x) => x.id !== trait.id);
             })}
           >
             ×
@@ -279,9 +283,9 @@ function TraitBlock({ char, trait, mutate }) {
       {editable ? (
         <>
           <label className="flabel">
-            Nom du trait
+            Nom {noun === 'objet' ? 'de l’objet' : 'du trait'}
             <input
-              ref={nameRef} className="field" type="text" placeholder="Nom du trait"
+              ref={nameRef} className="field" type="text" placeholder={'Nom ' + (noun === 'objet' ? 'de l’objet' : 'du trait')}
               value={name}
               onChange={(e) => { const v = e.target.value; setName(v); patch((t) => { t.name = v; }); }}
               onBlur={() => patch((t) => { t.name = name.trim(); })}
@@ -299,7 +303,7 @@ function TraitBlock({ char, trait, mutate }) {
           <label className="flabel">
             Description technique
             <textarea
-              ref={techRef} className="notes" placeholder="Qu’est-ce que ce trait apporte en gameplay ?"
+              ref={techRef} className="notes" placeholder={noun === 'objet' ? 'Qu’est-ce que cet objet apporte en gameplay ?' : 'Qu’est-ce que ce trait apporte en gameplay ?'}
               value={technicalDesc}
               onChange={(e) => { const v = e.target.value; setTechnicalDesc(v); patch((t) => { t.technicalDesc = v; }); }}
               onBlur={() => patch((t) => { t.technicalDesc = technicalDesc; })}
@@ -351,6 +355,34 @@ function TraitsTab({ char, mutate }) {
   );
 }
 
+function ObjectsTab({ char, mutate }) {
+  const objects = char.objects || [];
+
+  function addObject() {
+    mutate((s) => {
+      const c = s.characters.find((x) => x.id === char.id);
+      if (c) {
+        c.objects = c.objects || [];
+        c.objects.push({ id: uid(), name: '', narrativeDesc: '', technicalDesc: '', status: 'draft', mjNote: '' });
+      }
+    });
+  }
+
+  return (
+    <div className="chr__main">
+      <div className="chapter__head">
+        <h4 className="chr__h">Objets<span className="count"> ({objects.length})</span></h4>
+        <button className="tbtn" type="button" onClick={addObject}>＋ nouvel objet</button>
+      </div>
+      {objects.length ? (
+        <div className="pj__traits">
+          {objects.map((obj) => <TraitBlock key={obj.id} char={char} trait={obj} mutate={mutate} field="objects" noun="objet" />)}
+        </div>
+      ) : <p className="empty">Aucun objet proposé. Un objet décrit une création (arme, artefact, outil…) propre à ton personnage, à faire valider par le MJ.</p>}
+    </div>
+  );
+}
+
 /* ------------------------------- Backstage ------------------------------ */
 
 function BackstageTab({ state, char, mutate }) {
@@ -386,7 +418,7 @@ export default function PersonnageJoueur({ state, mutate, userId, goToSession })
   function createChar() {
     const c = {
       id: uid(), name: 'Nouveau personnage', artUrl: '', mjNote: '', race: '', description: '', qualite: '', defaut: '', peurs: '',
-      xp: [], events: [], recaps: [], journal: [], traits: [], ownerId: userId
+      xp: [], events: [], recaps: [], journal: [], traits: [], objects: [], ownerId: userId
     };
     mutate((s) => { s.characters.push(c); });
     selectChar(c.id);
@@ -412,6 +444,7 @@ export default function PersonnageJoueur({ state, mutate, userId, goToSession })
   if (tab === 'xp') content = <XpTab state={state} char={mine} goToSession={goToSession} />;
   else if (tab === 'journal') content = <JournalTab char={mine} mutate={mutate} />;
   else if (tab === 'traits') content = <TraitsTab char={mine} mutate={mutate} />;
+  else if (tab === 'objects') content = <ObjectsTab char={mine} mutate={mutate} />;
   else if (tab === 'backstage') content = <BackstageTab state={state} char={mine} mutate={mutate} />;
   else content = <InfoTab char={mine} patch={patch} />;
 
