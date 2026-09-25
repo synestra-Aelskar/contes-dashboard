@@ -418,41 +418,44 @@ function SecretEntry({ state, secret, block, userId, mutate, first }) {
 
   return (
     <div id={'secret-block-' + block.id} className={'secret-entry' + (first ? ' secret-entry--first' : '')}>
-      <div className="secret-entry__head">
-        <span className="secret-entry__spacer" />
-        <button
-          className={'secret-block__gear' + (tagsOpen ? ' is-active' : '')} type="button"
-          title="Étiquettes" aria-label="Modifier les étiquettes"
-          onClick={() => setTagsOpen((v) => !v)}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M20.6 12.7L12.7 20.6a2 2 0 0 1-2.8 0l-6.5-6.5a2 2 0 0 1 0-2.8l7.9-7.9A2 2 0 0 1 12.7 3H19a1 1 0 0 1 1 1v6.3a2 2 0 0 1-.4 1.4z" />
-            <circle cx="16.5" cy="7.5" r="1.2" fill="currentColor" stroke="none" />
-          </svg>
-        </button>
-        <button
-          className="secret-block__gear" type="button" title="Partager avec un autre personnage" aria-label="Partager avec un autre personnage"
-          onClick={() => setShareOpen(true)}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
-            <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
-          </svg>
-        </button>
-      </div>
-      <p className="secret-card__text">{block.text}</p>
-      {(block.images || []).length > 0 && (
-        <div className="pj__shots">
-          {block.images.map((img) => (
-            <a key={img.id} className="pj__shot" href={img.url} target="_blank" rel="noopener noreferrer">
-              <img className="pj__shotimg" src={img.url} alt="" />
-            </a>
-          ))}
+      <div className="secret-entry__row">
+        <div className="secret-entry__content">
+          <p className="secret-card__text">{block.text}</p>
+          {(block.images || []).length > 0 && (
+            <div className="pj__shots">
+              {block.images.map((img) => (
+                <a key={img.id} className="pj__shot" href={img.url} target="_blank" rel="noopener noreferrer">
+                  <img className="pj__shotimg" src={img.url} alt="" />
+                </a>
+              ))}
+            </div>
+          )}
+          {tagsOpen && (
+            <TagEditor tags={mine} onChange={setMine} placeholder="ranger dans une autre catégorie…" tone="mine" />
+          )}
         </div>
-      )}
-      {tagsOpen && (
-        <TagEditor tags={mine} onChange={setMine} placeholder="ranger dans une autre catégorie…" tone="mine" />
-      )}
+        <div className="secret-entry__icons">
+          <button
+            className={'secret-block__gear' + (tagsOpen ? ' is-active' : '')} type="button"
+            title="Étiquettes" aria-label="Modifier les étiquettes"
+            onClick={() => setTagsOpen((v) => !v)}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M20.6 12.7L12.7 20.6a2 2 0 0 1-2.8 0l-6.5-6.5a2 2 0 0 1 0-2.8l7.9-7.9A2 2 0 0 1 12.7 3H19a1 1 0 0 1 1 1v6.3a2 2 0 0 1-.4 1.4z" />
+              <circle cx="16.5" cy="7.5" r="1.2" fill="currentColor" stroke="none" />
+            </svg>
+          </button>
+          <button
+            className="secret-block__gear" type="button" title="Partager avec un autre personnage" aria-label="Partager avec un autre personnage"
+            onClick={() => setShareOpen(true)}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+              <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
+            </svg>
+          </button>
+        </div>
+      </div>
       {shareOpen && (
         <RevealModal
           state={state} block={block} share excludeIds={myCharIds}
