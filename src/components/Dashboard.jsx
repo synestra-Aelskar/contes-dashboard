@@ -217,7 +217,7 @@ export default function Dashboard({ session }) {
         />
       )}
 
-      {prefsOpen && <Preferences onClose={() => setPrefsOpen(false)} />}
+      {prefsOpen && <Preferences onClose={() => setPrefsOpen(false)} state={state} role={role} />}
 
       <footer className="foot">
         Dernière mise à jour · {state.updated ? fmtDateLong(state.updated) : '—'} — enregistrée à chaque modification.

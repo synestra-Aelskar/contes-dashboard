@@ -984,6 +984,15 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 @media (max-width:520px){ .prefs__tree{ border-right:none; border-bottom:1px solid var(--rule); padding:0 0 10px; } }
 .prefs__pane{ min-width:0; }
 .prefs__scales{ display:flex; gap:8px; flex-wrap:wrap; }
+.prefs__avatars{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+.prefs__avatarbtn{
+  flex:none; width:36px; height:36px; padding:0; border-radius:50%; overflow:hidden;
+  background:var(--surface); border:2px solid var(--rule); cursor:pointer;
+  display:flex; align-items:center; justify-content:center; font-family:var(--f-mono); font-size:13px; color:var(--fg-dim);
+}
+.prefs__avatarbtn img{ width:100%; height:100%; object-fit:cover; display:block; }
+.prefs__avatarbtn.is-active{ border-color:var(--gilt); }
+.prefs__avatarcur{ display:flex; align-items:center; gap:8px; margin-top:12px; }
 
 /* --- vue Zone (sommaire pays > région > zone > lieu) --- */
 .zones{ display:grid; grid-template-columns:250px 1fr; gap:30px; margin-top:16px; align-items:start; }
