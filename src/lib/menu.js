@@ -16,6 +16,7 @@ export const ALL_VIEWS = [
   ['validations', 'Validations'],
   ['zones', 'Zone'],
   ['fichetechnique', 'Fiche Technique'],
+  ['fichenarrative', 'Créateur de narration'],
   ['xpcalibreur', "Calibreur d'XP"],
   ['equilibrage', 'Équilibrage DD'],
   ['prepsession', 'Prep Session'],
@@ -67,6 +68,10 @@ export function labelForNode(n, state) {
   if (n.type === 'doc' && n.docKind === 'fichetechnique') {
     const f = (state && state.fichesTechniques || []).find((x) => x.id === n.docId);
     return (f && f.nom && f.nom.trim()) || 'Sans nom';
+  }
+  if (n.type === 'doc' && n.docKind === 'fichenarrative') {
+    const f = (state && state.fichesNarratives || []).find((x) => x.id === n.docId);
+    return (f && f.titre && f.titre.trim()) || 'Sans titre';
   }
   return n.name || 'Sans nom';
 }

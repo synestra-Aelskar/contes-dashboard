@@ -24,6 +24,8 @@ import Validations from './views/Validations.jsx';
 import Zones from './views/Zones.jsx';
 import FicheTechnique from './views/FicheTechnique.jsx';
 import FicheTechniqueDoc from './views/FicheTechniqueDoc.jsx';
+import FicheNarrative from './views/FicheNarrative.jsx';
+import FicheNarrativeDoc from './views/FicheNarrativeDoc.jsx';
 import XpCalibreur from './views/XpCalibreur.jsx';
 import Equilibrage from './views/Equilibrage.jsx';
 import PrepSession from './views/PrepSession.jsx';
@@ -42,9 +44,11 @@ const STATUS_ON = { ready: '1', saving: 'saving', loading: 'saving', offline: '0
 const VIEW_COMPONENTS = {
   liens: Liens, journal: Journal, consequences: Consequences, horloges: Horloges,
   secrets: Secrets, oublis: Oublis, epreuves: Epreuves, zones: Zones,
-  fichetechnique: FicheTechnique, xpcalibreur: XpCalibreur, equilibrage: Equilibrage, prepsession: PrepSession,
+  fichetechnique: FicheTechnique, fichenarrative: FicheNarrative, xpcalibreur: XpCalibreur, equilibrage: Equilibrage, prepsession: PrepSession,
   'backstage-mj': BackstageMJ, 'personnages-joueurs': Personnages, validations: Validations
 };
+
+const DOC_COMPONENTS = { fichetechnique: FicheTechniqueDoc, fichenarrative: FicheNarrativeDoc };
 
 function pendingValidationsCount(state) {
   let n = 0;
@@ -100,12 +104,14 @@ export default function Dashboard({ session }) {
   }
 
   const shared = { state, mutate, goToSession, role, userId: session.user.id };
-  const ficheDocId = activeView.startsWith('doc:fichetechnique:') ? activeView.slice('doc:fichetechnique:'.length) : null;
+  const docMatch = /^doc:([^:]+):(.+)$/.exec(activeView);
+  const docKind = docMatch ? docMatch[1] : null;
+  const docId = docMatch ? docMatch[2] : null;
   let ViewComp = null;
   if (activeView === 'personnages') ViewComp = PersonnageJoueur;
   else if (activeView === 'parametres') ViewComp = Parametres;
   else if (activeView === 'tableaudebord') ViewComp = TableauDeBord;
-  else if (ficheDocId) ViewComp = FicheTechniqueDoc;
+  else if (docKind) ViewComp = DOC_COMPONENTS[docKind] || null;
   else ViewComp = VIEW_COMPONENTS[activeView] || null;
 
   const badges = role === 'admin' ? { validations: pendingValidationsCount(state) } : undefined;
@@ -177,8 +183,8 @@ export default function Dashboard({ session }) {
           {ViewComp
             ? (activeView === 'personnages'
               ? <ViewComp state={state} mutate={mutate} userId={session.user.id} goToSession={goToSession} />
-              : ficheDocId
-                ? <ViewComp {...shared} ficheId={ficheDocId} setView={setView} />
+              : docKind
+                ? <ViewComp {...shared} ficheId={docId} setView={setView} />
                 : <ViewComp {...shared} />)
             : <p className="empty">Aucune vue accessible pour l’instant.</p>}
         </div>

@@ -22,7 +22,7 @@ export const EMPTY_STATE = {
     { id: 'data',  kind: 'data',  title: 'Banque de données', entries: [] }
   ],
   sessions: [], consequences: [], clocks: [], secrets: [], reminders: [], epreuves: [],
-  characters: [], sessionDraft: null, zones: [], sessionZero: { blocks: [] }, fichesTechniques: [],
+  characters: [], sessionDraft: null, zones: [], sessionZero: { blocks: [] }, fichesTechniques: [], fichesNarratives: [],
   xpCalibreur: XP_DEFAULT_STATE, ddCalc: null, prepSessions: [],
   settings: { timeTypes: [], accounts: [], menu: [] },
   vrLink: null, aelCarryHours: 0, threads: [], campaign: { actNumber: '', actTitle: '' }
@@ -30,6 +30,17 @@ export const EMPTY_STATE = {
 
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const clone = (x) => (typeof structuredClone === 'function' ? structuredClone(x) : JSON.parse(JSON.stringify(x)));
+
+/** Ajoute au menu un nœud « doc » (admin par défaut) pour chaque item sans
+ * nœud existant, et purge ceux dont l'item source a disparu. */
+function syncDocNodes(menu, docKind, items) {
+  const used = usedDocIds(menu, docKind);
+  items.forEach((item) => {
+    if (!used.has(item.id)) menu.push({ id: uid(), type: 'doc', docKind, docId: item.id, visibility: ['admin'] });
+  });
+  const validIds = new Set(items.map((i) => i.id));
+  return pruneMissingDocs(menu, docKind, validIds);
+}
 
 function normalize(raw) {
   const base = clone(EMPTY_STATE);
@@ -86,6 +97,17 @@ function normalize(raw) {
       if (!used.has(key)) out.settings.menu.push({ id: uid(), type: 'view', viewKey: key, visibility: ['admin'] });
     });
   }
+  // Migration ponctuelle : la première fois que « Créateur de narration »
+  // apparaît (encore à la racine), on le range dans une catégorie
+  // « Narrations » dédiée plutôt que de le laisser à plat.
+  {
+    const hasNarrationCat = out.settings.menu.some((n) => n.type === 'category' && n.name === 'Narrations');
+    const rootIdx = out.settings.menu.findIndex((n) => n.type === 'view' && n.viewKey === 'fichenarrative');
+    if (!hasNarrationCat && rootIdx >= 0) {
+      const [node] = out.settings.menu.splice(rootIdx, 1);
+      out.settings.menu.push({ id: uid(), type: 'category', name: 'Narrations', visibility: null, children: [node] });
+    }
+  }
   out.characters.forEach((c) => {
     if (typeof c.ownerId !== 'string') c.ownerId = null;
     if (typeof c.race !== 'string') c.race = '';
@@ -128,6 +150,22 @@ function normalize(raw) {
     if (typeof f.sousTitre !== 'string') f.sousTitre = '';
     if (!Array.isArray(f.blocks)) f.blocks = [];
   });
+  if (!Array.isArray(out.fichesNarratives)) out.fichesNarratives = [];
+  out.fichesNarratives.forEach((f) => {
+    if (typeof f.eyebrow !== 'string') f.eyebrow = '';
+    if (typeof f.titre !== 'string') f.titre = '';
+    if (typeof f.titreAccent !== 'string') f.titreAccent = '';
+    if (!Array.isArray(f.blocks)) f.blocks = [];
+    f.blocks.forEach((b) => {
+      if (typeof b.kind !== 'string') b.kind = 'paragraph';
+      if (typeof b.text !== 'string' && (b.kind === 'heading' || b.kind === 'paragraph' || b.kind === 'quote')) b.text = '';
+      if (b.kind === 'chapter' && typeof b.titre !== 'string') b.titre = '';
+      if (b.kind === 'image') {
+        if (typeof b.url !== 'string') b.url = '';
+        if (typeof b.caption !== 'string') b.caption = '';
+      }
+    });
+  });
   // Migration ponctuelle : l'ancien document unique « Session Zéro » devient la
   // première fiche technique, pour ne pas perdre le contenu déjà écrit.
   if (!out.fichesTechniques.length && out.sessionZero.blocks.length) {
@@ -139,19 +177,12 @@ function normalize(raw) {
     }];
     out.sessionZero = { blocks: [] }; // migré : on vide la source pour ne pas la ressusciter si la fiche est supprimée
   }
-  // Chaque fiche technique a son propre nœud dans le menu (placement libre en
-  // catégorie, visibilité admin/joueur par nœud) — on ajoute les manquants
-  // (admin par défaut) et on purge ceux dont la fiche a été supprimée.
-  {
-    const usedFiches = usedDocIds(out.settings.menu, 'fichetechnique');
-    out.fichesTechniques.forEach((f) => {
-      if (!usedFiches.has(f.id)) {
-        out.settings.menu.push({ id: uid(), type: 'doc', docKind: 'fichetechnique', docId: f.id, visibility: ['admin'] });
-      }
-    });
-    const validFicheIds = new Set(out.fichesTechniques.map((f) => f.id));
-    out.settings.menu = pruneMissingDocs(out.settings.menu, 'fichetechnique', validFicheIds);
-  }
+  // Chaque fiche (technique ou narrative) a son propre nœud dans le menu
+  // (placement libre en catégorie, visibilité admin/joueur par nœud) — on
+  // ajoute les manquants (admin par défaut) et purge ceux dont la fiche a
+  // été supprimée.
+  out.settings.menu = syncDocNodes(out.settings.menu, 'fichetechnique', out.fichesTechniques);
+  out.settings.menu = syncDocNodes(out.settings.menu, 'fichenarrative', out.fichesNarratives);
   out.xpCalibreur = normalizeXpState(out.xpCalibreur);
   if (typeof out.updated !== 'string') out.updated = '';
   if (typeof out.worldDate !== 'string') out.worldDate = '';
