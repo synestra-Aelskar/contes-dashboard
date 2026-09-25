@@ -398,6 +398,7 @@ function SecretCard({ state, s, mutate, open, onToggle }) {
 function SecretEntry({ state, secret, block, userId, mutate, first }) {
   const mine = playerTagsFor(block, userId);
   const [shareOpen, setShareOpen] = useState(false);
+  const [tagsOpen, setTagsOpen] = useState(false);
   const myCharIds = new Set((state.characters || []).filter((c) => c.ownerId === userId).map((c) => c.id));
 
   const shareWith = (charId) => mutate((st) => {
@@ -418,7 +419,17 @@ function SecretEntry({ state, secret, block, userId, mutate, first }) {
   return (
     <div id={'secret-block-' + block.id} className={'secret-entry' + (first ? ' secret-entry--first' : '')}>
       <div className="secret-entry__head">
-        <TagChips tags={mine} tone="mine" onRemove={(t) => setMine(mine.filter((x) => x !== t))} />
+        <span className="secret-entry__spacer" />
+        <button
+          className={'secret-block__gear' + (tagsOpen ? ' is-active' : '')} type="button"
+          title="Étiquettes" aria-label="Modifier les étiquettes"
+          onClick={() => setTagsOpen((v) => !v)}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M20.6 12.7L12.7 20.6a2 2 0 0 1-2.8 0l-6.5-6.5a2 2 0 0 1 0-2.8l7.9-7.9A2 2 0 0 1 12.7 3H19a1 1 0 0 1 1 1v6.3a2 2 0 0 1-.4 1.4z" />
+            <circle cx="16.5" cy="7.5" r="1.2" fill="currentColor" stroke="none" />
+          </svg>
+        </button>
         <button
           className="secret-block__gear" type="button" title="Partager avec un autre personnage" aria-label="Partager avec un autre personnage"
           onClick={() => setShareOpen(true)}
@@ -439,7 +450,9 @@ function SecretEntry({ state, secret, block, userId, mutate, first }) {
           ))}
         </div>
       )}
-      <TagEditor tags={mine} onChange={setMine} placeholder="ranger dans une autre catégorie…" tone="mine" />
+      {tagsOpen && (
+        <TagEditor tags={mine} onChange={setMine} placeholder="ranger dans une autre catégorie…" tone="mine" />
+      )}
       {shareOpen && (
         <RevealModal
           state={state} block={block} share excludeIds={myCharIds}

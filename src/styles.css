@@ -1114,7 +1114,9 @@ h1{ margin:.24em 0 0; font-family:var(--f-display); font-weight:600; font-size:c
 .secret-index__item em{ opacity:.7; }
 .secret-entry{ display:flex; flex-direction:column; gap:6px; padding-top:12px; margin-top:12px; border-top:1px solid var(--rule); }
 .secret-entry--first{ padding-top:0; margin-top:0; border-top:none; }
-.secret-entry__head{ display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+.secret-entry__head{ display:flex; align-items:flex-start; gap:6px; }
+.secret-entry__spacer{ flex:1; }
+.secret-block__gear.is-active{ color:var(--gilt); border-color:var(--gilt); }
 .secret-catlist{ display:flex; flex-direction:column; gap:3px; }
 .secret-catlist__item{ display:flex; align-items:center; gap:4px; }
 .secret-catlist__pick{ flex:1; min-width:0; display:flex; align-items:center; justify-content:space-between; gap:6px; text-align:left; background:none; border:1px solid transparent; border-radius:3px; padding:5px 7px; font-family:var(--f-body); font-size:13px; color:var(--fg-dim); cursor:pointer; }
