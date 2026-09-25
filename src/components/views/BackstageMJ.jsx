@@ -60,12 +60,29 @@ export default function BackstageMJ({ state, mutate }) {
   const [accKey, setAccKey] = useState(lsGet('ccm.mjThreadAcc'));
   const selAccGroup = accountGroups.find((g) => g.key === accKey) || accountGroups[0] || null;
 
-  const [selId, setSelId] = useState(lsGet('ccm.mjThread'));
-  const sel = selAccGroup
-    ? (selAccGroup.threads.find((t) => t.id === selId) || selAccGroup.threads[0])
-    : null;
+  // Onglets par personnage, au sein du compte sélectionné : « Tous » + un
+  // onglet par personnage ayant créé ou rejoint au moins un thread ici.
+  const accChars = selAccGroup ? chars.filter((c) => c.ownerId === selAccGroup.key) : [];
+  const charThreadsOf = (charId) => selAccGroup
+    ? selAccGroup.threads.filter((t) => t.createdBy === charId || (t.participantIds || []).includes(charId))
+    : [];
+  const charTabs = accChars.filter((c) => charThreadsOf(c.id).length > 0);
 
-  function selectAcc(key) { setAccKey(key); lsSet('ccm.mjThreadAcc', key); setSelId(null); lsSet('ccm.mjThread', ''); }
+  const [charKey, setCharKey] = useState(lsGet('ccm.mjThreadChar'));
+  const activeCharKey = charTabs.some((c) => c.id === charKey) ? charKey : 'all';
+  const visibleThreads = selAccGroup
+    ? (activeCharKey === 'all' ? selAccGroup.threads : charThreadsOf(activeCharKey))
+    : [];
+
+  const [selId, setSelId] = useState(lsGet('ccm.mjThread'));
+  const sel = visibleThreads.find((t) => t.id === selId) || visibleThreads[0] || null;
+
+  function selectAcc(key) {
+    setAccKey(key); lsSet('ccm.mjThreadAcc', key);
+    setCharKey('all'); lsSet('ccm.mjThreadChar', 'all');
+    setSelId(null); lsSet('ccm.mjThread', '');
+  }
+  function selectChar(key) { setCharKey(key); lsSet('ccm.mjThreadChar', key); setSelId(null); lsSet('ccm.mjThread', ''); }
   function select(id) { setSelId(id); lsSet('ccm.mjThread', id); }
 
   function toggleArchive(id) {
@@ -108,10 +125,29 @@ export default function BackstageMJ({ state, mutate }) {
             })}
           </nav>
 
+          {selAccGroup && charTabs.length > 0 && (
+            <nav className="pj__nav pj__nav--row pj__nav--sub">
+              <button
+                type="button" className={'pj__navbtn' + (activeCharKey === 'all' ? ' is-active' : '')}
+                onClick={() => selectChar('all')}
+              >
+                Tous
+              </button>
+              {charTabs.map((c) => (
+                <button
+                  key={c.id} type="button" className={'pj__navbtn' + (activeCharKey === c.id ? ' is-active' : '')}
+                  onClick={() => selectChar(c.id)}
+                >
+                  {c.name || 'Sans nom'}
+                </button>
+              ))}
+            </nav>
+          )}
+
           {selAccGroup && (
             <div className="pj__backstage">
               <div className="pj__threadrail">
-                {selAccGroup.threads.map((t) => (
+                {visibleThreads.map((t) => (
                   <div key={t.id} className="pj__threadrailrow">
                     <button
                       type="button"
