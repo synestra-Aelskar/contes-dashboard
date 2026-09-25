@@ -191,6 +191,16 @@ function normalize(raw) {
       if (typeof e.url !== 'string') e.url = '';
       if (typeof e.shape !== 'string') e.shape = 'rect';
       if (!Array.isArray(e.points)) e.points = [];
+      if (typeof e.font !== 'string') e.font = '';
+      if (typeof e.strokeWidth !== 'number') e.strokeWidth = 3;
+      if (typeof e.dashed !== 'boolean') e.dashed = false;
+      if (typeof e.dashGap !== 'number') e.dashGap = 8;
+      if (typeof e.createdBy !== 'string') e.createdBy = null;
+      if (typeof e.createdByName !== 'string') e.createdByName = '';
+      if (typeof e.createdAt !== 'string') e.createdAt = '';
+      if (typeof e.updatedBy !== 'string') e.updatedBy = e.createdBy;
+      if (typeof e.updatedByName !== 'string') e.updatedByName = e.createdByName;
+      if (typeof e.updatedAt !== 'string') e.updatedAt = e.createdAt;
     });
     t.connections.forEach((c) => {
       if (c.kind !== 'line' && c.kind !== 'arrow') c.kind = 'arrow';

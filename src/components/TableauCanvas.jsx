@@ -9,49 +9,81 @@ import { useSyncedField } from '../lib/useSyncedField.js';
  * texte/note/forme/image/dessin libre, connexions qui suivent leurs
  * éléments, sélection multiple, verrouillage, ordre d'affichage.
  *
- * Choix d'implémentation, pour rester dans un temps raisonnable :
- * - Le déplacement/redimensionnement se fait en aperçu LOCAL (comme les
- *   champs à brouillon du reste du site) et n'écrit dans l'état partagé
- *   qu'au relâchement — sinon chaque pixel de glisser déclencherait une
- *   sauvegarde. La collaboration simultanée fonctionne déjà « gratuitement »
- *   via la synchronisation temps réel existante du tableau de bord (chacun
- *   voit les éléments des autres dès qu'ils relâchent leur glisser) ; il n'y
- *   a en revanche pas de curseur fantôme des autres participants.
- * - Le redimensionnement/la rotation ne sont pas combinés : les poignées de
- *   redimensionnement ignorent la rotation courante (cas rare en pratique,
- *   et évite une trigonométrie compliquée pour un gain marginal).
- * - Les connexions relient le centre des éléments (pas de calcul de bord).
+ * Contrôles : clic gauche = sélectionner/déplacer/dessiner selon l'outil ;
+ * clic gauche sur le fond (outil sélection) = cadre de sélection groupée ;
+ * clic droit + glisser sur le fond = déplacer la caméra, quel que soit
+ * l'outil actif ; clic droit sur un élément = menu contextuel.
+ *
+ * Choix d'implémentation :
+ * - Le glisser reste en aperçu LOCAL et n'écrit dans l'état partagé qu'au
+ *   relâchement (perf) — mais la valeur « live » est portée par la ref de
+ *   glissement elle-même (pas par le state React) pour que le relâchement
+ *   lise toujours la dernière position, jamais une valeur obsolète.
+ * - Le redimensionnement n'est pas conscient de la rotation courante.
+ * - Les connexions relient le centre des éléments.
+ * - Le plan (z) est un rang CONTIGU 1..N parmi tous les éléments.
  */
 
-const COLORS = ['#e7c873', '#e69a6b', '#8fb99b', '#7fa8c9', '#b58fc0', '#e8e2d6'];
+const COLORS = ['#e7c873', '#e69a6b', '#8fb99b', '#7fa8c9', '#b58fc0', '#e8e2d6', '#c96a6a', '#6a6a6a'];
 const MIN_SIZE = 40;
+const FONTS = [
+  ['', 'Spectral', "'Spectral', Georgia, serif"],
+  ['display', 'Cormorant Garamond', "'Cormorant Garamond', Georgia, serif"],
+  ['mono', 'IBM Plex Mono', "'IBM Plex Mono', monospace"],
+  ['sans', 'Sans-serif', 'system-ui, sans-serif']
+];
+const FONT_STACK = Object.fromEntries(FONTS.map(([k, , stack]) => [k, stack]));
 
-/** `tool` est l'outil choisi dans la barre (peut être 'rect'/'ellipse'/'draw'/…),
- * `kind` est la famille d'élément qui en découle ('shape' pour les deux formes). */
-const emptyElement = (tool, x, y) => {
+/** `tool` est l'outil choisi dans la barre, `kind` la famille d'élément qui
+ * en découle ('shape' pour rect/ellipse). */
+const emptyElement = (tool, x, y, author) => {
   const kind = tool === 'rect' || tool === 'ellipse' ? 'shape' : tool;
+  const now = new Date().toISOString();
   return {
     id: uid(), kind, x, y,
     w: kind === 'note' ? 180 : kind === 'image' ? 280 : kind === 'text' ? 220 : 160,
     h: kind === 'note' ? 140 : kind === 'image' ? 180 : kind === 'text' ? 44 : 100,
-    rot: 0, z: 0, locked: false, text: '', color: COLORS[0], url: '', shape: tool === 'ellipse' ? 'ellipse' : 'rect', points: []
+    rot: 0, z: 0, locked: false, text: '', color: COLORS[0], url: '', font: '',
+    shape: tool === 'ellipse' ? 'ellipse' : 'rect', points: [],
+    strokeWidth: 3, dashed: false, dashGap: 8,
+    createdBy: author.id, createdByName: author.name, createdAt: now,
+    updatedBy: author.id, updatedByName: author.name, updatedAt: now
   };
 };
 
-function nextZ(elements) {
-  return elements.reduce((m, e) => Math.max(m, e.z), 0) + 1;
+function renormalizeZ(elements) {
+  elements.slice().sort((a, b) => a.z - b.z).forEach((e, i) => { e.z = i + 1; });
 }
-function minZ(elements) {
-  return elements.reduce((m, e) => Math.min(m, e.z), 0) - 1;
+function reorderZ(elements, id, targetRank) {
+  const sorted = elements.slice().sort((a, b) => a.z - b.z);
+  const idx = sorted.findIndex((e) => e.id === id);
+  if (idx < 0) return;
+  const [item] = sorted.splice(idx, 1);
+  const clamped = Math.max(1, Math.min(targetRank, sorted.length + 1));
+  sorted.splice(clamped - 1, 0, item);
+  sorted.forEach((e, i) => { e.z = i + 1; });
+}
+function rankOf(elements, id) {
+  const sorted = elements.slice().sort((a, b) => a.z - b.z);
+  return sorted.findIndex((e) => e.id === id) + 1;
 }
 
 /* ------------------------------- éléments -------------------------------- */
 
-function ElementBox({ el, selected, onPointerDownMove, editing, onStartEdit, onStopEdit, onTextChange, children }) {
+function strokeDash(el) {
+  if (!el.dashed) return undefined;
+  const g = Math.max(1, el.dashGap || 8);
+  return `${g * 1.6} ${g}`;
+}
+
+function ElementBox({ el, selected, onDown, onContext, editing, onStartEdit, onStopEdit, onTextChange }) {
+  const title = `Créé par ${el.createdByName || '?'}${el.updatedByName && el.updatedByName !== el.createdByName ? ` · modifié par ${el.updatedByName}` : ''}`;
   return (
     <div
       id={'tb-el-' + el.id}
-      onMouseDown={(e) => onPointerDownMove(e, el)}
+      title={title}
+      onMouseDown={(e) => onDown(e, el)}
+      onContextMenu={(e) => onContext(e, el)}
       onDoubleClick={(e) => { e.stopPropagation(); if (el.kind === 'text' || el.kind === 'note') onStartEdit(el.id); }}
       style={{
         position: 'absolute', left: el.x, top: el.y, width: el.w, height: el.h,
@@ -61,7 +93,7 @@ function ElementBox({ el, selected, onPointerDownMove, editing, onStartEdit, onS
         userSelect: 'none'
       }}
     >
-      {children}
+      <ElementVisual el={el} />
       {editing && (el.kind === 'text' || el.kind === 'note') && (
         <textarea
           autoFocus
@@ -72,7 +104,7 @@ function ElementBox({ el, selected, onPointerDownMove, editing, onStartEdit, onS
           style={{
             position: 'absolute', inset: 0, width: '100%', height: '100%', resize: 'none',
             background: 'transparent', border: 'none', outline: 'none', padding: el.kind === 'note' ? 12 : 4,
-            font: 'inherit', color: 'inherit', fontFamily: "'Spectral', Georgia, serif", fontSize: 14, lineHeight: 1.4
+            font: 'inherit', color: 'inherit', fontFamily: FONT_STACK[el.font] || FONT_STACK[''], fontSize: 14, lineHeight: 1.4
           }}
         />
       )}
@@ -81,16 +113,17 @@ function ElementBox({ el, selected, onPointerDownMove, editing, onStartEdit, onS
 }
 
 function ElementVisual({ el }) {
+  const fontFamily = FONT_STACK[el.font] || FONT_STACK[''];
   if (el.kind === 'note') {
     return (
-      <div style={{ width: '100%', height: '100%', background: el.color || COLORS[0], color: '#221c10', padding: 12, borderRadius: 3, boxShadow: '0 6px 18px rgba(0,0,0,.35)', fontFamily: "'Spectral', Georgia, serif", fontSize: 14, lineHeight: 1.4, whiteSpace: 'pre-wrap', overflow: 'hidden' }}>
+      <div style={{ width: '100%', height: '100%', background: el.color || COLORS[0], color: '#221c10', padding: 12, borderRadius: 3, boxShadow: '0 6px 18px rgba(0,0,0,.35)', fontFamily, fontSize: 14, lineHeight: 1.4, whiteSpace: 'pre-wrap', overflow: 'hidden' }}>
         {el.text}
       </div>
     );
   }
   if (el.kind === 'text') {
     return (
-      <div style={{ width: '100%', height: '100%', color: '#e8e2d6', padding: 4, fontFamily: "'Spectral', Georgia, serif", fontSize: 16, lineHeight: 1.4, whiteSpace: 'pre-wrap', overflow: 'hidden' }}>
+      <div style={{ width: '100%', height: '100%', color: '#e8e2d6', padding: 4, fontFamily, fontSize: 16, lineHeight: 1.4, whiteSpace: 'pre-wrap', overflow: 'hidden' }}>
         {el.text || <span style={{ opacity: 0.4 }}>Texte…</span>}
       </div>
     );
@@ -107,14 +140,18 @@ function ElementVisual({ el }) {
       <img src={el.url} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 3, display: 'block' }} />
     ) : (
       <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed rgba(201,160,90,0.4)', borderRadius: 3, color: '#8c8375', fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, letterSpacing: '0.08em', textAlign: 'center', padding: 8 }}>
-        IMAGE — colle un lien dans le panneau
+        IMAGE — clic droit › Lien, ou colle une image (Ctrl+V)
       </div>
     );
   }
   if (el.kind === 'draw') {
     return (
       <svg width="100%" height="100%" viewBox={`0 0 ${Math.max(el.w, 1)} ${Math.max(el.h, 1)}`} style={{ display: 'block', overflow: 'visible' }}>
-        <polyline points={(el.points || []).map((p) => p.join(',')).join(' ')} fill="none" stroke={el.color || COLORS[0]} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+        <polyline
+          points={(el.points || []).map((p) => p.join(',')).join(' ')} fill="none"
+          stroke={el.color || COLORS[0]} strokeWidth={el.strokeWidth || 3} strokeDasharray={strokeDash(el)}
+          strokeLinecap="round" strokeLinejoin="round"
+        />
       </svg>
     );
   }
@@ -175,6 +212,68 @@ function ConnectionsSvg({ elements, connections, selectedConnId, onSelectConn })
   );
 }
 
+/* ------------------------------- menu contextuel -------------------------- */
+
+function ContextMenu({ menu, onClose, actions }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('mousedown', onDown); window.removeEventListener('keydown', onKey); };
+  }, [onClose]);
+
+  const x = Math.min(menu.x, window.innerWidth - 220);
+  const y = Math.min(menu.y, window.innerHeight - 20);
+
+  return (
+    <div ref={ref} className="tb-ctxmenu" style={{ left: x, top: y }} onContextMenu={(e) => e.preventDefault()}>
+      {menu.kind === 'connection' ? (
+        <>
+          <button type="button" onClick={() => { actions.toggleConnKind(); onClose(); }}>Basculer flèche/ligne</button>
+          <button type="button" className="tb-ctxmenu__danger" onClick={() => { actions.deleteConn(); onClose(); }}>Supprimer</button>
+        </>
+      ) : (
+        <>
+          <button type="button" onClick={() => { actions.duplicate(); onClose(); }}>Dupliquer</button>
+          <button type="button" onClick={() => { actions.toggleLock(); onClose(); }}>{menu.allLocked ? 'Déverrouiller' : 'Verrouiller'}</button>
+          <div className="tb-ctxmenu__sep" />
+          <button type="button" onClick={() => { actions.order('front'); onClose(); }}>Premier plan</button>
+          <button type="button" onClick={() => { actions.order('up'); onClose(); }}>Monter</button>
+          <button type="button" onClick={() => { actions.order('choose'); onClose(); }}>Choisir le plan…</button>
+          <button type="button" onClick={() => { actions.order('down'); onClose(); }}>Descendre</button>
+          <button type="button" onClick={() => { actions.order('back'); onClose(); }}>Dernier plan</button>
+          {menu.canColor && (
+            <>
+              <div className="tb-ctxmenu__sep" />
+              <label className="tb-ctxmenu__row">
+                Couleur
+                <input type="color" defaultValue={menu.color || '#e7c873'} onChange={(e) => actions.setColor(e.target.value)} />
+              </label>
+              <span className="tb-ctxmenu__swrow">
+                {COLORS.map((c) => (
+                  <button key={c} type="button" className="tb-swatch" style={{ background: c }} onClick={() => { actions.setColor(c); onClose(); }} aria-label={'couleur ' + c} />
+                ))}
+              </span>
+            </>
+          )}
+          {menu.canFont && (
+            <label className="tb-ctxmenu__row">
+              Police
+              <select defaultValue={menu.font || ''} onChange={(e) => { actions.setFont(e.target.value); onClose(); }}>
+                {FONTS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+              </select>
+            </label>
+          )}
+          <div className="tb-ctxmenu__sep" />
+          <button type="button" className="tb-ctxmenu__danger" onClick={() => { actions.remove(); onClose(); }}>Supprimer</button>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 
 const TOOLS = [
@@ -182,41 +281,45 @@ const TOOLS = [
 ];
 
 export default function TableauCanvas({ tableau, mutate, onBack, charId, charName }) {
+  const author = { id: charId, name: charName };
   const [titre, setTitre, titreRef] = useSyncedField(tableau.titre);
   const [tool, setTool] = useState('select');
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [selectedConnId, setSelectedConnId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [drawColor, setDrawColor] = useState(COLORS[0]);
+  const [drawWidth, setDrawWidth] = useState(3);
+  const [drawDashed, setDrawDashed] = useState(false);
+  const [drawGap, setDrawGap] = useState(8);
   const [camera, setCamera] = useState(() => {
     try { return JSON.parse(lsGet('ccm.tabCam.' + tableau.id) || '') || { x: 200, y: 120, zoom: 1 }; }
     catch (_) { return { x: 200, y: 120, zoom: 1 }; }
   });
-  const [preview, setPreview] = useState(null); // { [elId]: {x,y,w,h,rot} } pendant un glisser
+  const [preview, setPreview] = useState(null); // { [elId]: {x,y,w,h,rot} } pendant un glisser — pour l'AFFICHAGE
   const [marquee, setMarquee] = useState(null); // {x0,y0,x1,y1} en coord monde
+  const [ctxMenu, setCtxMenu] = useState(null); // { x, y, kind, ids }
   const connectFromRef = useRef(null);
   const viewportRef = useRef(null);
   const dragRef = useRef(null);
+  const clipboardRef = useRef(null); // éléments copiés (Ctrl+C)
+  const lastWorldRef = useRef({ x: 0, y: 0 }); // dernière position souris connue, en coord monde
 
   useEffect(() => { lsSet('ccm.tabCam.' + tableau.id, JSON.stringify(camera)); }, [camera, tableau.id]);
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const onKey = (e) => {
-      if (e.key === 'Escape') { onBack(); }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size && document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'INPUT') {
-        e.preventDefault();
-        removeSelected();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => { document.body.style.overflow = prev; window.removeEventListener('keydown', onKey); };
-  }, [selectedIds]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { document.body.style.overflow = prev; };
+  }, []);
 
   const elements = useMemo(() => (tableau.elements || []).map((e) => (preview && preview[e.id] ? { ...e, ...preview[e.id] } : e)), [tableau.elements, preview]);
   const connections = tableau.connections || [];
 
   const patchBoard = (fn) => mutate((s) => { const t = s.tableaux.find((x) => x.id === tableau.id); if (t) fn(t); });
+  const patchElements = (ids, fn) => patchBoard((t) => {
+    t.elements.forEach((e) => {
+      if (ids.has(e.id)) { fn(e); e.updatedBy = charId; e.updatedByName = charName; e.updatedAt = new Date().toISOString(); }
+    });
+  });
 
   function toWorld(clientX, clientY) {
     const rect = viewportRef.current.getBoundingClientRect();
@@ -225,8 +328,8 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
 
   /* ---- création d'éléments ---- */
   function placeElement(placedTool, wx, wy) {
-    const el = emptyElement(placedTool, wx - 80, wy - 50);
-    el.z = nextZ(tableau.elements || []);
+    const el = emptyElement(placedTool, wx - 80, wy - 50, author);
+    el.z = (tableau.elements || []).length + 1;
     if (el.kind === 'note') el.color = drawColor;
     patchBoard((t) => { t.elements.push(el); });
     setSelectedIds(new Set([el.id]));
@@ -237,12 +340,20 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
   /* ---- pan / zoom / marquee / draw sur le fond ---- */
   function onBackgroundMouseDown(e) {
     if (e.target !== e.currentTarget && e.target.id !== 'tb-world') return;
+    if (e.button === 2) {
+      e.preventDefault();
+      dragRef.current = { kind: 'pan', startClient: { x: e.clientX, y: e.clientY }, startCam: camera };
+      window.addEventListener('mousemove', onWindowMouseMove);
+      window.addEventListener('mouseup', onWindowMouseUp);
+      return;
+    }
+    if (e.button !== 0) return;
     const [wx, wy] = toWorld(e.clientX, e.clientY);
+    setCtxMenu(null);
 
     if (tool === 'select') {
       if (!e.shiftKey) { setSelectedIds(new Set()); setSelectedConnId(null); }
-      const start = { x: wx, y: wy };
-      dragRef.current = { kind: 'marquee', start };
+      dragRef.current = { kind: 'marquee', start: { x: wx, y: wy } };
       setMarquee({ x0: wx, y0: wy, x1: wx, y1: wy });
       window.addEventListener('mousemove', onWindowMouseMove);
       window.addEventListener('mouseup', onWindowMouseUp);
@@ -253,21 +364,18 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
       return;
     }
     if (tool === 'draw') {
-      const el = emptyElement('draw', wx, wy);
-      el.z = nextZ(tableau.elements || []);
-      el.color = drawColor;
+      const el = emptyElement('draw', wx, wy, author);
+      el.z = (tableau.elements || []).length + 1;
+      el.color = drawColor; el.strokeWidth = drawWidth; el.dashed = drawDashed; el.dashGap = drawGap;
       el.w = 1; el.h = 1; el.points = [[0, 0]];
-      dragRef.current = { kind: 'draw', el, origin: { x: wx, y: wy } };
+      dragRef.current = { kind: 'draw', el, origin: { x: wx, y: wy }, live: null };
       setPreview({ [el.id]: el });
       setSelectedIds(new Set());
       window.addEventListener('mousemove', onWindowMouseMove);
       window.addEventListener('mouseup', onWindowMouseUp);
       return;
     }
-    // pan (outil connect, ou clic milieu ailleurs)
-    dragRef.current = { kind: 'pan', startClient: { x: e.clientX, y: e.clientY }, startCam: camera };
-    window.addEventListener('mousemove', onWindowMouseMove);
-    window.addEventListener('mouseup', onWindowMouseUp);
+    // outil connecter : clic sur le fond = rien (le clic droit gère déjà le pan)
   }
 
   function onWindowMouseMove(e) {
@@ -279,7 +387,8 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
     }
     if (d.kind === 'marquee') {
       const [wx, wy] = toWorld(e.clientX, e.clientY);
-      setMarquee({ x0: d.start.x, y0: d.start.y, x1: wx, y1: wy });
+      d.live = { x0: d.start.x, y0: d.start.y, x1: wx, y1: wy };
+      setMarquee(d.live);
       return;
     }
     if (d.kind === 'draw') {
@@ -289,7 +398,9 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
       const xs = d.el.points.map((p) => p[0]), ys = d.el.points.map((p) => p[1]);
       const minX = Math.min(0, ...xs), maxX = Math.max(0, ...xs), minY = Math.min(0, ...ys), maxY = Math.max(0, ...ys);
       const shifted = d.el.points.map((p) => [p[0] - minX, p[1] - minY]);
-      setPreview({ [d.el.id]: { ...d.el, x: ox + minX, y: oy + minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY), points: shifted } });
+      const live = { ...d.el, x: ox + minX, y: oy + minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY), points: shifted };
+      d.live = live;
+      setPreview({ [d.el.id]: live });
       return;
     }
     if (d.kind === 'move') {
@@ -297,6 +408,7 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
       const dx = wx - d.startWorld.x, dy = wy - d.startWorld.y;
       const next = {};
       d.ids.forEach((id) => { const o = d.origin[id]; next[id] = { x: o.x + dx, y: o.y + dy }; });
+      d.live = next;
       setPreview(next);
       return;
     }
@@ -309,7 +421,8 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
       if (d.handle.includes('s')) h = Math.max(MIN_SIZE, o.h + dy);
       if (d.handle.includes('w')) { w = Math.max(MIN_SIZE, o.w - dx); x = o.x + (o.w - w); }
       if (d.handle.includes('n')) { h = Math.max(MIN_SIZE, o.h - dy); y = o.y + (o.h - h); }
-      setPreview({ [d.id]: { x, y, w, h } });
+      d.live = { [d.id]: { x, y, w, h } };
+      setPreview(d.live);
       return;
     }
     if (d.kind === 'rotate') {
@@ -317,7 +430,8 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
       const cx = rect.left + camera.x + (d.origin.x + d.origin.w / 2) * camera.zoom;
       const cy = rect.top + camera.y + (d.origin.y + d.origin.h / 2) * camera.zoom;
       const angle = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI + 90;
-      setPreview({ [d.id]: { rot: Math.round(angle) } });
+      d.live = { [d.id]: { rot: Math.round(angle) } };
+      setPreview(d.live);
     }
   }
 
@@ -328,46 +442,47 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
     window.removeEventListener('mouseup', onWindowMouseUp);
     if (!d) return;
 
+    if (d.kind === 'pan') return;
+
     if (d.kind === 'marquee') {
-      setMarquee((m) => {
-        if (m) {
-          const x0 = Math.min(m.x0, m.x1), x1 = Math.max(m.x0, m.x1), y0 = Math.min(m.y0, m.y1), y1 = Math.max(m.y0, m.y1);
-          const hit = (tableau.elements || []).filter((e) => e.x < x1 && e.x + e.w > x0 && e.y < y1 && e.y + e.h > y0).map((e) => e.id);
-          if (hit.length) setSelectedIds(new Set(hit));
-        }
-        return null;
-      });
+      setMarquee(null);
+      const m = d.live;
+      if (m) {
+        const x0 = Math.min(m.x0, m.x1), x1 = Math.max(m.x0, m.x1), y0 = Math.min(m.y0, m.y1), y1 = Math.max(m.y0, m.y1);
+        const hit = (tableau.elements || []).filter((e) => e.x < x1 && e.x + e.w > x0 && e.y < y1 && e.y + e.h > y0).map((e) => e.id);
+        if (hit.length) setSelectedIds((prev) => new Set([...prev, ...hit]));
+      }
       return;
     }
     if (d.kind === 'draw') {
-      const el = preview && preview[d.el.id];
       setPreview(null);
+      const el = d.live;
       if (el && el.points.length > 1) {
-        patchBoard((t) => { t.elements.push({ ...emptyElement('draw', el.x, el.y), ...el }); });
+        patchBoard((t) => { t.elements.push(el); });
       }
       setTool('select');
       return;
     }
     if (d.kind === 'move') {
-      const snap = preview;
       setPreview(null);
+      const snap = d.live;
       if (snap) {
         patchBoard((t) => {
           Object.entries(snap).forEach(([id, pos]) => {
             const e = t.elements.find((x) => x.id === id);
-            if (e) { e.x = pos.x; e.y = pos.y; }
+            if (e) { e.x = pos.x; e.y = pos.y; e.updatedBy = charId; e.updatedByName = charName; e.updatedAt = new Date().toISOString(); }
           });
         });
       }
       return;
     }
     if (d.kind === 'resize' || d.kind === 'rotate') {
-      const snap = preview;
       setPreview(null);
+      const snap = d.live;
       if (snap && snap[d.id]) {
         patchBoard((t) => {
           const e = t.elements.find((x) => x.id === d.id);
-          if (e) Object.assign(e, snap[d.id]);
+          if (e) { Object.assign(e, snap[d.id]); e.updatedBy = charId; e.updatedByName = charName; e.updatedAt = new Date().toISOString(); }
         });
       }
     }
@@ -376,6 +491,7 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
   /* ---- interactions élément ---- */
   function onElementMouseDown(e, el) {
     e.stopPropagation();
+    if (e.button === 2) return; // géré par onContextMenu
     if (tool === 'connect') {
       if (!connectFromRef.current) { connectFromRef.current = el.id; toast('Clique un second élément pour relier'); }
       else if (connectFromRef.current !== el.id) {
@@ -401,21 +517,43 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
     const [wx, wy] = toWorld(e.clientX, e.clientY);
     const origin = {};
     ids.forEach((id) => { const src = (tableau.elements || []).find((x) => x.id === id); if (src) origin[id] = { x: src.x, y: src.y }; });
-    dragRef.current = { kind: 'move', ids: Array.from(ids), startWorld: { x: wx, y: wy }, origin };
+    dragRef.current = { kind: 'move', ids: Array.from(ids), startWorld: { x: wx, y: wy }, origin, live: null };
     window.addEventListener('mousemove', onWindowMouseMove);
     window.addEventListener('mouseup', onWindowMouseUp);
+  }
+
+  function onElementContextMenu(e, el) {
+    e.preventDefault();
+    e.stopPropagation();
+    const ids = selectedIds.has(el.id) && selectedIds.size > 1 ? selectedIds : new Set([el.id]);
+    setSelectedIds(ids);
+    setSelectedConnId(null);
+    const els = (tableau.elements || []).filter((x) => ids.has(x.id));
+    setCtxMenu({
+      x: e.clientX, y: e.clientY, kind: 'element', ids,
+      allLocked: els.every((x) => x.locked),
+      canColor: els.some((x) => ['note', 'shape', 'draw'].includes(x.kind)),
+      canFont: els.some((x) => ['text', 'note'].includes(x.kind)),
+      color: els[0] && els[0].color, font: els[0] && els[0].font
+    });
+  }
+  function onConnectionContextMenu(e, connId) {
+    e.preventDefault();
+    setSelectedConnId(connId);
+    setSelectedIds(new Set());
+    setCtxMenu({ x: e.clientX, y: e.clientY, kind: 'connection', connId });
   }
 
   function onResizeStart(e, el, handle) {
     if (el.locked) return;
     const [wx, wy] = toWorld(e.clientX, e.clientY);
-    dragRef.current = { kind: 'resize', id: el.id, handle, startWorld: { x: wx, y: wy }, origin: { x: el.x, y: el.y, w: el.w, h: el.h } };
+    dragRef.current = { kind: 'resize', id: el.id, handle, startWorld: { x: wx, y: wy }, origin: { x: el.x, y: el.y, w: el.w, h: el.h }, live: null };
     window.addEventListener('mousemove', onWindowMouseMove);
     window.addEventListener('mouseup', onWindowMouseUp);
   }
   function onRotateStart(e, el) {
     if (el.locked) return;
-    dragRef.current = { kind: 'rotate', id: el.id, origin: { x: el.x, y: el.y, w: el.w, h: el.h } };
+    dragRef.current = { kind: 'rotate', id: el.id, origin: { x: el.x, y: el.y, w: el.w, h: el.h }, live: null };
     window.addEventListener('mousemove', onWindowMouseMove);
     window.addEventListener('mouseup', onWindowMouseUp);
   }
@@ -431,61 +569,139 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
     });
   }
 
+  function onCanvasMouseMoveTrack(e) {
+    const [wx, wy] = toWorld(e.clientX, e.clientY);
+    lastWorldRef.current = { x: wx, y: wy };
+  }
+
   /* ---- actions sur la sélection ---- */
   function removeSelected() {
     if (!selectedIds.size) return;
     patchBoard((t) => {
       t.elements = t.elements.filter((e) => !selectedIds.has(e.id));
       t.connections = t.connections.filter((c) => !selectedIds.has(c.fromId) && !selectedIds.has(c.toId));
+      renormalizeZ(t.elements);
     });
     setSelectedIds(new Set());
   }
-  function duplicateSelected() {
-    if (!selectedIds.size) return;
+  function duplicateIds(ids, atWorld) {
     const newIds = new Set();
     patchBoard((t) => {
-      selectedIds.forEach((id) => {
-        const src = t.elements.find((e) => e.id === id);
-        if (!src) return;
-        const copy = { ...src, id: uid(), x: src.x + 24, y: src.y + 24, z: nextZ(t.elements) };
+      const srcList = t.elements.filter((e) => ids.has(e.id));
+      if (!srcList.length) return;
+      const minX = Math.min(...srcList.map((e) => e.x)), minY = Math.min(...srcList.map((e) => e.y));
+      const now = new Date().toISOString();
+      srcList.forEach((src) => {
+        const copy = {
+          ...src, id: uid(),
+          x: atWorld ? atWorld.x + (src.x - minX) : src.x + 24,
+          y: atWorld ? atWorld.y + (src.y - minY) : src.y + 24,
+          z: t.elements.length + 1,
+          createdBy: charId, createdByName: charName, createdAt: now,
+          updatedBy: charId, updatedByName: charName, updatedAt: now
+        };
         t.elements.push(copy);
         newIds.add(copy.id);
       });
     });
     setSelectedIds(newIds);
   }
+  function duplicateSelected() { if (selectedIds.size) duplicateIds(selectedIds, null); }
   function toggleLockSelected() {
-    patchBoard((t) => { t.elements.forEach((e) => { if (selectedIds.has(e.id)) e.locked = !e.locked; }); });
+    const allLocked = (tableau.elements || []).filter((e) => selectedIds.has(e.id)).every((e) => e.locked);
+    patchElements(selectedIds, (e) => { e.locked = !allLocked; });
   }
   function orderSelected(dir) {
-    patchBoard((t) => { t.elements.forEach((e) => { if (selectedIds.has(e.id)) e.z = dir === 'front' ? nextZ(t.elements) : minZ(t.elements); }); });
+    if (selectedIds.size !== 1) return;
+    const id = Array.from(selectedIds)[0];
+    if (dir === 'choose') {
+      const current = rankOf(tableau.elements || [], id);
+      const input = window.prompt('Plan (1 = arrière-plan, ' + (tableau.elements || []).length + ' = premier plan) :', String(current));
+      const target = parseInt(input, 10);
+      if (!Number.isFinite(target)) return;
+      patchBoard((t) => { reorderZ(t.elements, id, target); });
+      return;
+    }
+    patchBoard((t) => {
+      const total = t.elements.length;
+      const current = rankOf(t.elements, id);
+      const target = dir === 'front' ? total : dir === 'back' ? 1 : dir === 'up' ? current + 1 : current - 1;
+      reorderZ(t.elements, id, target);
+    });
   }
-  function setColorSelected(color) {
-    setDrawColor(color);
-    patchBoard((t) => { t.elements.forEach((e) => { if (selectedIds.has(e.id)) e.color = color; }); });
-  }
-  function setUrlSelected(url) {
-    patchBoard((t) => { t.elements.forEach((e) => { if (selectedIds.has(e.id) && e.kind === 'image') e.url = url; }); });
-  }
-  function handleTextChange(id, text) {
-    patchBoard((t) => { const e = t.elements.find((x) => x.id === id); if (e) e.text = text; });
-  }
-  async function handleImagePaste(ev) {
-    const items = (ev.clipboardData && ev.clipboardData.items) || [];
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type && items[i].type.indexOf('image') === 0) {
-        ev.preventDefault();
-        try { const url = await uploadScreenshot(items[i].getAsFile()); setUrlSelected(url); }
-        catch (_) { toast('Image illisible / envoi impossible'); }
-        return;
+  function setColorSelected(color) { setDrawColor(color); patchElements(selectedIds, (e) => { e.color = color; }); }
+  function setFontSelected(font) { patchElements(selectedIds, (e) => { e.font = font; }); }
+  function setUrlSelected(url) { patchElements(selectedIds, (e) => { if (e.kind === 'image') e.url = url; }); }
+  function handleTextChange(id, text) { patchElements(new Set([id]), (e) => { e.text = text; }); }
+
+  /* ---- copier/coller éléments (Ctrl+C / Ctrl+V), coller une image (presse-papiers OS) ---- */
+  useEffect(() => {
+    function onKeyDown(e) {
+      const tag = document.activeElement && document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === 'c' && selectedIds.size) {
+        clipboardRef.current = (tableau.elements || []).filter((el) => selectedIds.has(el.id)).map((el) => ({ ...el }));
+        toast('Élément' + (selectedIds.size > 1 ? 's' : '') + ' copié' + (selectedIds.size > 1 ? 's' : ''));
+      } else if (mod && e.key.toLowerCase() === 'v' && clipboardRef.current && clipboardRef.current.length) {
+        e.preventDefault();
+        const ids = new Set(clipboardRef.current.map((el) => el.id));
+        patchBoard((t) => {
+          const minX = Math.min(...clipboardRef.current.map((e2) => e2.x)), minY = Math.min(...clipboardRef.current.map((e2) => e2.y));
+          const now = new Date().toISOString();
+          const newIds = new Set();
+          clipboardRef.current.forEach((src) => {
+            const copy = {
+              ...src, id: uid(),
+              x: lastWorldRef.current.x + (src.x - minX), y: lastWorldRef.current.y + (src.y - minY),
+              z: t.elements.length + 1,
+              createdBy: charId, createdByName: charName, createdAt: now,
+              updatedBy: charId, updatedByName: charName, updatedAt: now
+            };
+            t.elements.push(copy);
+            newIds.add(copy.id);
+          });
+          setSelectedIds(newIds);
+        });
+        void ids;
+      } else if (e.key === 'Escape') {
+        onBack();
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size) {
+        e.preventDefault();
+        removeSelected();
       }
     }
-  }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }); // pas de tableau de dépendances : on veut toujours la dernière sélection/presse-papiers
+
+  useEffect(() => {
+    async function onPaste(ev) {
+      const items = (ev.clipboardData && ev.clipboardData.items) || [];
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type && items[i].type.indexOf('image') === 0) {
+          ev.preventDefault();
+          try {
+            const url = await uploadScreenshot(items[i].getAsFile());
+            const singleImg = selectedIds.size === 1 && (tableau.elements || []).find((e) => selectedIds.has(e.id) && e.kind === 'image');
+            if (singleImg) { setUrlSelected(url); }
+            else {
+              const el = emptyElement('image', lastWorldRef.current.x - 140, lastWorldRef.current.y - 90, author);
+              el.url = url;
+              el.z = (tableau.elements || []).length + 1;
+              patchBoard((t) => { t.elements.push(el); });
+              setSelectedIds(new Set([el.id]));
+            }
+          } catch (_) { toast('Image illisible / envoi impossible'); }
+          return;
+        }
+      }
+    }
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }); // idem : toujours la dernière sélection
 
   const selectedEls = (tableau.elements || []).filter((e) => selectedIds.has(e.id));
-  const single = selectedEls.length === 1 ? selectedEls[0] : null;
-  const [urlDraft, setUrlDraft] = useState('');
-  useEffect(() => { setUrlDraft(single && single.kind === 'image' ? single.url : ''); }, [single && single.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="tb-shell">
@@ -508,6 +724,29 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
             </button>
           ))}
         </div>
+        {tool === 'draw' && (
+          <div className="tb-drawpanel">
+            <span className="tb-swrow">
+              {COLORS.map((c) => (
+                <button key={c} type="button" className={'tb-swatch' + (drawColor === c ? ' is-active' : '')} style={{ background: c }} onClick={() => setDrawColor(c)} aria-label={'couleur ' + c} />
+              ))}
+              <input type="color" value={drawColor} onChange={(e) => setDrawColor(e.target.value)} title="Couleur libre" />
+            </span>
+            <label className="tb-drawpanel__field">
+              taille
+              <input type="range" min="1" max="16" value={drawWidth} onChange={(e) => setDrawWidth(Number(e.target.value))} />
+            </label>
+            <label className="tb-drawpanel__field">
+              <input type="checkbox" checked={drawDashed} onChange={(e) => setDrawDashed(e.target.checked)} /> pointillé
+            </label>
+            {drawDashed && (
+              <label className="tb-drawpanel__field">
+                espacement
+                <input type="range" min="2" max="30" value={drawGap} onChange={(e) => setDrawGap(Number(e.target.value))} />
+              </label>
+            )}
+          </div>
+        )}
         <div className="tb-zoom">
           <button className="tbtn" type="button" onClick={() => setCamera((c) => ({ ...c, zoom: Math.max(0.2, c.zoom * 0.85) }))}>−</button>
           <span className="chr__muted">{Math.round(camera.zoom * 100)}%</span>
@@ -518,20 +757,23 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
 
       <div
         ref={viewportRef} id="tb-viewport" className="tb-viewport"
-        onMouseDown={onBackgroundMouseDown} onWheel={onWheel} onPaste={handleImagePaste}
+        onMouseDown={onBackgroundMouseDown} onMouseMove={onCanvasMouseMoveTrack} onWheel={onWheel}
+        onContextMenu={(e) => { if (e.target === e.currentTarget || e.target.id === 'tb-world') e.preventDefault(); }}
       >
         <div id="tb-world" style={{ position: 'absolute', left: 0, top: 0, transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`, transformOrigin: '0 0' }}>
-          <ConnectionsSvg elements={elements} connections={connections} selectedConnId={selectedConnId} onSelectConn={(id) => { setSelectedConnId(id); setSelectedIds(new Set()); }} />
+          <ConnectionsSvg
+            elements={elements} connections={connections} selectedConnId={selectedConnId}
+            onSelectConn={(id) => { setSelectedConnId(id); setSelectedIds(new Set()); }}
+          />
           {elements.slice().sort((a, b) => a.z - b.z).map((el) => (
             <ElementBox
               key={el.id} el={el} selected={selectedIds.has(el.id)}
-              onPointerDownMove={onElementMouseDown}
+              onDown={onElementMouseDown} onContext={onElementContextMenu}
               editing={editingId === el.id}
               onStartEdit={setEditingId}
               onStopEdit={() => setEditingId(null)}
               onTextChange={handleTextChange}
             >
-              <ElementVisual el={el} />
               {selectedIds.size === 1 && selectedIds.has(el.id) && !el.locked && (
                 <Handles el={el} onResizeStart={onResizeStart} onRotateStart={onRotateStart} />
               )}
@@ -548,51 +790,37 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
         </div>
       </div>
 
-      {(selectedEls.length > 0 || selectedConnId) && (
-        <div className="tb-inspector">
-          {selectedConnId ? (
-            <>
-              <span className="chr__muted">Connexion</span>
-              <button
-                className="tbtn" type="button"
-                onClick={() => patchBoard((t) => { const c = t.connections.find((x) => x.id === selectedConnId); if (c) c.kind = c.kind === 'arrow' ? 'line' : 'arrow'; })}
-              >
-                basculer flèche/ligne
-              </button>
-              <button className="tbtn" type="button" onClick={() => { patchBoard((t) => { t.connections = t.connections.filter((c) => c.id !== selectedConnId); }); setSelectedConnId(null); }}>
-                supprimer
-              </button>
-            </>
-          ) : (
-            <>
-              <span className="chr__muted">{selectedEls.length} sélectionné{selectedEls.length > 1 ? 's' : ''}</span>
-              {selectedEls.some((e) => e.kind === 'note' || e.kind === 'shape' || e.kind === 'draw') && (
-                <span className="tb-swatches">
-                  {COLORS.map((c) => (
-                    <button key={c} type="button" className="tb-swatch" style={{ background: c }} onClick={() => setColorSelected(c)} aria-label={'couleur ' + c} />
-                  ))}
-                </span>
-              )}
-              {single && single.kind === 'image' && (
-                <input
-                  className="field field--mono" type="text" placeholder="https://…" value={urlDraft}
-                  onChange={(e) => setUrlDraft(e.target.value)}
-                  onBlur={() => setUrlSelected(urlDraft.trim())}
-                  style={{ width: 200 }}
-                />
-              )}
-              <button className="tbtn" type="button" onClick={duplicateSelected}>dupliquer</button>
-              <button className="tbtn" type="button" onClick={toggleLockSelected}>{selectedEls.every((e) => e.locked) ? 'déverrouiller' : 'verrouiller'}</button>
-              <button className="tbtn" type="button" onClick={() => orderSelected('front')}>premier plan</button>
-              <button className="tbtn" type="button" onClick={() => orderSelected('back')}>arrière-plan</button>
-              <button className="tbtn" type="button" onClick={removeSelected}>supprimer</button>
-            </>
-          )}
+      {ctxMenu && (
+        <ContextMenu
+          menu={ctxMenu}
+          onClose={() => setCtxMenu(null)}
+          actions={{
+            duplicate: duplicateSelected,
+            toggleLock: toggleLockSelected,
+            order: orderSelected,
+            setColor: setColorSelected,
+            setFont: setFontSelected,
+            remove: removeSelected,
+            toggleConnKind: () => patchBoard((t) => { const c = t.connections.find((x) => x.id === selectedConnId); if (c) c.kind = c.kind === 'arrow' ? 'line' : 'arrow'; }),
+            deleteConn: () => { patchBoard((t) => { t.connections = t.connections.filter((c) => c.id !== selectedConnId); }); setSelectedConnId(null); }
+          }}
+        />
+      )}
+
+      {selectedEls.length === 1 && selectedEls[0].kind === 'image' && (
+        <div className="tb-imgpanel">
+          <span className="chr__muted">Lien de l’image</span>
+          <input
+            className="field field--mono" type="text" placeholder="https://…" defaultValue={selectedEls[0].url}
+            onBlur={(e) => setUrlSelected(e.target.value.trim())}
+            style={{ width: 260 }}
+          />
         </div>
       )}
 
       <p className="tb-hint chr__muted">
-        {charName} · molette pour zoomer, glisser le fond pour naviguer, majuscule+clic pour sélection multiple, ⌫ pour supprimer.
+        {charName} · molette pour zoomer, clic droit + glisser pour naviguer, clic gauche + glisser (outil sélection) pour un cadre de sélection,
+        majuscule+clic pour sélection multiple, clic droit sur un élément pour le menu, Ctrl+C/Ctrl+V pour dupliquer, ⌫ pour supprimer.
       </p>
     </div>
   );
