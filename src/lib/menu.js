@@ -140,13 +140,27 @@ export function pruneForRole(tree, role) {
   return walk(tree, []);
 }
 
-export function firstViewKey(tree) {
-  for (const n of tree || []) {
-    if (isLeaf(n)) return routeKeyOf(n);
-    const inner = firstViewKey(n.children);
-    if (inner) return inner;
+function firstLeafKey(nodes, onlyStaticViews) {
+  for (const n of nodes || []) {
+    if (isLeaf(n)) {
+      if (!onlyStaticViews || n.type === 'view') return routeKeyOf(n);
+    } else {
+      const inner = firstLeafKey(n.children, onlyStaticViews);
+      if (inner) return inner;
+    }
   }
   return null;
+}
+
+/** Vue de secours quand la vue courante est invalide/absente (ex. après
+ * fermeture d'un document, connexion). Préfère une vue statique ('view') à
+ * un document ('doc') : un doc s'ouvre en plein écran par-dessus tout, donc
+ * s'il devenait la vue de secours, fermer le document rechargerait
+ * aussitôt ce même document (repli sur firstViewKey) — un piège dont on ne
+ * peut plus sortir. Ne retombe sur un doc que si l'arbre n'a aucune vue
+ * statique du tout. */
+export function firstViewKey(tree) {
+  return firstLeafKey(tree, true) || firstLeafKey(tree, false);
 }
 
 export function treeHasView(tree, key) {
