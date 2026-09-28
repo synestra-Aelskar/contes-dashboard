@@ -86,13 +86,14 @@ const AutoTextarea = forwardRef(function AutoTextarea({ value, onChange, readOnl
   );
 });
 
-function Checkbox({ on, onToggle, size = 17, title }) {
+function Checkbox({ on, onToggle, size = 17, title, disabled }) {
   return (
     <span
       role="checkbox"
       aria-checked={on}
+      aria-disabled={disabled || undefined}
       title={title}
-      onClick={onToggle}
+      onClick={disabled ? undefined : onToggle}
       style={{
         flex: '0 0 auto',
         width: size,
@@ -100,7 +101,8 @@ function Checkbox({ on, onToggle, size = 17, title }) {
         marginTop: 5,
         border: '1.5px solid var(--sz-acc)',
         borderRadius: 2,
-        cursor: 'pointer',
+        cursor: disabled ? 'default' : 'pointer',
+        opacity: disabled ? 0.6 : 1,
         background: on ? 'var(--sz-acc-ink)' : 'transparent',
         borderColor: on ? 'var(--sz-acc-ink)' : 'var(--sz-acc)',
         boxShadow: on ? `inset 0 0 0 3px ${BG}` : 'none'
@@ -156,7 +158,7 @@ function ZeroRow({ blockId, listKey, row, mutate, read, size, font, placeholder 
     });
   return (
     <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start' }}>
-      <Checkbox on={row.on} size={size} onToggle={() => patchRow((r) => { r.on = !r.on; })} />
+      <Checkbox on={row.on} size={size} disabled={read} onToggle={() => patchRow((r) => { r.on = !r.on; })} />
       <AutoTextarea
         ref={textRef}
         value={text}
