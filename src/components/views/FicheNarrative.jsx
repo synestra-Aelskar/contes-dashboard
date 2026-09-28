@@ -377,7 +377,7 @@ function DeleteConfirm({ nom, onConfirm, onCancel }) {
   );
 }
 
-export default function FicheNarrative({ state, mutate }) {
+export default function FicheNarrative({ state, mutate, canEdit = true }) {
   const fiches = state.fichesNarratives || [];
   const [openState, setOpenState] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
@@ -385,12 +385,14 @@ export default function FicheNarrative({ state, mutate }) {
   const toDelete = fiches.find((f) => f.id === deleteId) || null;
 
   const createFiche = () => {
+    if (!canEdit) return;
     const f = emptyFiche();
     mutate((s) => { s.fichesNarratives.push(f); });
     setOpenState({ id: f.id, mode: 'edit' });
   };
 
   const deleteFiche = (id) => {
+    if (!canEdit) return;
     mutate((s) => { s.fichesNarratives = s.fichesNarratives.filter((f) => f.id !== id); });
     setDeleteId(null);
     if (openState && openState.id === id) setOpenState(null);
@@ -401,9 +403,10 @@ export default function FicheNarrative({ state, mutate }) {
       <>
         <FicheNarrativeEditor
           key={open.id} fiche={open} mutate={mutate}
-          initialRead={openState.mode === 'read'}
+          canEdit={canEdit}
+          initialRead={!canEdit || openState.mode === 'read'}
           onBack={() => setOpenState(null)}
-          onDelete={() => setDeleteId(open.id)}
+          onDelete={canEdit ? () => setDeleteId(open.id) : undefined}
         />
         {toDelete && (
           <DeleteConfirm nom={toDelete.titre.trim()} onConfirm={() => deleteFiche(toDelete.id)} onCancel={() => setDeleteId(null)} />
@@ -420,46 +423,51 @@ export default function FicheNarrative({ state, mutate }) {
 
       {!fiches.length ? (
         <p className="empty">
-          Aucune fiche narrative pour l’instant — prologue, interlude, scène de campagne… Crée-en une :
-          grand titre, puis chapitres en défilement avec paragraphes, citations et images légendées.
+          {canEdit
+            ? 'Aucune fiche narrative pour l’instant — prologue, interlude, scène de campagne… Crée-en une : grand titre, puis chapitres en défilement avec paragraphes, citations et images légendées.'
+            : 'Aucune fiche narrative pour l’instant.'}
         </p>
       ) : (
         <div className="fiche-list">
           {fiches.map((f) => (
             <div key={f.id} className="fiche-row">
-              <button type="button" className="fiche-row__name" onClick={() => setOpenState({ id: f.id, mode: 'edit' })}>
+              <button type="button" className="fiche-row__name" onClick={() => setOpenState({ id: f.id, mode: canEdit ? 'edit' : 'read' })}>
                 {f.titre.trim() || 'Sans titre'}
                 <span className="count"> · {f.blocks.filter((b) => b.kind === 'chapter').length} chapitre{f.blocks.filter((b) => b.kind === 'chapter').length > 1 ? 's' : ''}</span>
               </button>
               <div className="fiche-row__group">
                 <div className="fiche-row__actions">
                   <button type="button" onClick={() => setOpenState({ id: f.id, mode: 'read' })}>Lecture</button>
-                  <button type="button" onClick={() => setOpenState({ id: f.id, mode: 'edit' })}>Édition</button>
+                  {canEdit && <button type="button" onClick={() => setOpenState({ id: f.id, mode: 'edit' })}>Édition</button>}
                 </div>
-                <button
-                  className="fiche-row__del" type="button" title="Supprimer"
-                  aria-label={`Supprimer ${f.titre.trim() || 'cette fiche'}`}
-                  onClick={() => setDeleteId(f.id)}
-                >
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <polyline points="3 6 5 6 21 6" />
-                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                    <path d="M10 11v6" />
-                    <path d="M14 11v6" />
-                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                  </svg>
-                </button>
+                {canEdit && (
+                  <button
+                    className="fiche-row__del" type="button" title="Supprimer"
+                    aria-label={`Supprimer ${f.titre.trim() || 'cette fiche'}`}
+                    onClick={() => setDeleteId(f.id)}
+                  >
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
           ))}
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'center', marginTop: fiches.length ? 22 : 6 }}>
-        <button className="btn-primary" type="button" onClick={createFiche} style={{ fontSize: 13, padding: '16px 30px' }}>
-          ＋ Nouvelle fiche narrative
-        </button>
-      </div>
+      {canEdit && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: fiches.length ? 22 : 6 }}>
+          <button className="btn-primary" type="button" onClick={createFiche} style={{ fontSize: 13, padding: '16px 30px' }}>
+            ＋ Nouvelle fiche narrative
+          </button>
+        </div>
+      )}
 
       {toDelete && (
         <DeleteConfirm nom={toDelete.titre.trim()} onConfirm={() => deleteFiche(toDelete.id)} onCancel={() => setDeleteId(null)} />

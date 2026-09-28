@@ -4,7 +4,7 @@ import { useBoard } from '../lib/board.js';
 import { fmtDateLong, lsGet, lsSet } from '../lib/util.js';
 import { makeDraft, finishDraft, nextSessionTitle } from '../lib/session.js';
 import { getUiScale, applyUiScale } from '../lib/prefs.js';
-import { pruneForRole, firstViewKey, treeHasView } from '../lib/menu.js';
+import { pruneForRole, firstViewKey, treeHasView, canEditRoute } from '../lib/menu.js';
 import WorldDate from './WorldDate.jsx';
 import Sidebar from './Sidebar.jsx';
 import TableauDeBord from './views/TableauDeBord.jsx';
@@ -108,7 +108,8 @@ export default function Dashboard({ session }) {
     setSessionPanelOpen(false);
   }
 
-  const shared = { state, mutate, goToSession, role, userId: session.user.id };
+  const canEditActive = role === 'admin' || canEditRoute(state.settings.menu || [], activeView, role);
+  const shared = { state, mutate, goToSession, role, userId: session.user.id, canEdit: canEditActive };
   const docMatch = /^doc:([^:]+):(.+)$/.exec(activeView);
   const docKind = docMatch ? docMatch[1] : null;
   const docId = docMatch ? docMatch[2] : null;

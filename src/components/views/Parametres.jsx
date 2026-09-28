@@ -4,7 +4,7 @@ import { useSyncedField } from '../../lib/useSyncedField.js';
 import { supabase } from '../../supabase';
 import {
   ROLES, labelForNode, listContainers, moveViewToContainer, moveNodeToPosition, addCategory, addSubcategory,
-  renameNode, setNodeVisibility, removeNode, moveSibling
+  renameNode, setNodeVisibility, setNodeEditVisibility, removeNode, moveSibling
 } from '../../lib/menu.js';
 import { PLAYER_EMAIL_DOMAIN } from '../../lib/playerAuth.js';
 
@@ -336,27 +336,32 @@ function ComptesPane({ state, mutate }) {
   );
 }
 
-function VisibilityEditor({ node, onSet }) {
-  const custom = !!node.visibility;
+/** Éditeur générique d'un droit par nœud : `field="visibility"` (qui peut
+ * VOIR cette feuille) ou `field="editVisibility"` (qui peut en ÉDITER le
+ * contenu — indépendant de la vue, admin seulement par défaut même si le
+ * nœud est visible aux joueurs). Même mécanique d'héritage pour les deux. */
+function VisibilityEditor({ node, field, label, onSet }) {
+  const value = node[field];
+  const custom = !!value;
   return (
-    <div className="menuedit__vis">
+    <div className="menuedit__vis" title={label}>
       <select
         className="field menuedit__vissel"
         value={custom ? 'custom' : 'inherit'}
         onChange={(e) => onSet(e.target.value === 'custom' ? ['admin'] : null)}
       >
-        <option value="inherit">Hérite</option>
-        <option value="custom">Personnalisé</option>
+        <option value="inherit">{label} : hérite</option>
+        <option value="custom">{label} : personnalisé</option>
       </select>
       {custom && ROLES.map(([v, l]) => (
         <label key={v} className="menuedit__vischk">
           <input
             type="checkbox"
-            checked={node.visibility.includes(v)}
+            checked={value.includes(v)}
             onChange={(e) => {
               const next = e.target.checked
-                ? [...node.visibility, v]
-                : node.visibility.filter((r) => r !== v);
+                ? [...value, v]
+                : value.filter((r) => r !== v);
               onSet(next);
             }}
           />
@@ -422,7 +427,14 @@ function ViewNodeRow({ node, mutate, containers, depth, currentContainer, index,
         <option value="">— racine —</option>
         {containers.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
       </select>
-      <VisibilityEditor node={node} onSet={(roles) => mutate((s) => { s.settings.menu = setNodeVisibility(s.settings.menu, node.id, roles); })} />
+      <VisibilityEditor
+        node={node} field="visibility" label="Voir"
+        onSet={(roles) => mutate((s) => { s.settings.menu = setNodeVisibility(s.settings.menu, node.id, roles); })}
+      />
+      <VisibilityEditor
+        node={node} field="editVisibility" label="Éditer"
+        onSet={(roles) => mutate((s) => { s.settings.menu = setNodeEditVisibility(s.settings.menu, node.id, roles); })}
+      />
     </div>
   );
 }
@@ -456,7 +468,14 @@ function GroupNodeRow({ node, mutate, depth, containerId, index, isFirst, isLast
         onChange={(e) => { const v = e.target.value; setName(v); patchName(v); }}
         onBlur={() => patchName(name.trim())}
       />
-      <VisibilityEditor node={node} onSet={(roles) => mutate((s) => { s.settings.menu = setNodeVisibility(s.settings.menu, node.id, roles); })} />
+      <VisibilityEditor
+        node={node} field="visibility" label="Voir"
+        onSet={(roles) => mutate((s) => { s.settings.menu = setNodeVisibility(s.settings.menu, node.id, roles); })}
+      />
+      <VisibilityEditor
+        node={node} field="editVisibility" label="Éditer"
+        onSet={(roles) => mutate((s) => { s.settings.menu = setNodeEditVisibility(s.settings.menu, node.id, roles); })}
+      />
       {node.type === 'category' && (
         <button
           className="tbtn" type="button"

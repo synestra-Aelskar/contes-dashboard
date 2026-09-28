@@ -2,12 +2,12 @@ import { FicheNarrativeEditor } from './FicheNarrative.jsx';
 
 /**
  * Ouvre UNE fiche narrative précise, atteinte via son propre nœud dans le
- * menu (placé librement, visibilité admin/joueur définie par nœud) plutôt
- * que via la liste de gestion. Lecture forcée pour qui n'a pas le rôle MJ.
+ * menu (placé librement, visibilité de vue ET d'édition définies par nœud,
+ * indépendamment — voir Paramètres › Ordre du menu) plutôt que via la liste
+ * de gestion. Lecture forcée par défaut pour qui n'a pas le rôle MJ.
  */
-export default function FicheNarrativeDoc({ state, mutate, role, ficheId, setView }) {
+export default function FicheNarrativeDoc({ state, mutate, canEdit, ficheId, setView }) {
   const fiche = (state.fichesNarratives || []).find((f) => f.id === ficheId);
-  const canEdit = role === 'admin';
 
   if (!fiche) {
     return (

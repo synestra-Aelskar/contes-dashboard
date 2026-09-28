@@ -2,12 +2,12 @@ import { FicheEditor } from './FicheTechnique.jsx';
 
 /**
  * Ouvre UNE fiche technique précise, atteinte via son propre nœud dans le
- * menu (placé librement, visibilité admin/joueur définie par nœud) plutôt
- * que via la liste de gestion. Lecture forcée pour qui n'a pas le rôle MJ.
+ * menu (placé librement, visibilité de vue ET d'édition définies par nœud,
+ * indépendamment — voir Paramètres › Ordre du menu) plutôt que via la liste
+ * de gestion. Lecture forcée par défaut pour qui n'a pas le rôle MJ.
  */
-export default function FicheTechniqueDoc({ state, mutate, role, ficheId, setView }) {
+export default function FicheTechniqueDoc({ state, mutate, canEdit, ficheId, setView }) {
   const fiche = (state.fichesTechniques || []).find((f) => f.id === ficheId);
-  const canEdit = role === 'admin';
 
   if (!fiche) {
     return (

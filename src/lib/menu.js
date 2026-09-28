@@ -50,6 +50,43 @@ function effectiveVisibility(node, ancestors) {
   return ['admin'];
 }
 
+/** Même logique d'héritage que la visibilité, mais pour le droit d'ÉDITER
+ * le contenu d'une feuille (indépendant de qui peut la VOIR) — par défaut
+ * admin seulement, même si le nœud est visible aux joueurs. */
+function effectiveEditVisibility(node, ancestors) {
+  for (const anc of ancestors) {
+    if (anc.editVisibility && anc.editVisibility.length) return anc.editVisibility;
+  }
+  if (node.editVisibility && node.editVisibility.length) return node.editVisibility;
+  return ['admin'];
+}
+
+/** Trouve une feuille par sa routeKey et la chaîne de ses ancêtres (pour
+ * l'héritage de visibilité/édition) — parcourt l'arbre COMPLET (non élagué). */
+export function findNodeAndAncestors(tree, routeKey) {
+  function walk(nodes, ancestors) {
+    for (const n of nodes || []) {
+      if (isLeaf(n)) {
+        if (routeKeyOf(n) === routeKey) return { node: n, ancestors };
+      } else {
+        const found = walk(n.children, [...ancestors, n]);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+  return walk(tree, []);
+}
+
+/** Le rôle donné peut-il ÉDITER le contenu de la feuille visée par cette
+ * routeKey ? Introuvable (vue statique hors arbre, ex. Paramètres) =
+ * admin seulement. */
+export function canEditRoute(tree, routeKey, role) {
+  const found = findNodeAndAncestors(tree, routeKey);
+  if (!found) return role === 'admin';
+  return effectiveEditVisibility(found.node, found.ancestors).includes(role);
+}
+
 /** Tout nœud qui n'est pas un conteneur (catégorie/sous-catégorie) est une
  * feuille navigable — une vue statique (registre ALL_VIEWS) ou un document
  * dynamique (ex. une fiche technique précise). */
@@ -243,6 +280,14 @@ export function setNodeVisibility(tree, id, roles) {
   return tree.map((n) => {
     if (n.id === id) return { ...n, visibility: roles && roles.length ? roles : null };
     if (n.children) return { ...n, children: setNodeVisibility(n.children, id, roles) };
+    return n;
+  });
+}
+
+export function setNodeEditVisibility(tree, id, roles) {
+  return tree.map((n) => {
+    if (n.id === id) return { ...n, editVisibility: roles && roles.length ? roles : null };
+    if (n.children) return { ...n, children: setNodeEditVisibility(n.children, id, roles) };
     return n;
   });
 }
