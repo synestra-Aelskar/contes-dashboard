@@ -1,3 +1,4 @@
+import { SUPPORTS, LAYOUTS, TYPEFACES, DOCUMENT_FIELDS, DOCUMENT_TEMPLATES, documentOptions } from '../../lib/documentAppearance.js';
 import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { lsGet, lsSet } from '../../lib/util.js';
 import { useSyncedField } from '../../lib/useSyncedField.js';
@@ -256,6 +257,41 @@ async function hostDataImages(story) {
   return story;
 }
 
+function TemplateGallery({ onCreate }) {
+  return <details className="scr-models"><summary>Créer à partir d’un modèle <span>6 documents prêts à personnaliser</span></summary>
+    <p className="scr-hint">Chaque modèle crée un nouveau document. Les textes proposés sont des exemples à remplacer.</p>
+    <div className="scr-models__grid">{DOCUMENT_TEMPLATES.map(t => <button type="button" className="scr-model" key={t.id} onClick={() => onCreate(t)}>
+      <span className={'scr-material scr-material--' + t.support} aria-hidden="true"><span>{t.layout === 'report' ? 'N° 0098' : t.layout === 'inscription' ? 'IV' : 'Aa'}</span><i /><i /><i /></span>
+      <strong>{t.label}</strong><small>{t.note}</small><span className="scr-model__action">Créer ce document →</span>
+    </button>)}</div>
+  </details>;
+}
+
+function AppearanceEditor({ book, editBook }) {
+  const d = documentOptions(book.document);
+  const patch = (key, value) => editBook(b => { b.document = { ...documentOptions(b.document), [key]: value }; });
+  return <section className="scr-sec scr-atelier">
+    <div className="scr-sec__h">Matière & mise en page</div>
+    <p className="scr-hint">Choisissez le support de votre document. L’aperçu, la Bibliothèque et le fichier HTML partagent le même rendu.</p>
+    <div className="scr-materials" role="group" aria-label="Support du document">{Object.entries(SUPPORTS).map(([key,t]) =>
+      <button type="button" key={key} className={'scr-material-choice' + (d.support === key ? ' is-active' : '')} aria-pressed={d.support === key} title={t.note} onClick={() => patch('support', key)}>
+        <span className={'scr-material scr-material--' + key} aria-hidden="true">Aa<span>✦</span></span><span>{t.label}</span>
+      </button>)}</div>
+    <div className="scr-atelier__fields">
+      <label className="scr-fld"><span className="scr-lbl">Mise en page</span><select className="finput" value={d.layout} onChange={e => patch('layout',e.target.value)}>{Object.entries(LAYOUTS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+      <label className="scr-fld"><span className="scr-lbl">Écriture</span><select className="finput" value={d.font} onChange={e => patch('font',e.target.value)}>{Object.entries(TYPEFACES).map(([k,v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+    </div>
+    <label className="scr-fld"><span className="scr-lbl">Grain du support · {d.texture}%</span><input type="range" min="0" max="100" step="5" value={d.texture} onChange={e => patch('texture',+e.target.value)} /></label>
+    <div className="scr-atelier__fields">
+      <label className="scr-fld"><span className="scr-lbl">Corps du texte · {d.size} px</span><input type="range" min="16" max="24" value={d.size} onChange={e => patch('size',+e.target.value)} /></label>
+      <label className="scr-fld"><span className="scr-lbl">Interligne · {d.spacing.toFixed(1)}</span><input type="range" min="1.4" max="2.2" step="0.1" value={d.spacing} onChange={e => patch('spacing',+e.target.value)} /></label>
+    </div>
+    <div className="scr-sec__h">Identité du document</div>
+    {Object.entries(DOCUMENT_FIELDS).map(([k,label]) => <label className="scr-fld" key={k}><span className="scr-lbl">{label}</span><SyncField className="finput" value={d[k]} onValue={v => patch(k,v)} placeholder={{reference:'0098',author:'Roy Hawkins',institution:'Département des études spirituelles',date:'Jour de Kora, An 5985',classification:'Confidentiel — Archives du Conseil'}[k]} /></label>)}
+    <p className="scr-hint">Les champs vides sont masqués. L’auteur apparaît sous le titre ; la signature reste en pied de document.</p>
+  </section>;
+}
+
 export default function Scriptorium({ state, mutate, setView, canEdit }) {
   const lib = state.bibliotheque;
   const [bookIdRaw, setBookIdRaw] = useState(() => lsGet(BOOK_KEY) || '');
@@ -263,6 +299,7 @@ export default function Scriptorium({ state, mutate, setView, canEdit }) {
   const bookId = book ? book.id : '';
   const openBook = (id) => { setBookIdRaw(id); lsSet(BOOK_KEY, id); };
 
+  const [editorTab, setEditorTab] = useState(() => lsGet('ccm.scriptorium.tab') || 'appearance');
   const [collapsed, setCollapsed] = useState(false);
   const [mobilePreview, setMobilePreview] = useState(false);
   const [discord, setDiscord] = useState(false);
@@ -354,12 +391,23 @@ export default function Scriptorium({ state, mutate, setView, canEdit }) {
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
   }, [openMenu, discord]);
 
-  function createBook() {
+  function createBook(template) {
     const shelf = lib.shelves.find((s) => s.id === (book && book.shelfId)) || lib.shelves[0] || null;
     const nb = newBook(shelf);
+    if (template && template.id) {
+      nb.document = documentOptions(template);
+      nb.surtitre = template.surtitre;
+      nb.titre1 = template.titre1;
+      nb.braise = false;
+      nb.fin = 'Fin du document';
+      nb.acts = template.sections.map((name, i) => ({ ...newAct(['p']), name, blocks: [{ ...newBlock('p'), text: template.prompts[i] }] }));
+      setEditorTab('appearance');
+      lsSet('ccm.scriptorium.tab', 'appearance');
+    }
     mutate((s) => { s.bibliotheque.books.push(nb); });
     openBook(nb.id);
-    pendingFocus.current = '.scr-t1';
+    lastHtml.current = '';
+    if (!template?.id) { setEditorTab('text'); pendingFocus.current = '.scr-t1'; }
     toast(shelf ? `Nouveau récit rangé sur « ${shelf.name || 'Sans nom'} »` : 'Nouveau récit créé');
   }
 
@@ -369,7 +417,8 @@ export default function Scriptorium({ state, mutate, setView, canEdit }) {
     return (
       <section className="chapter scr">
         <div className="chapter__head"><h2>Scriptorium de la Trame</h2></div>
-        <p className="empty">La bibliothèque est vide : aucun récit à ouvrir pour l'instant.</p>
+        <p className="empty">Créez un récit, une lettre ou un document d’archives pour commencer.</p>
+        {canEdit && <TemplateGallery onCreate={createBook} />}
         {canEdit && <div className="scr__bar"><button className="scr-btn scr-btn--on" type="button" onClick={createBook}>+ Écrire un nouveau récit</button>{backToLibrary}</div>}
       </section>
     );
@@ -488,12 +537,13 @@ export default function Scriptorium({ state, mutate, setView, canEdit }) {
     <section className={'chapter scr' + (collapsed ? ' scr--collapsed' : '') + (mobilePreview ? ' scr--pv' : '')} ref={rootRef}>
       <div className="chapter__head">
         <h2>Scriptorium de la Trame</h2>
-        <span className="scr-sub">Créer et retoucher les récits de la bibliothèque.</span>
+        <span className="scr-sub">Récits, correspondances et archives de votre univers.</span>
       </div>
 
+      {canEdit && <TemplateGallery onCreate={createBook} />}
       <div className="scr__bar">
         <label className="scr__book">
-          <span className="scr-lbl">Livre ouvert</span>
+          <span className="scr-lbl">Document ouvert</span>
           <select className="finput" value={bookId} onChange={(e) => openBook(e.target.value)}>
             {byShelf.filter((g) => g.books.length).map((g) => (
               <optgroup key={g.shelf.id} label={g.shelf.name || 'Sans nom'}>
@@ -509,7 +559,7 @@ export default function Scriptorium({ state, mutate, setView, canEdit }) {
         </label>
         <div className="scr__actions">
           {backToLibrary}
-          {canEdit && <button className="scr-btn" type="button" onClick={createBook}>+ Nouveau récit</button>}
+          {canEdit && <button className="scr-btn" type="button" onClick={createBook}>+ Document vierge</button>}
           <span className="scr__tabs">
             <button className="scr-btn" type="button" onClick={() => { setMobilePreview(false); setDiscord(false); }}>Édition</button>
             <button className="scr-btn" type="button" onClick={() => { setMobilePreview(true); setDiscord(false); }}>Aperçu</button>
@@ -530,7 +580,10 @@ export default function Scriptorium({ state, mutate, setView, canEdit }) {
 
       <div className="scr__work" hidden={discord}>
         <aside className="scr__panel" aria-label="Édition du récit">
+          <div className="scr-editor-tabs" role="group" aria-label="Panneau de l’éditeur">{[['appearance','Support & identité'],['text','Texte & sections']].map(([k,v]) => <button className={'scr-btn' + (editorTab === k ? ' scr-btn--on' : '')} type="button" key={k} aria-pressed={editorTab === k} onClick={() => { setEditorTab(k); lsSet('ccm.scriptorium.tab', k); }}>{v}</button>)}</div>
           <fieldset key={bookId} className="scr__fs" disabled={!canEdit}>
+            {editorTab === 'appearance' && <AppearanceEditor book={book} editBook={editBook} />}
+            {editorTab === 'text' && <div>
             <section className="scr-sec">
               <div className="scr-sec__h">En-tête</div>
               <label className="scr-fld"><span className="scr-lbl">Surtitre</span>
@@ -538,7 +591,7 @@ export default function Scriptorium({ state, mutate, setView, canEdit }) {
                 <datalist id="scr-sur-list"><option value="Prologue" /><option value="Interlude" /><option value="Épilogue" /></datalist>
               </label>
               <label className="scr-fld"><span className="scr-lbl">Titre, ligne 1</span>{headField('titre1', 'scr-t1')}</label>
-              <label className="scr-fld"><span className="scr-lbl">Titre, ligne 2 (italique doré)</span>{headField('titre2', 'scr-t2')}</label>
+              <label className="scr-fld"><span className="scr-lbl">Sous-titre / seconde ligne</span>{headField('titre2', 'scr-t2')}</label>
             </section>
 
             {book.acts.map((a, i) => (
@@ -546,7 +599,7 @@ export default function Scriptorium({ state, mutate, setView, canEdit }) {
                 <div className="scr-act__h">
                   <span className="scr-act__n">{roman(i + 1)}</span>
                   <SyncField
-                    id={'scr-act-' + a.id} className="finput scr-act__name" placeholder="Nom de l'acte" autoComplete="off"
+                    id={'scr-act-' + a.id} className="finput scr-act__name" placeholder="Nom de la section" autoComplete="off"
                     aria-label={"Nom de l'acte " + roman(i + 1)} value={a.name}
                     onValue={(v) => editBook((b) => { const x = actOf(b, a.id); if (x) x.name = v; })}
                   />
@@ -585,7 +638,7 @@ export default function Scriptorium({ state, mutate, setView, canEdit }) {
                 </div>
               </section>
             ))}
-            <button className="scr-btn scr-add-act" type="button" onClick={addAct}>+ Ajouter un acte</button>
+            <button className="scr-btn scr-add-act" type="button" onClick={addAct}>+ Ajouter une section</button>
 
             <section className="scr-sec scr-sec--end">
               <div className="scr-sec__h">Clôture</div>
@@ -603,6 +656,7 @@ export default function Scriptorium({ state, mutate, setView, canEdit }) {
                 Point de braise pulsant
               </label>
             </section>
+            </div>}
           </fieldset>
 
           <div className="scr-foot">

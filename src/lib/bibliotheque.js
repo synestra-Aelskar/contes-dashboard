@@ -1,3 +1,4 @@
+import { documentOptions } from './documentAppearance.js';
 import { uid } from './util.js';
 import { TYPES, emptyStory } from './scriptorium.js';
 
@@ -28,6 +29,7 @@ function normalizeBlock(b) {
 }
 
 function normalizeBook(bk) {
+  bk.document = documentOptions(bk.document);
   if (typeof bk.id !== 'string' || !bk.id) bk.id = uid();
   if (typeof bk.shelfId !== 'string') bk.shelfId = null;
   ['surtitre', 'titre1', 'titre2', 'fin', 'finSub', 'signature', 'createdAt', 'updatedAt'].forEach((k) => { bk[k] = str(bk[k]); });

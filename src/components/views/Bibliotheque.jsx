@@ -87,7 +87,7 @@ export default function Bibliotheque({ state, mutate, setView, canEdit }) {
   const [newShelf, setNewShelf] = useState('');
   const [dropShelf, setDropShelf] = useState(null);
   const [query, setQuery] = useState('');
-  const matches = (book) => (bookTitle(book) + ' ' + book.surtitre).toLocaleLowerCase('fr').includes(query.trim().toLocaleLowerCase('fr'));
+  const matches = (book) => [bookTitle(book), book.surtitre, book.document?.reference, book.document?.author, book.document?.institution].filter(Boolean).join(' ').toLocaleLowerCase('fr').includes(query.trim().toLocaleLowerCase('fr'));
   const setSelId = (id) => { setSelIdRaw(id); lsSet(SEL_KEY, id); };
 
   const selected = lib.books.find((b) => b.id === selId) || null;
@@ -247,6 +247,10 @@ export default function Bibliotheque({ state, mutate, setView, canEdit }) {
                 <span>{selected.titre1 || (selected.titre2 ? '' : 'Sans titre')}</span>
                 {selected.titre2 && <em>{selected.titre2}</em>}
               </h3>
+              {(selected.document?.reference || selected.document?.author) && <p className="lib-lectern__identity">
+                {selected.document.reference && <span>Document numéro {selected.document.reference}</span>}
+                {selected.document.author && <span>Par {selected.document.author}</span>}
+              </p>}
               <dl className="lib-lectern__meta">
                 <div><dt>Actes</dt><dd>{stats.acts}</dd></div>
                 <div><dt>Mots</dt><dd>{stats.words.toLocaleString('fr-FR')}</dd></div>

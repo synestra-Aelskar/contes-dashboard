@@ -1,3 +1,4 @@
+import { SUPPORTS, documentOptions } from './documentAppearance.js';
 /* Scriptorium de la Trame — logique pure (sans React) : modèle d'un récit,
  * typographie française, rendu de la page de récit exportée (partagé avec
  * l'aperçu) et découpage en messages Discord. Porté de l'outil HTML
@@ -5,6 +6,9 @@
 
 export const TYPES = {
   p: 'Paragraphe',
+  note: 'Note / avertissement',
+  list: 'Liste',
+  facts: 'Relevé de données',
   lead: "Phrase d'ouverture",
   quote: 'Citation',
   line: 'Réplique',
@@ -14,13 +18,16 @@ export const TYPES = {
 };
 export const PLACEHOLDER = {
   p: 'Le corps du récit…',
+  note: 'Une annotation, un avertissement ou une réserve…',
+  list: 'Un élément par ligne…',
+  facts: 'Une donnée par ligne : Sujet | Esprit de la guerre',
   lead: "Une phrase qui ouvre l'acte…",
   quote: 'Une phrase isolée, mise en avant…',
   line: 'Ce que dit le personnage (sans guillemets)…',
   shout: "Ce qu'il hurle (sans guillemets)…",
   closing: 'La phrase de clôture…'
 };
-export const GLYPH = { p: '¶', lead: 'Aa', quote: 'Aa', line: '« »', shout: '« »', image: '', closing: '' };
+export const GLYPH = { note: '!', list: '≡', facts: '⊞', p: '¶', lead: 'Aa', quote: 'Aa', line: '« »', shout: '« »', image: '', closing: '' };
 
 const sid = () => Math.random().toString(36).slice(2, 10);
 const FONTS = 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=IBM+Plex+Mono:wght@400&family=Spectral:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&display=swap';
@@ -160,12 +167,45 @@ figcaption{margin-top:1rem;font-family:var(--mono);font-size:11px;line-height:1.
 @media (max-width:640px){main{font-size:17px;line-height:1.85}.line{margin-left:1em}.act-h{gap:1rem;margin-bottom:2.2rem}.act-n{font-size:2rem}.kicker::before,.kicker::after{width:2rem}}
 @media (prefers-reduced-motion:reduce){.descend i,.ember{animation:none}}
 `;
+// Les textures sont procédurales : elles restent dans le fichier HTML exporté.
+function documentCSS(raw) {
+  const d = documentOptions(raw), t = SUPPORTS[d.support];
+  const font = { literary: '"Spectral",Georgia,serif', classic: 'Garamond,"Times New Roman",serif', typewriter: '"IBM Plex Mono",Consolas,monospace' }[d.font];
+  return `
+:root{--bg:${t.bg};--fg:${t.ink};--hi:${d.support === 'night' ? '#f5f0e5' : t.ink};--mid:${t.muted};--meta:${d.support === 'night' ? '#6f6960' : t.muted};--ember:${t.accent};--ember-l:${t.accent};--body:${font};color-scheme:${t.dark ? 'dark' : 'light'}}
+body{isolation:isolate;position:relative;overflow-wrap:anywhere}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background-image:${t.texture};opacity:${d.texture / 100}}
+main{font-size:${d.size}px;line-height:${d.spacing}}
+.doc-meta{display:flex;justify-content:center;flex-wrap:wrap;gap:12px 28px;margin:28px auto 0;max-width:60em;font:12px/1.8 var(--mono);color:var(--mid)}
+.doc-reference{font:12px/1.7 var(--mono);letter-spacing:.12em;color:var(--ember);margin-bottom:24px}
+.doc-stamp{display:table;margin:24px auto 0;padding:8px 16px;border:2px solid var(--ember);font:11px/1.5 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--ember);transform:rotate(-2deg)}
+.doc-note{padding:1.2em 1.5em;margin:2em 0;border:1px solid var(--ember);border-left-width:4px;background:color-mix(in srgb,var(--ember) 7%,transparent)}
+.doc-list{padding-left:1.5em;margin:1.5em 0}.doc-list li{padding-left:.3em;margin:.5em 0}
+.doc-facts{width:100%;border-collapse:collapse;margin:2em 0;font-size:.9em}.doc-facts th,.doc-facts td{border:1px solid color-mix(in srgb,var(--fg) 25%,transparent);padding:.8em 1em;text-align:left;vertical-align:top;overflow-wrap:anywhere}.doc-facts th{width:35%;font-weight:600;background:color-mix(in srgb,var(--ember) 8%,transparent)}
+body:not([data-layout="epic"]){max-width:1100px;margin:40px auto;border:1px solid color-mix(in srgb,var(--fg) 20%,transparent);box-shadow:0 14px 60px #0002;padding:clamp(24px,6vw,80px)}
+body:not([data-layout="epic"]) .hero{min-height:0;padding:20px 0 40px;overflow:visible;border-bottom:2px solid var(--ember)}
+body:not([data-layout="epic"]) .hero::before,body:not([data-layout="epic"]) .hero::after,body:not([data-layout="epic"]) .descend{display:none}
+body:not([data-layout="epic"]) h1{font-size:clamp(30px,5vw,60px);line-height:1.2}
+body:not([data-layout="epic"]) main{padding:0}body:not([data-layout="epic"]) .col{max-width:none}
+body:not([data-layout="epic"]) .act{padding-top:3rem}body:not([data-layout="epic"]) .act-h{margin-bottom:1.5rem}
+body:not([data-layout="epic"]) .end{padding:3rem 0 2rem}body:not([data-layout="epic"]) .sig{padding-bottom:1rem}
+body[data-layout="report"] .hero{text-align:left;display:block}body[data-layout="report"] .doc-meta{justify-content:flex-start}body[data-layout="report"] .doc-stamp{margin-left:0}body[data-layout="report"] h1,body[data-layout="report"] .act-n{font-family:var(--body)}body[data-layout="report"] h1{font-weight:600;font-size:clamp(28px,4vw,46px)}body[data-layout="report"] h1 em{font-size:.7em;font-style:normal;margin-top:.5em}body[data-layout="report"] .kicker{font-size:10px}body[data-layout="report"] .kicker::before{display:none}
+body[data-layout="letter"] .hero{text-align:left;display:block;border-bottom:1px solid var(--ember)}body[data-layout="letter"] .doc-meta{justify-content:flex-start}body[data-layout="letter"] .sig{text-align:right;font:italic 24px var(--serif)}body[data-layout="letter"] .act-h:has(.act-t:empty){display:none}
+body[data-layout="inscription"]{border:8px ridge color-mix(in srgb,var(--bg) 80%,var(--fg));text-align:center}body[data-layout="inscription"] h1{text-transform:uppercase;letter-spacing:.08em;font-size:clamp(28px,4vw,50px)}body[data-layout="inscription"] p{text-shadow:0 1px #ffffff33}body[data-layout="inscription"] .act-h{justify-content:center}body[data-layout="inscription"] .act-r{display:none}
+body:not([data-support="night"]) .hero::after{display:none}body:not([data-support="night"]) .frame::after{display:none}body:not([data-support="night"]) .frame img{filter:none}
+@media(max-width:640px){body:not([data-layout="epic"]){margin:12px;padding:22px}.doc-meta{gap:8px 16px}.doc-facts th,.doc-facts td{padding:.6em}.kicker{letter-spacing:.12em}.kicker::before,.kicker::after{width:1rem}}
+@media print{html,body{background:var(--bg)!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}body:not([data-layout="epic"]){margin:0;max-width:none;box-shadow:none;border:0;padding:0}.progress,.descend{display:none}.hero{min-height:0;padding:2cm 0;break-after:avoid}h1{font-size:44px}.act{padding-top:2rem}.act-h{break-after:avoid}figure,.doc-note,tr{break-inside:avoid}.ember{animation:none}.sig{padding-bottom:0}}
+`;
+}
 const STORY_JS = '(function(){var b=document.querySelector(".progress i"),d=document.documentElement;function u(){var m=d.scrollHeight-d.clientHeight;b.style.transform="scaleX("+(m>0?Math.min(1,Math.max(0,d.scrollTop/m)):0)+")"}addEventListener("scroll",u,{passive:true});addEventListener("resize",u);u();var a=document.querySelector(".descend");if(a)a.addEventListener("click",function(e){var t=document.getElementById("recit");if(!t)return;e.preventDefault();t.scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"})})})();';
 
 function blockOut(b, preview) {
   const at = preview ? ` data-b="${b.id}"` : '';
   const tx = (b.text || '').trim();
   switch (b.type) {
+    case 'note': return tx ? `<aside class="doc-note"${at}>${T(tx)}</aside>` : '';
+    case 'list': return tx ? `<ul class="doc-list"${at}>${tx.split('\n').filter(l => l.trim()).map(l => `<li>${T(l)}</li>`).join('')}</ul>` : '';
+    case 'facts': return tx ? `<table class="doc-facts"${at}><tbody>${tx.split('\n').filter(l => l.trim()).map(l => { const [key, ...value] = l.split('|'); return `<tr><th scope="row">${T(key)}</th><td>${T(value.join('|'))}</td></tr>`; }).join('')}</tbody></table>` : '';
     case 'p': return tx ? `<p${at}>${T(tx)}</p>` : '';
     case 'lead': return tx ? `<p class="lead"${at}>${T(tx)}</p>` : '';
     case 'quote': return tx ? `<blockquote class="quote"${at}>${T(tx)}</blockquote>` : '';
@@ -195,6 +235,9 @@ function firstText(s) {
  * data-b (pour faire défiler l'aperçu vers le bloc édité) et des
  * emplacements visibles pour les images manquantes. */
 export function storyHTML(s, preview) {
+  const doc = documentOptions(s.document);
+  const metadata = [doc.author && 'Par ' + doc.author, doc.institution, doc.date].filter(Boolean).map(v => `<span>${E(typo(v))}</span>`).join('');
+  const identity = (metadata ? `<div class="doc-meta">${metadata}</div>` : '') + (doc.classification ? `<div class="doc-stamp">${E(typo(doc.classification))}</div>` : '');
   const t1 = typo(s.titre1 || ''), t2 = typo(s.titre2 || '');
   const plain = [t1, t2].filter(Boolean).join(' ') || 'Récit';
   const sur = typo(s.surtitre || '');
@@ -204,7 +247,7 @@ export function storyHTML(s, preview) {
   const acts = s.acts.map((a, i) => `<section class="act"><header class="act-h"><span class="act-n">${roman(i + 1)}</span><span class="act-r"></span><span class="act-t">${E(typo(a.name || ''))}</span></header>${a.blocks.map((b) => blockOut(b, preview)).join('')}</section>`).join('');
   const sig = (s.signature || '').trim() ? `<div class="sig">${E(typo(s.signature.trim()))}</div>` : '';
   const title = (sur ? sur + ' · ' : '') + plain;
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${E(title)}</title><meta name="description" content="${A(desc)}"><meta property="og:title" content="${A(title)}"><meta property="og:description" content="${A(desc)}"><meta property="og:type" content="article"><meta name="theme-color" content="#0b0a09"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${FONTS}"><style>${STORY_CSS}</style></head><body><div class="progress" aria-hidden="true"><i></i></div><header class="hero"><div class="hero-in">${sur ? `<p class="kicker">${E(sur)}</p>` : ''}<h1>${t1 ? `<span>${E(t1)}</span>` : ''}${t2 ? `<em>${E(t2)}</em>` : ''}${preview && !t1 && !t2 ? '<span style="opacity:.16">Titre du récit</span>' : ''}</h1></div><a class="descend" href="#recit">Descendre<i></i></a></header><main id="recit"><div class="col">${acts}<footer class="end">${s.braise !== false ? '<span class="ember" aria-hidden="true"></span>' : ''}${fin ? `<span class="end-t">${E(fin)}</span>` : ''}${(s.finSub || '').trim() ? `<p class="end-s">${T(s.finSub.trim())}</p>` : ''}</footer>${sig}</div></main><script>${STORY_JS}<\/script></body></html>`;
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${E(title)}</title><meta name="description" content="${A(desc)}"><meta property="og:title" content="${A(title)}"><meta property="og:description" content="${A(desc)}"><meta property="og:type" content="article"><meta name="theme-color" content="#0b0a09"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${FONTS}"><style>${STORY_CSS}${documentCSS(doc)}</style></head><body data-layout="${doc.layout}" data-support="${doc.support}"><div class="progress" aria-hidden="true"><i></i></div><header class="hero"><div class="hero-in">${doc.reference ? `<p class="doc-reference">Document numéro ${E(doc.reference)}</p>` : ''}${sur ? `<p class="kicker">${E(sur)}</p>` : ''}<h1>${t1 ? `<span>${E(t1)}</span>` : ''}${t2 ? `<em>${E(t2)}</em>` : ''}${preview && !t1 && !t2 ? '<span style="opacity:.16">Titre du récit</span>' : ''}</h1>${identity}</div><a class="descend" href="#recit">Descendre<i></i></a></header><main id="recit"><div class="col">${acts}<footer class="end">${s.braise !== false ? '<span class="ember" aria-hidden="true"></span>' : ''}${fin ? `<span class="end-t">${E(fin)}</span>` : ''}${(s.finSub || '').trim() ? `<p class="end-s">${T(s.finSub.trim())}</p>` : ''}</footer>${sig}</div></main><script>${STORY_JS}<\/script></body></html>`;
 }
 
 /* ---------- modèle ---------- */
@@ -216,6 +259,7 @@ export function newAct(blockTypes) { return { id: sid(), name: '', blocks: block
 
 export function emptyStory() {
   return {
+    document: documentOptions(),
     v: 1, surtitre: 'Prologue', titre1: '', titre2: '', fin: '', finSub: '', braise: true, signature: '',
     acts: [newAct(['lead', 'p'])]
   };
@@ -226,6 +270,7 @@ export function emptyStory() {
 export function normalizeStory(o) {
   if (!o || typeof o !== 'object' || !Array.isArray(o.acts)) throw new Error('format');
   return {
+    document: documentOptions(o.document),
     v: 1, surtitre: String(o.surtitre ?? ''), titre1: String(o.titre1 ?? ''), titre2: String(o.titre2 ?? ''),
     fin: String(o.fin ?? ''), finSub: String(o.finSub ?? ''), braise: o.braise !== false, signature: String(o.signature ?? ''),
     acts: o.acts.map((a) => ({
@@ -241,6 +286,7 @@ export function normalizeStory(o) {
 /** Forme sérialisée (sans ids) : brouillon local et export JSON. */
 export function exportable(s) {
   return {
+    document: documentOptions(s.document),
     v: 1, surtitre: s.surtitre, titre1: s.titre1, titre2: s.titre2, fin: s.fin, finSub: s.finSub,
     braise: s.braise !== false, signature: s.signature,
     acts: s.acts.map((a) => ({
@@ -277,6 +323,9 @@ const perLine = (t, f) => t.split('\n').filter((l) => l.trim()).map(f).join('\n'
 function dBlock(b) {
   const t = (b.text || '').trim();
   switch (b.type) {
+    case 'note': return t ? perLine(dEsc(t), l => '> ' + l) : '';
+    case 'list': return t ? perLine(dEsc(t), l => '- ' + l) : '';
+    case 'facts': return t ? perLine(dEsc(t), l => l.replace('|', ' : ')) : '';
     case 'p': return t ? perLine(dEsc(t), (l) => l) : '';
     case 'lead': return t ? perLine(dEsc(t, 'b'), (l) => '**' + l + '**') : '';
     case 'quote': return t ? perLine(dEsc(t, 'i'), (l) => '> *' + l + '*') : '';
@@ -307,10 +356,13 @@ function splitLong(part, lim) {
 /** Découpe le récit en messages Discord de `lim` caractères max, en Markdown
  * Discord ; `perAct` force un nouveau message à chaque acte. */
 export function discordMessages(s, perAct, lim) {
+  const doc = documentOptions(s.document);
   const head = [];
+  if (doc.reference) head.push('-# ' + dPlain('Document numéro ' + doc.reference));
   if ((s.surtitre || '').trim()) head.push('-# ' + dPlain(s.surtitre.trim().toUpperCase()));
   if ((s.titre1 || '').trim()) head.push('# ' + dPlain(flat(s.titre1)));
   if ((s.titre2 || '').trim()) head.push('## *' + dPlain(flat(s.titre2)) + '*');
+  [doc.author && 'Par ' + doc.author, doc.institution, doc.date, doc.classification].filter(Boolean).forEach(v => head.push('-# ' + dPlain(v)));
   const groups = s.acts.map((a, i) => [`### ${roman(i + 1)}${(a.name || '').trim() ? ' · ' + dPlain(flat(a.name)) : ''}`, ...a.blocks.map(dBlock).filter(Boolean)]);
   const end = ['-# ' + (s.braise !== false ? '● ' : '') + dPlain((s.fin || '').trim() || autoFin(s.surtitre))];
   if ((s.finSub || '').trim()) end.push('*' + dEsc(flat(s.finSub), 'i') + '*');
