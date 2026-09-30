@@ -17,7 +17,8 @@ export function makeDraft(state) {
     title: nextSessionTitle(state),
     date: new Date().toLocaleDateString('fr-FR'),
     aelDate: clone(campaignDate(state)),
-    summary: '',
+    summary: '',            // résumé MJ (privé)
+    playerSummary: '',      // résumé Joueurs (lisible par les joueurs dans « Résumés de séance »)
     participants: [],
     xp: [],                 // { id, reason, branchKey, amount, charIds: [] }
     eventsTitle: 'Événements de la séance',
@@ -37,6 +38,7 @@ export function sessionGaps(d) {
   if (!d) return g;
   if (!(d.title || '').trim()) g.push('Titre de la séance');
   if (!(d.summary || '').trim()) g.push('Résumé MJ de la séance');
+  if (!(d.playerSummary || '').trim()) g.push('Résumé Joueurs de la séance');
   if (!(d.participants || []).length) g.push('Aucun participant coché');
 
   (d.xp || []).forEach((r, i) => {
@@ -88,6 +90,7 @@ export function finishDraft(s, out) {
     aelDate: d.aelDate ? clone(d.aelDate) : null,
     title: (d.title || '').trim() || 'Séance ' + (s.sessions.length + 1),
     summary: d.summary || '',
+    playerSummary: d.playerSummary || '',
     participants: (d.participants || []).slice(),
     events: (d.events || [])
       .filter((e) => (e.description || '').trim() || (e.charIds || []).length)

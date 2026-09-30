@@ -6,6 +6,7 @@ import { uid } from './util.js';
 export const ALL_VIEWS = [
   ['liens', 'Liens'],
   ['journal', 'Journal de campagne'],
+  ['resumes', 'Résumés de séance'],
   ['consequences', 'Conséquences'],
   ['horloges', 'Horloges & fronts'],
   ['secrets', 'Secrets'],
@@ -16,12 +17,13 @@ export const ALL_VIEWS = [
   ['validations', 'Validations'],
   ['zones', 'Zone'],
   ['fichetechnique', 'Fiche Technique'],
-  ['fichenarrative', 'Créateur de narration'],
   ['tableaux-perso', 'Mes tableaux'],
   ['tableaux-groupe', 'Tableaux de groupe'],
   ['tableaux-mj', 'Tableaux MJ'],
   ['xpcalibreur', "Calibreur d'XP"],
   ['equilibrage', 'Équilibrage DD'],
+  ['bibliotheque', 'Bibliothèque'],
+  ['scriptorium', 'Scriptorium de la Trame'],
   ['prepsession', 'Prep Session'],
   ['backstage-mj', 'Backstage (MJ)']
 ];
@@ -29,16 +31,39 @@ export const VIEW_LABEL = Object.fromEntries(ALL_VIEWS);
 
 export const ROLES = [['admin', 'Admin'], ['player', 'Joueur']];
 
-/** Arbre par défaut : toutes les vues à plat, admin uniquement, sauf
- * « Mes personnages » (admin + joueur — c'est la fiche perso en libre-service,
- * pour son propre personnage, qu'on soit MJ ou joueur), pour reproduire
- * exactement le comportement d'avant cette fonctionnalité. */
+/** Visibilité par défaut d'une vue : admin seul, sauf les vues joueur en
+ * libre-service — Mes personnages, Résumés de séance, Mes tableaux et
+ * Tableaux du groupe. */
+const PLAYER_DEFAULT_VIEWS = new Set(['personnages', 'resumes', 'tableaux-perso', 'tableaux-groupe']);
+export function defaultVisibility(key) {
+  return PLAYER_DEFAULT_VIEWS.has(key) ? ['admin', 'player'] : ['admin'];
+}
+
+/** Catégorie d'accueil d'une vue la première fois qu'elle apparaît dans un
+ * menu existant (retrouvée par son nom, créée si absente) — au lieu d'être
+ * ajoutée à plat à la racine. */
+export const DEFAULT_HOME = { bibliotheque: 'Bibliothèques', scriptorium: 'Outils' };
+
+/** Conteneur (catégorie ou sous-catégorie) portant ce nom, casse et espaces
+ * ignorés ; à défaut, le premier dont le nom COMMENCE par ce nom (« Outils »
+ * retrouve « Outils d'animation »). */
+export function findContainerByName(tree, name) {
+  const want = name.trim().toLowerCase();
+  const all = [];
+  (function walk(nodes) {
+    (nodes || []).forEach((n) => { if (!isLeaf(n)) { all.push(n); walk(n.children); } });
+  })(tree);
+  const norm = (n) => (n.name || '').trim().toLowerCase();
+  return all.find((n) => norm(n) === want) || all.find((n) => norm(n).startsWith(want)) || null;
+}
+
+/** Arbre par défaut : toutes les vues à plat, avec leur visibilité par défaut. */
 export function defaultMenuTree() {
   return ALL_VIEWS.map(([key]) => ({
     id: uid(),
     type: 'view',
     viewKey: key,
-    visibility: (key === 'personnages' || key === 'tableaux-perso' || key === 'tableaux-groupe') ? ['admin', 'player'] : ['admin']
+    visibility: defaultVisibility(key)
   }));
 }
 
@@ -114,10 +139,6 @@ export function labelForNode(n, state) {
   if (n.type === 'doc' && n.docKind === 'fichetechnique') {
     const f = (state && state.fichesTechniques || []).find((x) => x.id === n.docId);
     return (f && f.nom && f.nom.trim()) || 'Sans nom';
-  }
-  if (n.type === 'doc' && n.docKind === 'fichenarrative') {
-    const f = (state && state.fichesNarratives || []).find((x) => x.id === n.docId);
-    return (f && f.titre && f.titre.trim()) || 'Sans titre';
   }
   return n.name || 'Sans nom';
 }

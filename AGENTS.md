@@ -286,6 +286,9 @@ déjà en place : `.bloc`, `.bloc__partie`, `.bloc--variante`.
 | `src/lib/xpCalibreur.js` | Barème d'XP par branche (Trame/Secondaire/Exploration/Combat/Spéciale) + jalons de progression |
 | `src/lib/prepsession.js` | Logique de la vue Prep Session (Quête > Session > blocs d'XP), voir `BRANCH_KIND_VAR` pour le mapping couleur |
 | `src/lib/ddcalc.js` | Calculateur de résolution d'action (vue Équilibrage DD) |
+| `src/lib/bibliotheque.js` | Bibliothèque des récits (`state.bibliotheque` : étagères + livres), normalisation, conversion des anciennes fiches narratives (Créateur de narration, retiré) en livres |
+| `src/lib/scriptorium.js` | Scriptorium de la Trame (pur) : modèle d'un récit, typographie française, page HTML exportée (aussi utilisée par l'aperçu), découpage en messages Discord |
+| `src/components/views/Bibliotheque.jsx` / `Scriptorium.jsx` | Étagères de récits (catégorie Bibliothèques) / éditeur des récits (catégorie Outils) |
 | `src/lib/timeblocks.js` | Blocs de temps de séance : conversion h/j/sem → heures, `fmtDuration` |
 | `src/components/PlayerDashboard.jsx` | Dashboard minimal pour un compte `role: "player"` (un seul onglet Personnage) |
 | `src/components/views/PersonnageJoueur.jsx` | Fiche perso en libre-service du joueur (édition limitée, rattachée par `char.ownerId`) |

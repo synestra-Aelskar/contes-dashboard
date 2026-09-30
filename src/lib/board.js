@@ -4,7 +4,8 @@ import { XP_DEFAULT_STATE, normalizeXpState } from './xpCalibreur.js';
 import { uid } from './util.js';
 import { vrValid } from './valrazkah.js';
 import { aelValid } from './aelskar.js';
-import { ALL_VIEWS, defaultMenuTree, usedViewKeys, usedDocIds, pruneMissingDocs } from './menu.js';
+import { ALL_VIEWS, DEFAULT_HOME, defaultMenuTree, defaultVisibility, usedViewKeys, usedDocIds, pruneMissingDocs, findContainerByName } from './menu.js';
+import { normalizeBibliotheque } from './bibliotheque.js';
 
 const ROW_ID = 'main';
 const SAVE_DEBOUNCE = 1000;
@@ -22,7 +23,8 @@ export const EMPTY_STATE = {
     { id: 'data',  kind: 'data',  title: 'Banque de données', entries: [] }
   ],
   sessions: [], consequences: [], clocks: [], secrets: [], reminders: [], epreuves: [],
-  characters: [], sessionDraft: null, zones: [], sessionZero: { blocks: [] }, fichesTechniques: [], fichesNarratives: [],
+  characters: [], sessionDraft: null, zones: [], sessionZero: { blocks: [] }, fichesTechniques: [],
+  bibliotheque: null,
   tableaux: [],
   xpCalibreur: XP_DEFAULT_STATE, ddCalc: null, prepSessions: [],
   settings: { timeTypes: [], accounts: [], menu: [] },
@@ -54,6 +56,19 @@ function removeViewKey(menu, viewKey) {
       out.push(n.children ? { ...n, children: walk(n.children) } : n);
     }
     return out;
+  }
+  return walk(menu);
+}
+
+/** Retire les catégories/sous-catégories qui ne contenaient QUE des nœuds du
+ * Créateur de narration (retiré) — elles seraient restées vides. */
+function removeNarrationOnlyContainers(menu) {
+  const isNarr = (n) => (n.type === 'view' && n.viewKey === 'fichenarrative') || (n.type === 'doc' && n.docKind === 'fichenarrative');
+  const leaves = (n) => (n.children || []).flatMap((c) => (c.children ? leaves(c) : [c]));
+  function walk(nodes) {
+    return nodes
+      .filter((n) => { if (!n.children) return true; const l = leaves(n); return !(l.length && l.every(isNarr)); })
+      .map((n) => (n.children ? { ...n, children: walk(n.children) } : n));
   }
   return walk(menu);
 }
@@ -113,29 +128,35 @@ function normalize(raw) {
   if (!Array.isArray(out.settings.menu) || !out.settings.menu.length) {
     out.settings.menu = defaultMenuTree();
   } else {
+    // Migration ponctuelle : la catégorie « Narrations » (qui rangeait le
+    // Créateur de narration, remplacé par Bibliothèque + Scriptorium) devient
+    // « Bibliothèques ».
+    out.settings.menu.forEach((n) => {
+      if (n.type === 'category' && n.name === 'Narrations' && usedViewKeys([n]).has('fichenarrative')) n.name = 'Bibliothèques';
+    });
     const used = usedViewKeys(out.settings.menu);
     ALL_VIEWS.forEach(([key]) => {
-      if (!used.has(key)) {
-        const visibility = (key === 'tableaux-perso' || key === 'tableaux-groupe') ? ['admin', 'player'] : ['admin'];
-        out.settings.menu.push({ id: uid(), type: 'view', viewKey: key, visibility });
+      if (used.has(key)) return;
+      const node = { id: uid(), type: 'view', viewKey: key, visibility: defaultVisibility(key) };
+      const home = DEFAULT_HOME[key];
+      if (!home) { out.settings.menu.push(node); return; }
+      let cat = findContainerByName(out.settings.menu, home);
+      if (!cat) {
+        cat = { id: uid(), type: 'category', name: home, visibility: null, children: [] };
+        out.settings.menu.push(cat);
       }
+      cat.children = [...(cat.children || []), node];
     });
   }
   // Migration ponctuelle : l'ancien « Tableau d'enquête » unique (une seule
   // vue) est remplacé par trois vues séparées (Mes tableaux / Tableaux de
   // groupe / Tableaux MJ, ajoutées ci-dessus) — on retire l'ancien nœud.
   out.settings.menu = removeViewKey(out.settings.menu, 'tableaux');
-  // Migration ponctuelle : la première fois que « Créateur de narration »
-  // apparaît (encore à la racine), on le range dans une catégorie
-  // « Narrations » dédiée plutôt que de le laisser à plat.
-  {
-    const hasNarrationCat = out.settings.menu.some((n) => n.type === 'category' && n.name === 'Narrations');
-    const rootIdx = out.settings.menu.findIndex((n) => n.type === 'view' && n.viewKey === 'fichenarrative');
-    if (!hasNarrationCat && rootIdx >= 0) {
-      const [node] = out.settings.menu.splice(rootIdx, 1);
-      out.settings.menu.push({ id: uid(), type: 'category', name: 'Narrations', visibility: null, children: [node] });
-    }
-  }
+  // Le Créateur de narration est retiré : ses fiches deviennent des livres de
+  // la Bibliothèque (normalizeBibliotheque) et ses nœuds quittent le menu.
+  out.settings.menu = removeNarrationOnlyContainers(out.settings.menu);
+  out.settings.menu = removeViewKey(out.settings.menu, 'fichenarrative');
+  out.settings.menu = pruneMissingDocs(out.settings.menu, 'fichenarrative', new Set());
   out.characters.forEach((c) => {
     if (typeof c.ownerId !== 'string') c.ownerId = null;
     if (typeof c.race !== 'string') c.race = '';
@@ -204,22 +225,7 @@ function normalize(raw) {
     if (typeof f.sousTitre !== 'string') f.sousTitre = '';
     if (!Array.isArray(f.blocks)) f.blocks = [];
   });
-  if (!Array.isArray(out.fichesNarratives)) out.fichesNarratives = [];
-  out.fichesNarratives.forEach((f) => {
-    if (typeof f.eyebrow !== 'string') f.eyebrow = '';
-    if (typeof f.titre !== 'string') f.titre = '';
-    if (typeof f.titreAccent !== 'string') f.titreAccent = '';
-    if (!Array.isArray(f.blocks)) f.blocks = [];
-    f.blocks.forEach((b) => {
-      if (typeof b.kind !== 'string') b.kind = 'paragraph';
-      if (typeof b.text !== 'string' && (b.kind === 'heading' || b.kind === 'paragraph' || b.kind === 'quote')) b.text = '';
-      if (b.kind === 'chapter' && typeof b.titre !== 'string') b.titre = '';
-      if (b.kind === 'image') {
-        if (typeof b.url !== 'string') b.url = '';
-        if (typeof b.caption !== 'string') b.caption = '';
-      }
-    });
-  });
+  normalizeBibliotheque(out);
   if (!Array.isArray(out.tableaux)) out.tableaux = [];
   out.tableaux.forEach((t) => {
     if (typeof t.titre !== 'string') t.titre = '';
@@ -272,7 +278,6 @@ function normalize(raw) {
   // ajoute les manquants (admin par défaut) et purge ceux dont la fiche a
   // été supprimée.
   out.settings.menu = syncDocNodes(out.settings.menu, 'fichetechnique', out.fichesTechniques);
-  out.settings.menu = syncDocNodes(out.settings.menu, 'fichenarrative', out.fichesNarratives);
   out.xpCalibreur = normalizeXpState(out.xpCalibreur);
   if (typeof out.updated !== 'string') out.updated = '';
   if (typeof out.worldDate !== 'string') out.worldDate = '';

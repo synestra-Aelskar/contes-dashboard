@@ -13,6 +13,7 @@ function Pane({ state, sel, mutate }) {
   const [date, setDate, dateRef] = useSyncedField(sel.date);
   const [title, setTitle, titleRef] = useSyncedField(sel.title);
   const [summary, setSummary, summaryRef] = useSyncedField(sel.summary);
+  const [playerSummary, setPlayerSummary, playerSummaryRef] = useSyncedField(sel.playerSummary || '');
   const [pickOpen, setPickOpen] = useState(false);
 
   const patch = (fn) =>
@@ -72,6 +73,18 @@ function Pane({ state, sel, mutate }) {
           value={summary}
           onChange={(e) => { const v = e.target.value; setSummary(v); patch((x) => { x.summary = v; }); }}
           onBlur={() => patch((x) => { x.summary = summary; })}
+        />
+      </label>
+
+      <label className="flabel">
+        Résumé Joueurs
+        <textarea
+          ref={playerSummaryRef}
+          className="finput finput--area journal__summary journal__summary--player"
+          placeholder="Ce que les joueurs doivent retenir de la séance (visible dans « Résumés de séance »)…"
+          value={playerSummary}
+          onChange={(e) => { const v = e.target.value; setPlayerSummary(v); patch((x) => { x.playerSummary = v; }); }}
+          onBlur={() => patch((x) => { x.playerSummary = playerSummary; })}
         />
       </label>
 

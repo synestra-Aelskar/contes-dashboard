@@ -982,6 +982,23 @@ function SummaryField({ value, onChange, onCommit, events, consequences, chars }
   );
 }
 
+/**
+ * Résumé Joueurs : texte libre écrit par le MJ, ce que les joueurs retrouveront
+ * dans « Résumés de séance ». Enregistré à chaque frappe (comme les autres champs).
+ */
+function PlayerSummaryField({ value, onChange }) {
+  const [local, setLocal, ref] = useSyncedField(value);
+  return (
+    <textarea
+      ref={ref} className="notes"
+      placeholder="Ce que les joueurs doivent retenir : ce qu'ils ont fait, appris, rencontré ; où ils en sont…"
+      value={local}
+      onChange={(e) => { const v = e.target.value; setLocal(v); onChange(v); }}
+      onBlur={() => onChange(local)}
+    />
+  );
+}
+
 /* --- vue principale --------------------------------------------- */
 
 /** Personnages cochés comme participants de la séance en cours (ordre de la liste des personnages). */
@@ -1058,18 +1075,6 @@ function Workspace({ state, mutate, onFinish }) {
       <PrepBlocksFull state={state} mutate={mutate} />
 
       <TimeBar state={state} mutate={mutate} />
-
-      <div className="ssn-block">
-        <h3 className="ssn-h">Résumé MJ de la séance</h3>
-        <SummaryField
-          value={d.summary}
-          events={d.events}
-          consequences={d.consequences}
-          chars={chars}
-          onChange={(v) => set((dr) => { dr.summary = v; })}
-          onCommit={(v) => set((dr) => { dr.summary = v; })}
-        />
-      </div>
 
       <div className="ssn-block">
         <h3 className="ssn-h">Attribution d’XP</h3>
@@ -1174,6 +1179,26 @@ function Workspace({ state, mutate, onFinish }) {
         >
           ＋ rappel
         </button>
+      </div>
+
+      <div className="ssn-block">
+        <h3 className="ssn-h">Résumé Joueurs de la séance</h3>
+        <PlayerSummaryField
+          value={d.playerSummary || ''}
+          onChange={(v) => set((dr) => { dr.playerSummary = v; })}
+        />
+      </div>
+
+      <div className="ssn-block">
+        <h3 className="ssn-h">Résumé MJ de la séance</h3>
+        <SummaryField
+          value={d.summary}
+          events={d.events}
+          consequences={d.consequences}
+          chars={chars}
+          onChange={(v) => set((dr) => { dr.summary = v; })}
+          onCommit={(v) => set((dr) => { dr.summary = v; })}
+        />
       </div>
     </div>
   );

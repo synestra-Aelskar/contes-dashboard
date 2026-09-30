@@ -13,6 +13,7 @@ import StartSessionModal from './StartSessionModal.jsx';
 import Preferences from './Preferences.jsx';
 import Liens from './views/Liens.jsx';
 import Journal from './views/Journal.jsx';
+import ResumesSeance from './views/ResumesSeance.jsx';
 import Consequences from './views/Consequences.jsx';
 import Horloges from './views/Horloges.jsx';
 import Secrets from './views/Secrets.jsx';
@@ -24,13 +25,13 @@ import Validations from './views/Validations.jsx';
 import Zones from './views/Zones.jsx';
 import FicheTechnique from './views/FicheTechnique.jsx';
 import FicheTechniqueDoc from './views/FicheTechniqueDoc.jsx';
-import FicheNarrative from './views/FicheNarrative.jsx';
-import FicheNarrativeDoc from './views/FicheNarrativeDoc.jsx';
 import TableauMesTableaux from './views/TableauMesTableaux.jsx';
 import TableauGroupe from './views/TableauGroupe.jsx';
 import TableauMJ from './views/TableauMJ.jsx';
 import XpCalibreur from './views/XpCalibreur.jsx';
 import Equilibrage from './views/Equilibrage.jsx';
+import Bibliotheque from './views/Bibliotheque.jsx';
+import Scriptorium from './views/Scriptorium.jsx';
 import PrepSession from './views/PrepSession.jsx';
 import BackstageMJ from './views/BackstageMJ.jsx';
 import Parametres from './views/Parametres.jsx';
@@ -45,14 +46,15 @@ const STATUS_TEXT = {
 const STATUS_ON = { ready: '1', saving: 'saving', loading: 'saving', offline: '0' };
 
 const VIEW_COMPONENTS = {
-  liens: Liens, journal: Journal, consequences: Consequences, horloges: Horloges,
+  liens: Liens, journal: Journal, resumes: ResumesSeance, consequences: Consequences, horloges: Horloges,
   secrets: Secrets, oublis: Oublis, epreuves: Epreuves, zones: Zones,
-  fichetechnique: FicheTechnique, fichenarrative: FicheNarrative, xpcalibreur: XpCalibreur, equilibrage: Equilibrage, prepsession: PrepSession,
+  fichetechnique: FicheTechnique, xpcalibreur: XpCalibreur, equilibrage: Equilibrage, prepsession: PrepSession,
+  bibliotheque: Bibliotheque, scriptorium: Scriptorium,
   'backstage-mj': BackstageMJ, 'personnages-joueurs': Personnages, validations: Validations,
   'tableaux-perso': TableauMesTableaux, 'tableaux-groupe': TableauGroupe, 'tableaux-mj': TableauMJ
 };
 
-const DOC_COMPONENTS = { fichetechnique: FicheTechniqueDoc, fichenarrative: FicheNarrativeDoc };
+const DOC_COMPONENTS = { fichetechnique: FicheTechniqueDoc };
 
 function pendingValidationsCount(state) {
   let n = 0;
@@ -109,7 +111,7 @@ export default function Dashboard({ session }) {
   }
 
   const canEditActive = role === 'admin' || canEditRoute(state.settings.menu || [], activeView, role);
-  const shared = { state, mutate, goToSession, role, userId: session.user.id, canEdit: canEditActive };
+  const shared = { state, mutate, goToSession, setView, role, userId: session.user.id, canEdit: canEditActive };
   const docMatch = /^doc:([^:]+):(.+)$/.exec(activeView);
   const docKind = docMatch ? docMatch[1] : null;
   const docId = docMatch ? docMatch[2] : null;
@@ -191,7 +193,7 @@ export default function Dashboard({ session }) {
               ? (activeView === 'personnages'
                 ? <ViewComp state={state} mutate={mutate} userId={session.user.id} goToSession={goToSession} />
                 : docKind
-                  ? <ViewComp {...shared} ficheId={docId} setView={setView} />
+                  ? <ViewComp {...shared} ficheId={docId} />
                   : <ViewComp {...shared} />)
               : <p className="empty">Aucune vue accessible pour l’instant.</p>}
           </div>

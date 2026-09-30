@@ -23,4 +23,5 @@ export function fmtDateLong(iso) {
 }
 
 export function lsGet(k) { try { return localStorage.getItem(k); } catch (_) { return null; } }
-export function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
+/** Renvoie false si l'écriture a échoué (quota dépassé, stockage bloqué). */
+export function lsSet(k, v) { try { localStorage.setItem(k, v); return true; } catch (_) { return false; } }
