@@ -1,3 +1,5 @@
+import BookCover from '../BookCover.jsx';
+import { coverAppearance } from '../../lib/documentAppearance.js';
 import { useEffect, useState } from 'react';
 import { uid, lsGet, lsSet, fmtDateLong } from '../../lib/util.js';
 import { useSyncedField } from '../../lib/useSyncedField.js';
@@ -26,7 +28,9 @@ function ShelfName({ shelf, mutate, readOnly }) {
 
 function Spine({ book, selected, canEdit, onSelect, onDropBefore, lying }) {
   const [over, setOver] = useState(false);
+  const { document: doc, kind, material } = coverAppearance(book.document);
   const cls = 'lib-book lib-book--c' + bindingIndex(book.id)
+    + ' lib-book--format-' + kind + ' scr-material--' + material
     + ' lib-book--v' + idVariant(book.id + ':ornament', 6)
     + (lying ? ' lib-book--lying' : ' lib-book--h' + idVariant(book.id, 4))
     + (!lying && idVariant(book.id + '~', 9) === 0 ? ' lib-book--lean' : '')
@@ -47,14 +51,15 @@ function Spine({ book, selected, canEdit, onSelect, onDropBefore, lying }) {
         if (id !== book.id) onDropBefore(id);
       }}
     >
-      <span className="lib-book__ornament" aria-hidden="true">{['✦', '❧', '◇', '☽', '✧', '❦'][idVariant(book.id + ':ornament', 6)]}</span>
+      <span className="lib-book__ornament" aria-hidden="true">{kind === 'dossier' ? '§' : kind === 'tablet' ? '◇' : kind === 'folio' ? '❧' : ['✦', '❧', '◇', '☽', '✧', '❦'][idVariant(book.id + ':ornament', 6)]}</span>
       <span className="lib-book__title">{bookTitle(book)}</span>
-      <span className="lib-book__foot" aria-hidden="true">◆</span>
+      <span className="lib-book__foot" aria-hidden="true">{doc.reference || '◆'}</span>
     </button>
   );
 }
 
 function Reader({ book, onClose }) {
+  const { kind } = coverAppearance(book.document);
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKey);
@@ -63,11 +68,11 @@ function Reader({ book, onClose }) {
   return (
     <div className="modal lib-reader" role="dialog" aria-modal="true" aria-label={'Lecture : ' + bookTitle(book)} onClick={onClose}>
       <div className="lib-reader__card" onClick={(e) => e.stopPropagation()}>
-        <div className={'lib-reader__opening lib-book--c' + bindingIndex(book.id)} aria-hidden="true">
+        <div className={'lib-reader__opening lib-reader__opening--' + kind + ' lib-book--c' + bindingIndex(book.id)} aria-hidden="true">
           <div className="lib-reader__volume">
             <div className="lib-reader__pages"><span>✦</span></div>
             <div className="lib-reader__leaf" />
-            <div className="lib-cover lib-reader__cover"><span>LES CONTES DU REPAIRE</span><b>{bookTitle(book)}</b><i>✦</i></div>
+            <BookCover book={book} className="lib-reader__cover" />
           </div>
         </div>
         <div className="lib-reader__bar">
@@ -241,7 +246,7 @@ export default function Bibliotheque({ state, mutate, setView, canEdit }) {
         <aside className={'lib-lectern' + (selected ? ' is-open' : '')} aria-label="Pupitre">
           {selected ? (
             <>
-              <div className={'lib-cover lib-book--c' + bindingIndex(selected.id)} aria-hidden="true"><span>LES CONTES DU REPAIRE</span><b>{bookTitle(selected)}</b><i>✦</i></div>
+              <BookCover book={selected} />
               <p className="lib-lectern__sur">{selected.surtitre || 'Récit'}</p>
               <h3 className="lib-lectern__title">
                 <span>{selected.titre1 || (selected.titre2 ? '' : 'Sans titre')}</span>

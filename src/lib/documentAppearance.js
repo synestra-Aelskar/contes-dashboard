@@ -30,3 +30,10 @@ export const DOCUMENT_TEMPLATES = [
   { id: 'tablet', label: 'Tablette ancienne', note: 'Une inscription solennelle dans la pierre.', support: 'stone', layout: 'inscription', font: 'classic', surtitre: 'Fragment retrouvé', titre1: 'La mémoire des anciens', sections: ['Inscription'], prompts: ['Graver ici les paroles laissées à ceux qui viendront après nous.'] },
   { id: 'study', label: 'Étude arcanique', note: 'Un dossier technique sur fond quadrillé.', support: 'blueprint', layout: 'report', font: 'typewriter', surtitre: 'Étude arcanique', titre1: 'Anatomie d’un phénomène', sections: ['Description', 'Schéma & mesures', 'Interprétation'], prompts: ['Définir le phénomène étudié.', 'Consigner les mesures et ajouter un schéma.', 'Exposer l’interprétation des observations.'] }
 ];
+/** La pierre prime sur la mise en page ; les autres supports suivent le format. */
+export function coverAppearance(raw) {
+  const document = documentOptions(raw);
+  const kind = ['stone', 'slate'].includes(document.support) || document.layout === 'inscription'
+    ? 'tablet' : document.layout === 'report' ? 'dossier' : document.layout === 'letter' ? 'folio' : 'tome';
+  return { document, kind, material: document.support === 'night' && kind === 'tablet' ? 'slate' : document.support };
+}
