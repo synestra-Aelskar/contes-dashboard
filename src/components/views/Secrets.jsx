@@ -25,7 +25,7 @@ function accountLabel(account) {
   return email.endsWith(PLAYER_EMAIL_DOMAIN) ? email.slice(0, -PLAYER_EMAIL_DOMAIN.length) : email.split('@')[0];
 }
 
-function groupCharacters(state) {
+export function groupCharacters(state) {
   const accounts = (state.settings && state.settings.accounts) || [];
   const byOwner = new Map();
   accounts.forEach((a) => { if (a.userId) byOwner.set(a.userId, accountLabel(a) || 'Compte'); });

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { uid, lsGet, lsSet, fmtDateLong } from '../../lib/util.js';
 import { useSyncedField } from '../../lib/useSyncedField.js';
 import { storyHTML } from '../../lib/scriptorium.js';
+import { groupCharacters } from './Secrets.jsx';
 import { newBook, bookTitle, bindingIndex, spineWidth, bookStats, idVariant } from '../../lib/bibliotheque.js';
 
 /* Bibliothèque — les récits rangés comme des livres sur des étagères
@@ -26,7 +27,7 @@ function ShelfName({ shelf, mutate, readOnly }) {
   );
 }
 
-function Spine({ book, selected, canEdit, onSelect, onDropBefore, lying }) {
+export function Spine({ book, selected, canEdit, onSelect, onDropBefore, lying }) {
   const [over, setOver] = useState(false);
   const { document: doc, kind, material } = coverAppearance(book.document);
   const cls = 'lib-book lib-book--c' + bindingIndex(book.id)
@@ -58,7 +59,7 @@ function Spine({ book, selected, canEdit, onSelect, onDropBefore, lying }) {
   );
 }
 
-function Reader({ book, onClose }) {
+export function Reader({ book, onClose }) {
   const { kind } = coverAppearance(book.document);
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
@@ -85,8 +86,41 @@ function Reader({ book, onClose }) {
   );
 }
 
+function ShareModal({ state, book, mutate, onClose }) {
+  const groups = groupCharacters(state);
+  const shared = new Set(book.sharedWith || []);
+  const toggle = (id) => mutate((s) => {
+    const b = s.bibliotheque.books.find((x) => x.id === book.id);
+    if (!b) return;
+    b.sharedWith = Array.isArray(b.sharedWith) ? b.sharedWith : [];
+    b.sharedWith = b.sharedWith.includes(id) ? b.sharedWith.filter((x) => x !== id) : [...b.sharedWith, id];
+  });
+  return (
+    <div className="modal" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="modal__card secret-modal" onClick={(e) => e.stopPropagation()}>
+        <h3 className="modal__title">Partager « {bookTitle(book)} »</h3>
+        <p className="modal__note">Coche les personnages qui pourront lire ce livre dans leur bibliothèque. Décocher le retire de la leur.</p>
+        {!groups.length ? <p className="empty">Aucun personnage pour l’instant.</p> : groups.map((g) => (
+          <div key={g.key} className="secret-modal__group">
+            <span className="card__label">{g.label}</span>
+            {g.chars.map((c) => (
+              <label key={c.id} className="secret-modal__row">
+                <input type="checkbox" checked={shared.has(c.id)} onChange={() => toggle(c.id)} />
+                <span>{c.name || 'Personnage'}</span>
+              </label>
+            ))}
+          </div>
+        ))}
+        <div className="modal__actions"><button className="tbtn" type="button" onClick={onClose}>fermer</button></div>
+      </div>
+    </div>
+  );
+}
+
 export default function Bibliotheque({ state, mutate, setView, canEdit }) {
   const lib = state.bibliotheque;
+  const [shareId, setShareId] = useState(null);
+  const shareBook = shareId && lib.books.find((b) => b.id === shareId);
   const [selId, setSelIdRaw] = useState(() => lsGet(SEL_KEY) || '');
   const [reading, setReading] = useState(null);
   const [newShelf, setNewShelf] = useState('');
@@ -265,6 +299,11 @@ export default function Bibliotheque({ state, mutate, setView, canEdit }) {
               <div className="lib-lectern__actions">
                 <button className="scr-btn scr-btn--on" type="button" onClick={() => setReading(selected.id)}>Lire</button>
                 {canEdit && <button className="scr-btn" type="button" onClick={() => openInScriptorium(selected.id)}>Ouvrir au Scriptorium</button>}
+                {canEdit && (
+                  <button className="scr-btn" type="button" onClick={() => setShareId(selected.id)}>
+                    Partager{(selected.sharedWith || []).length ? ` (${selected.sharedWith.length})` : ''}
+                  </button>
+                )}
               </div>
               {canEdit && (
                 <>
@@ -286,6 +325,7 @@ export default function Bibliotheque({ state, mutate, setView, canEdit }) {
       </div>
 
       {readingBook && <Reader book={readingBook} onClose={() => setReading(null)} />}
+      {shareBook && <ShareModal state={state} book={shareBook} mutate={mutate} onClose={() => setShareId(null)} />}
     </section>
   );
 }

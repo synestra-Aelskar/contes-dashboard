@@ -31,6 +31,7 @@ import TableauMJ from './views/TableauMJ.jsx';
 import XpCalibreur from './views/XpCalibreur.jsx';
 import Equilibrage from './views/Equilibrage.jsx';
 import Bibliotheque from './views/Bibliotheque.jsx';
+import MaBibliotheque from './views/MaBibliotheque.jsx';
 import Scriptorium from './views/Scriptorium.jsx';
 import PrepSession from './views/PrepSession.jsx';
 import BackstageMJ from './views/BackstageMJ.jsx';
@@ -49,7 +50,7 @@ const VIEW_COMPONENTS = {
   liens: Liens, journal: Journal, resumes: ResumesSeance, consequences: Consequences, horloges: Horloges,
   secrets: Secrets, oublis: Oublis, epreuves: Epreuves, zones: Zones,
   fichetechnique: FicheTechnique, xpcalibreur: XpCalibreur, equilibrage: Equilibrage, prepsession: PrepSession,
-  bibliotheque: Bibliotheque, scriptorium: Scriptorium,
+  bibliotheque: Bibliotheque, 'bibliotheque-perso': MaBibliotheque, scriptorium: Scriptorium,
   'backstage-mj': BackstageMJ, 'personnages-joueurs': Personnages, validations: Validations,
   'tableaux-perso': TableauMesTableaux, 'tableaux-groupe': TableauGroupe, 'tableaux-mj': TableauMJ
 };

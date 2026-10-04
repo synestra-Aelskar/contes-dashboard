@@ -34,6 +34,8 @@ function normalizeBook(bk) {
   if (typeof bk.shelfId !== 'string') bk.shelfId = null;
   ['surtitre', 'titre1', 'titre2', 'fin', 'finSub', 'signature', 'createdAt', 'updatedAt'].forEach((k) => { bk[k] = str(bk[k]); });
   bk.braise = bk.braise !== false;
+  if (!Array.isArray(bk.sharedWith)) bk.sharedWith = [];
+  bk.sharedWith = bk.sharedWith.filter((id) => typeof id === 'string');
   if (!Array.isArray(bk.acts)) bk.acts = [];
   bk.acts = bk.acts.filter((a) => a && typeof a === 'object');
   bk.acts.forEach((a) => {
@@ -113,7 +115,15 @@ export function newBook(shelf) {
   const name = str(shelf && shelf.name).trim();
   if (name) story.surtitre = /s$/i.test(name) ? name.slice(0, -1) : name;
   delete story.v;
-  return { id: uid(), shelfId: shelf ? shelf.id : null, createdAt: now, updatedAt: now, ...story };
+  return { id: uid(), shelfId: shelf ? shelf.id : null, createdAt: now, updatedAt: now, sharedWith: [], ...story };
+}
+
+/** Livres partagés avec l'un des personnages de ce compte (`book.sharedWith`
+ * = ids de personnages, comme `revealedTo` des secrets) — la bibliothèque
+ * personnelle d'un joueur. */
+export function booksSharedWith(state, userId) {
+  const mine = new Set((state.characters || []).filter((c) => c.ownerId === userId).map((c) => c.id));
+  return ((state.bibliotheque && state.bibliotheque.books) || []).filter((b) => (b.sharedWith || []).some((id) => mine.has(id)));
 }
 
 export function findBook(state, id) {

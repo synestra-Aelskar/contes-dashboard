@@ -23,6 +23,7 @@ export const ALL_VIEWS = [
   ['xpcalibreur', "Calibreur d'XP"],
   ['equilibrage', 'Équilibrage DD'],
   ['bibliotheque', 'Bibliothèque'],
+  ['bibliotheque-perso', 'Ma bibliothèque'],
   ['scriptorium', 'Scriptorium de la Trame'],
   ['prepsession', 'Prep Session'],
   ['backstage-mj', 'Backstage (MJ)']
@@ -34,7 +35,7 @@ export const ROLES = [['admin', 'Admin'], ['player', 'Joueur']];
 /** Visibilité par défaut d'une vue : admin seul, sauf les vues joueur en
  * libre-service — Mes personnages, Résumés de séance, Mes tableaux et
  * Tableaux du groupe. */
-const PLAYER_DEFAULT_VIEWS = new Set(['personnages', 'resumes', 'tableaux-perso', 'tableaux-groupe']);
+const PLAYER_DEFAULT_VIEWS = new Set(['personnages', 'resumes', 'tableaux-perso', 'tableaux-groupe', 'bibliotheque-perso']);
 export function defaultVisibility(key) {
   return PLAYER_DEFAULT_VIEWS.has(key) ? ['admin', 'player'] : ['admin'];
 }
@@ -42,7 +43,7 @@ export function defaultVisibility(key) {
 /** Catégorie d'accueil d'une vue la première fois qu'elle apparaît dans un
  * menu existant (retrouvée par son nom, créée si absente) — au lieu d'être
  * ajoutée à plat à la racine. */
-export const DEFAULT_HOME = { bibliotheque: 'Bibliothèques', scriptorium: 'Outils' };
+export const DEFAULT_HOME = { bibliotheque: 'Bibliothèques', 'bibliotheque-perso': 'Bibliothèques', scriptorium: 'Outils' };
 
 /** Conteneur (catégorie ou sous-catégorie) portant ce nom, casse et espaces
  * ignorés ; à défaut, le premier dont le nom COMMENCE par ce nom (« Outils »
