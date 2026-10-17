@@ -6,6 +6,7 @@ import { vrValid } from './valrazkah.js';
 import { aelValid } from './aelskar.js';
 import { ALL_VIEWS, DEFAULT_HOME, defaultMenuTree, defaultVisibility, usedViewKeys, usedDocIds, pruneMissingDocs, findContainerByName } from './menu.js';
 import { normalizeBibliotheque } from './bibliotheque.js';
+import { normalizeAmbiances } from './ambiances.js';
 
 const ROW_ID = 'main';
 const SAVE_DEBOUNCE = 1000;
@@ -24,7 +25,7 @@ export const EMPTY_STATE = {
   ],
   sessions: [], consequences: [], clocks: [], secrets: [], reminders: [], epreuves: [],
   characters: [], sessionDraft: null, zones: [], sessionZero: { blocks: [] }, fichesTechniques: [],
-  bibliotheque: null,
+  bibliotheque: null, ambiances: null,
   tableaux: [],
   xpCalibreur: XP_DEFAULT_STATE, ddCalc: null, prepSessions: [],
   settings: { timeTypes: [], accounts: [], menu: [] },
@@ -93,7 +94,7 @@ function normalize(raw) {
       s.ambiances = (Array.isArray(s.ambiances) ? s.ambiances : []).filter((a) => a && typeof a === 'object');
       s.ambiances.forEach((a) => {
         if (typeof a.id !== 'string' || !a.id) a.id = uid();
-        ['name', 'url', 'notes'].forEach((k) => { if (typeof a[k] !== 'string') a[k] = ''; });
+        ['name', 'url', 'notes', 'categoryId', 'zoneId'].forEach((k) => { if (typeof a[k] !== 'string') a[k] = ''; });
       });
       s.emotes = (Array.isArray(s.emotes) ? s.emotes : []).filter((e) => e && typeof e === 'object');
       s.emotes.forEach((e) => {
@@ -237,6 +238,7 @@ function normalize(raw) {
     if (!Array.isArray(f.blocks)) f.blocks = [];
   });
   normalizeBibliotheque(out);
+  normalizeAmbiances(out);
   if (!Array.isArray(out.tableaux)) out.tableaux = [];
   out.tableaux.forEach((t) => {
     if (typeof t.titre !== 'string') t.titre = '';
