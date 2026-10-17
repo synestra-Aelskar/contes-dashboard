@@ -18,7 +18,23 @@ export function makeQuete() {
 
 export function makeSession(quete) {
   const n = (quete && Array.isArray(quete.sessions) ? quete.sessions.length : 0) + 1;
-  return { id: uid(), title: 'Session ' + n, description: '', xpBlocks: [] };
+  return { id: uid(), title: 'Session ' + n, description: '', xpBlocks: [], ambiances: [], emotes: [], other: '' };
+}
+
+export const EMOTE_MAX = 255;
+
+export function makeAmbiance() {
+  return { id: uid(), name: '', url: '', notes: '' };
+}
+
+export function makeEmote() {
+  return { id: uid(), text: '' };
+}
+
+/** Identifiant vidéo d'un lien YouTube (watch?v=, youtu.be/, embed/, shorts/), sinon ''. */
+export function youtubeId(url) {
+  const m = /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/.exec(String(url || ''));
+  return m ? m[1] : '';
 }
 
 export function makeXpBlock() {

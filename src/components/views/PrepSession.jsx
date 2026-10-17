@@ -5,7 +5,17 @@ import {
   makeQuete, makeSession, makeXpBlock, allBaremeOptions, resolveBlockXp, sessionTotal, BRANCH_KIND_VAR
 } from '../../lib/prepsession.js';
 
+import { AmbiancePane, EmotePane } from './PrepSessionPanes.jsx';
+
 const LOCAL_KEY = 'ccm.prep';
+const TAB_KEY = 'ccm.prepTab';
+const SESSION_TABS = [
+  ['identite', 'Identité'],
+  ['ambiance', 'Ambiance'],
+  ['emote', 'Emote'],
+  ['experience', 'Expérience'],
+  ['autres', 'Autres']
+];
 
 /* --- sommaire (arbre) --------------------------------------------- */
 
@@ -125,6 +135,10 @@ function SessionPane({ quete, session, mutate, xpCalibreur, onSelect }) {
       if (sess) fn(sess);
     });
 
+  const [other, setOther, otherRef] = useSyncedField(session.other);
+  const [tab, setTabRaw] = useState(lsGet(TAB_KEY) || 'identite');
+  const setTab = (t) => { setTabRaw(t); lsSet(TAB_KEY, t); };
+
   const total = sessionTotal(session, xpCalibreur);
   const options = allBaremeOptions(xpCalibreur);
 
@@ -139,12 +153,7 @@ function SessionPane({ quete, session, mutate, xpCalibreur, onSelect }) {
 
       <div className="zone-pane__head">
         <span className="card__label">Session</span>
-        <input
-          ref={titleRef} className="field zone-pane__name" type="text" placeholder="Titre de la session"
-          value={title}
-          onChange={(e) => { const v = e.target.value; setTitle(v); patch((s) => { s.title = v; }); }}
-          onBlur={() => patch((s) => { s.title = title.trim(); })}
-        />
+        <span className="zone-pane__name prep-sessname">{session.title || 'Sans titre'}</span>
         <div className="zone-pane__actions">
           <button
             className="tbtn" type="button"
@@ -162,17 +171,59 @@ function SessionPane({ quete, session, mutate, xpCalibreur, onSelect }) {
         </div>
       </div>
 
-      <div className="prep-stack">
-        <label className="flabel">
-          Description
-          <textarea
-            ref={descRef} className="notes" placeholder="Ce qui se passe dans cette séance…"
-            value={desc}
-            onChange={(e) => { const v = e.target.value; setDesc(v); patch((s) => { s.description = v; }); }}
-            onBlur={() => patch((s) => { s.description = desc; })}
-          />
-        </label>
+      <nav className="prep-tabs" role="tablist">
+        {SESSION_TABS.map(([key, label]) => (
+          <button
+            key={key} type="button" role="tab" aria-selected={tab === key}
+            className={'prep-tab' + (tab === key ? ' is-active' : '')}
+            onClick={() => setTab(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
 
+      {tab === 'identite' && (
+        <div className="prep-stack">
+          <label className="flabel">
+            Nom de la session
+            <input
+              ref={titleRef} className="field" type="text" placeholder="Titre de la session"
+              value={title}
+              onChange={(e) => { const v = e.target.value; setTitle(v); patch((s) => { s.title = v; }); }}
+              onBlur={() => patch((s) => { s.title = title.trim(); })}
+            />
+          </label>
+          <label className="flabel">
+            Description
+            <textarea
+              ref={descRef} className="notes" placeholder="Ce qui se passe dans cette séance…"
+              value={desc}
+              onChange={(e) => { const v = e.target.value; setDesc(v); patch((s) => { s.description = v; }); }}
+              onBlur={() => patch((s) => { s.description = desc; })}
+            />
+          </label>
+        </div>
+      )}
+
+      {tab === 'ambiance' && <AmbiancePane quete={quete} session={session} mutate={mutate} />}
+      {tab === 'emote' && <EmotePane quete={quete} session={session} mutate={mutate} />}
+
+      {tab === 'autres' && (
+        <div className="prep-stack">
+          <label className="flabel">
+            Autres notes
+            <textarea
+              ref={otherRef} className="notes prep-other" placeholder="Tout ce qui ne rentre pas ailleurs…"
+              value={other}
+              onChange={(e) => { const v = e.target.value; setOther(v); patch((s) => { s.other = v; }); }}
+              onBlur={() => patch((s) => { s.other = other; })}
+            />
+          </label>
+        </div>
+      )}
+
+      {tab === 'experience' && <div className="prep-stack">
         <div className="prep-xpzone">
           <div className="prep-total">
             <span className="prep-total__label">Total XP de la séance</span>
@@ -193,7 +244,7 @@ function SessionPane({ quete, session, mutate, xpCalibreur, onSelect }) {
             ＋ ajouter un bloc
           </button>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

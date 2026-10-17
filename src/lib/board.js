@@ -89,6 +89,17 @@ function normalize(raw) {
       if (typeof s.title !== 'string') s.title = '';
       if (typeof s.description !== 'string') s.description = '';
       if (!Array.isArray(s.xpBlocks)) s.xpBlocks = [];
+      if (typeof s.other !== 'string') s.other = '';
+      s.ambiances = (Array.isArray(s.ambiances) ? s.ambiances : []).filter((a) => a && typeof a === 'object');
+      s.ambiances.forEach((a) => {
+        if (typeof a.id !== 'string' || !a.id) a.id = uid();
+        ['name', 'url', 'notes'].forEach((k) => { if (typeof a[k] !== 'string') a[k] = ''; });
+      });
+      s.emotes = (Array.isArray(s.emotes) ? s.emotes : []).filter((e) => e && typeof e === 'object');
+      s.emotes.forEach((e) => {
+        if (typeof e.id !== 'string' || !e.id) e.id = uid();
+        e.text = typeof e.text === 'string' ? e.text.slice(0, 255) : '';
+      });
     });
   });
   if (!out.sessionDraft || typeof out.sessionDraft !== 'object') out.sessionDraft = null;
