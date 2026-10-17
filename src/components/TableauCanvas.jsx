@@ -308,8 +308,6 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
 
   useEffect(() => { lsSet('ccm.tabCam.' + tableau.id, JSON.stringify(camera)); }, [camera, tableau.id]);
   useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     // Le canvas a besoin de coordonnées souris pixel-perfect ; le `zoom` CSS
     // (préférence Taille d'affichage) déforme MouseEvent.clientX/Y sous un
     // élément `position:fixed` dans certaines versions de Chromium — c'est
@@ -317,11 +315,19 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
     // droit. On neutralise le zoom pendant que le tableau est ouvert, et on
     // restaure la préférence de l'utilisateur en sortant.
     document.documentElement.style.zoom = '1';
-    return () => {
-      document.body.style.overflow = prev;
-      applyUiScale(getUiScale());
-    };
+    return () => { applyUiScale(getUiScale()); };
   }, []);
+
+  // Le tableau est intégré à la page (plus en plein écran) : la molette doit
+  // zoomer SANS faire défiler la page, ce qui exige un écouteur non passif
+  // (les onWheel de React sont passifs, preventDefault y est ignoré).
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return undefined;
+    const handler = (e) => onWheel(e);
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const elements = useMemo(() => {
     const base = (tableau.elements || []).map((e) => (preview && preview[e.id] ? { ...e, ...preview[e.id] } : e));
@@ -778,7 +784,7 @@ export default function TableauCanvas({ tableau, mutate, onBack, charId, charNam
 
       <div
         ref={viewportRef} id="tb-viewport" className="tb-viewport"
-        onMouseDown={onBackgroundMouseDown} onMouseMove={onCanvasMouseMoveTrack} onWheel={onWheel}
+        onMouseDown={onBackgroundMouseDown} onMouseMove={onCanvasMouseMoveTrack}
         onContextMenu={(e) => { if (e.target === e.currentTarget || e.target.id === 'tb-world') e.preventDefault(); }}
       >
         <div id="tb-world" style={{ position: 'absolute', left: 0, top: 0, transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`, transformOrigin: '0 0' }}>
