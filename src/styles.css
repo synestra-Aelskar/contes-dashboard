@@ -1440,11 +1440,18 @@ input[type=range]::-moz-range-thumb{ width:14px; height:14px; border-radius:50%;
 .amb-cat__x:hover{ color:var(--blood); }
 .prep-emotes{ display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
 .prep-emote{ display:flex; flex-direction:column; gap:8px; padding:10px; border:1px solid var(--rule); border-radius:4px; background:var(--surface); }
-.prep-emote__text{ min-height:84px; font-size:13px; line-height:1.5; }
+.prep-emote__text{ min-height:84px; overflow:hidden; resize:none; font-size:13px; line-height:1.5; }
+.prep-emote__read{ margin:0; font-family:var(--f-body); font-size:13.5px; line-height:1.55; color:var(--fg); white-space:pre-wrap; }
 .prep-emote__foot{ display:flex; align-items:center; gap:10px; }
-.prep-emote__count{ margin-right:auto; font-family:var(--f-mono); font-size:10px; color:var(--fg-dim); }
+.prep-emote__count{ font-family:var(--f-mono); font-size:10px; color:var(--fg-dim); }
 .prep-emote__count.is-max{ color:var(--blood); }
-.prep-emote__copy{ padding:6px 18px; font-size:11px; }
+.prep-emote__tools{ margin-left:auto; display:inline-flex; gap:4px; opacity:.55; transition:opacity .12s ease; }
+.prep-emote:hover .prep-emote__tools, .prep-emote.is-editing .prep-emote__tools{ opacity:1; }
+.prep-emote__ico{ display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; background:none; border:1px solid transparent; border-radius:3px; color:var(--fg-dim); cursor:pointer; padding:0; }
+.prep-emote__ico:hover:not(:disabled){ color:var(--gilt); border-color:var(--rule); }
+.prep-emote__ico.is-on{ color:var(--gilt); border-color:var(--gilt); }
+.prep-emote__ico--del:hover:not(:disabled){ color:var(--blood); border-color:var(--blood); }
+.prep-emote__ico:disabled{ opacity:.35; cursor:default; }
 .prep-total{ display:flex; flex-direction:column; gap:2px; border:1px solid var(--rule); border-radius:6px; padding:12px 14px; background:var(--bg); width:fit-content; }
 .prep-total__label{ font-family:var(--f-mono); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dim); }
 .prep-total__value{ font-family:var(--f-mono); font-size:26px; color:var(--kind,var(--gilt)); }
