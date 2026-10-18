@@ -181,7 +181,22 @@ export function EmotePane({ quete, session, mutate }) {
 
 /* ---------- Dialogue : blocs de répliques « .npc say » ---------- */
 
-function DialogueLine({ line, patchDialogue }) {
+function CopyIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" {...ICON}><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V6a2 2 0 0 1 2-2h9" /></svg>;
+}
+function GearIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" {...ICON}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
+/** Une réplique : le bouton Copier est TOUJOURS à gauche, avant le texte. En
+ * vue le texte est fixe ; en édition il devient un champ avec compteur et
+ * suppression. */
+function DialogueLine({ line, patchDialogue, editing }) {
   const [text, setText, textRef] = useSyncedField(line.text);
   const patch = (fn) => patchDialogue((d) => { const l = d.lines.find((x) => x.id === line.id); if (l) fn(l); });
   const fit = (el) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } };
@@ -189,56 +204,79 @@ function DialogueLine({ line, patchDialogue }) {
   const used = NPC_SAY.length + text.length;
   return (
     <div className="prep-dline">
-      <textarea
-        ref={setRefs} className="finput finput--area prep-dline__text" maxLength={LINE_MAX} rows={1}
-        placeholder="Réplique…"
-        value={text}
-        onChange={(e) => { fit(e.target); const v = e.target.value.slice(0, LINE_MAX); setText(v); patch((x) => { x.text = v; }); }}
-        onBlur={() => patch((x) => { x.text = text; })}
-      />
-      <span className={'prep-emote__count prep-dline__count' + (used >= EMOTE_MAX ? ' is-max' : '')} title={'« ' + NPC_SAY.trim() + ' » compte dans les ' + EMOTE_MAX}>{used} / {EMOTE_MAX}</span>
-      <span className="prep-emote__tools prep-dline__tools">
-        <button type="button" className="prep-emote__ico" title="Copier avec .npc say" aria-label="Copier" disabled={!text.trim()} onClick={() => copyText(NPC_SAY + text.trim())}>
-          <svg width="14" height="14" viewBox="0 0 24 24" {...ICON}><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V6a2 2 0 0 1 2-2h9" /></svg>
-        </button>
-        <button
-          type="button" className="prep-emote__ico prep-emote__ico--del" title="Supprimer la réplique" aria-label="Supprimer la réplique"
-          onClick={() => patchDialogue((d) => { d.lines = d.lines.filter((x) => x.id !== line.id); })}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" {...ICON}><path d="M18 6L6 18" /><path d="M6 6l12 12" /></svg>
-        </button>
-      </span>
+      <button type="button" className="prep-emote__ico prep-dline__copy" title="Copier avec .npc say" aria-label="Copier" disabled={!text.trim()} onClick={() => copyText(NPC_SAY + text.trim())}>
+        <CopyIcon />
+      </button>
+      {editing ? (
+        <>
+          <textarea
+            ref={setRefs} className="finput finput--area prep-dline__text" maxLength={LINE_MAX} rows={1}
+            placeholder="Réplique…"
+            value={text}
+            onChange={(e) => { fit(e.target); const v = e.target.value.slice(0, LINE_MAX); setText(v); patch((x) => { x.text = v; }); }}
+            onBlur={() => patch((x) => { x.text = text; })}
+          />
+          <span className={'prep-emote__count prep-dline__count' + (used >= EMOTE_MAX ? ' is-max' : '')} title={'« ' + NPC_SAY.trim() + ' » compte dans les ' + EMOTE_MAX}>{used} / {EMOTE_MAX}</span>
+          <button
+            type="button" className="prep-emote__ico prep-emote__ico--del" title="Supprimer la réplique" aria-label="Supprimer la réplique"
+            onClick={() => patchDialogue((d) => { d.lines = d.lines.filter((x) => x.id !== line.id); })}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" {...ICON}><path d="M18 6L6 18" /><path d="M6 6l12 12" /></svg>
+          </button>
+        </>
+      ) : (
+        <p className="prep-dline__read">{text || <span className="chr__muted">Réplique vide</span>}</p>
+      )}
     </div>
   );
 }
 
+/** Lecture par défaut (rien ne se supprime ni ne se modifie par mégarde) ;
+ * l'engrenage bascule le bloc en édition. Un bloc neuf s'ouvre en édition. */
 function DialogueBlock({ dialogue, patchSession }) {
   const [title, setTitle, titleRef] = useSyncedField(dialogue.title);
+  const [editing, setEditing] = useState(!dialogue.title && dialogue.lines.every((l) => !l.text));
   const patchDialogue = (fn) => patchSession((s) => { const d = s.dialogues.find((x) => x.id === dialogue.id); if (d) fn(d); });
   return (
-    <div className="prep-dialogue">
+    <div className={'prep-dialogue' + (editing ? ' is-editing' : '')}>
       <div className="prep-dialogue__head">
-        <input
-          ref={titleRef} className="finput prep-emote__title" type="text" placeholder="Titre du dialogue"
-          value={title}
-          onChange={(e) => { const v = e.target.value; setTitle(v); patchDialogue((d) => { d.title = v; }); }}
-          onBlur={() => patchDialogue((d) => { d.title = title.trim(); })}
-        />
+        {editing ? (
+          <input
+            ref={titleRef} className="finput prep-emote__title" type="text" placeholder="Titre du dialogue"
+            value={title}
+            onChange={(e) => { const v = e.target.value; setTitle(v); patchDialogue((d) => { d.title = v; }); }}
+            onBlur={() => patchDialogue((d) => { d.title = title.trim(); })}
+          />
+        ) : (
+          <h5 className="prep-emote__heading prep-dialogue__title">{title.trim() || <span className="chr__muted">Sans titre</span>}</h5>
+        )}
         <button
-          type="button" className="prep-emote__ico prep-emote__ico--del" title="Supprimer le dialogue" aria-label="Supprimer le dialogue"
-          onClick={() => {
-            const filled = dialogue.lines.some((l) => l.text.trim());
-            if (filled && !window.confirm('Supprimer ce dialogue et ses répliques ?')) return;
-            patchSession((s) => { s.dialogues = s.dialogues.filter((x) => x.id !== dialogue.id); });
-          }}
+          type="button" className={'prep-emote__ico' + (editing ? ' is-on' : '')}
+          title={editing ? 'Terminer l’édition' : 'Modifier ce dialogue'} aria-label={editing ? 'Terminer l’édition' : 'Modifier ce dialogue'}
+          onClick={() => setEditing((v) => !v)}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" {...ICON}><path d="M3 6h18" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
+          <GearIcon />
         </button>
+        {editing && (
+          <button
+            type="button" className="prep-emote__ico prep-emote__ico--del" title="Supprimer le dialogue" aria-label="Supprimer le dialogue"
+            onClick={() => {
+              const filled = dialogue.lines.some((l) => l.text.trim());
+              if (filled && !window.confirm('Supprimer ce dialogue et ses répliques ?')) return;
+              patchSession((s) => { s.dialogues = s.dialogues.filter((x) => x.id !== dialogue.id); });
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" {...ICON}><path d="M3 6h18" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
+          </button>
+        )}
       </div>
       <div className="prep-dialogue__lines">
-        {dialogue.lines.map((l) => <DialogueLine key={l.id} line={l} patchDialogue={patchDialogue} />)}
+        {dialogue.lines.map((l) => <DialogueLine key={l.id} line={l} patchDialogue={patchDialogue} editing={editing} />)}
+        {!dialogue.lines.length && <span className="chr__muted">Aucune réplique.</span>}
       </div>
-      <button className="tbtn prep-dialogue__add" type="button" onClick={() => patchDialogue((d) => { d.lines.push(makeDialogueLine()); })}>＋ réplique</button>
+      {editing && (
+        <button className="tbtn prep-dialogue__add" type="button" onClick={() => patchDialogue((d) => { d.lines.push(makeDialogueLine()); })}>＋ réplique</button>
+      )}
     </div>
   );
 }
