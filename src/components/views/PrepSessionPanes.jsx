@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { lsGet, lsSet } from '../../lib/util.js';
 import { useSyncedField } from '../../lib/useSyncedField.js';
 import { toast } from '../../lib/toast.js';
 import { makeAmbiance, makeEmote, makeDialogue, makeDialogueLine, youtubeId, EMOTE_MAX, NPC_SAY, LINE_MAX } from '../../lib/prepsession.js';
@@ -301,16 +302,41 @@ function DialogueBlock({ dialogue, patchSession }) {
 export function DialoguePane({ quete, session, mutate }) {
   const patchSession = useSessionPatch(quete, session, mutate);
   const list = session.dialogues || [];
+  // Un seul dialogue affiché à la fois, choisi dans le menu des titres ; le
+  // choix est retenu par séance.
+  const selKey = 'ccm.prepDialogue.' + session.id;
+  const [selId, setSelIdRaw] = useState(() => lsGet(selKey) || '');
+  const setSelId = (id) => { setSelIdRaw(id); lsSet(selKey, id); };
+  const selected = list.find((d) => d.id === selId) || list[0] || null;
+
+  function addDialogue() {
+    const d = makeDialogue();
+    patchSession((s) => { s.dialogues.push(d); });
+    setSelId(d.id);
+  }
+
   return (
     <div className="prep-tabpane">
       <div className="chapter__head">
         <h4 className="chr__h">Dialogues<span className="count"> ({list.length})</span></h4>
-        <button className="tbtn" type="button" onClick={() => patchSession((s) => { s.dialogues.push(makeDialogue()); })}>＋ nouveau dialogue</button>
+        <button className="tbtn" type="button" onClick={addDialogue}>＋ nouveau dialogue</button>
       </div>
       <p className="dd-hint">Chaque réplique se copie précédée de « {NPC_SAY.trim()} » (compté dans les {EMOTE_MAX} caractères : {LINE_MAX} restent pour le texte).</p>
       {list.length ? (
-        <div className="prep-dialogues">
-          {list.map((d) => <DialogueBlock key={d.id} dialogue={d} patchSession={patchSession} />)}
+        <div className="prep-dlg">
+          <nav className="prep-dlg__menu" aria-label="Dialogues de la séance">
+            {list.map((d) => (
+              <button
+                key={d.id} type="button"
+                className={'prep-dlg__item' + (selected && selected.id === d.id ? ' is-active' : '')}
+                onClick={() => setSelId(d.id)}
+              >
+                <span className="prep-dlg__name">{d.title.trim() || 'Sans titre'}</span>
+                <span className="prep-dlg__n">{d.lines.length}</span>
+              </button>
+            ))}
+          </nav>
+          {selected && <DialogueBlock key={selected.id} dialogue={selected} patchSession={patchSession} />}
         </div>
       ) : <p className="empty">Aucun dialogue. Un dialogue est une succession de répliques à copier une par une.</p>}
     </div>
