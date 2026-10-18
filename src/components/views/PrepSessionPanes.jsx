@@ -99,6 +99,15 @@ async function copyText(text) {
   toast('Copié dans le presse-papiers');
 }
 
+/** Clic sur un bloc en lecture = copie directe. Ignoré sur un bouton (il a sa
+ * propre action) et pendant une sélection de texte (on veut juste surligner). */
+function clickToCopy(e, valeur) {
+  if (e.target.closest('button')) return;
+  const sel = window.getSelection && window.getSelection();
+  if (sel && sel.toString()) return;
+  if (String(valeur || '').trim()) copyText(valeur);
+}
+
 const ICON = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
 
 /** Lecture seule par défaut (texte entier visible) ; l'engrenage bascule en
@@ -112,7 +121,11 @@ function EmoteBlock({ emote, patchSession }) {
   const setRefs = (el) => { textRef.current = el; fit(el); };
 
   return (
-    <div className={'prep-emote' + (editing ? ' is-editing' : '')}>
+    <div
+      className={'prep-emote' + (editing ? ' is-editing' : ' is-copyable')}
+      title={editing ? undefined : 'Cliquer pour copier'}
+      onClick={editing ? undefined : (e) => clickToCopy(e, text)}
+    >
       {editing ? (
         <input
           ref={titleRef} className="finput prep-emote__title" type="text" placeholder="Titre (non copié)"
@@ -203,7 +216,11 @@ function DialogueLine({ line, patchDialogue, editing }) {
   const setRefs = (el) => { textRef.current = el; fit(el); };
   const used = NPC_SAY.length + text.length;
   return (
-    <div className="prep-dline">
+    <div
+      className={'prep-dline' + (editing ? '' : ' is-copyable')}
+      title={editing ? undefined : 'Cliquer pour copier'}
+      onClick={editing ? undefined : (e) => clickToCopy(e, NPC_SAY + text.trim())}
+    >
       <button type="button" className="prep-emote__ico prep-dline__copy" title="Copier avec .npc say" aria-label="Copier" disabled={!text.trim()} onClick={() => copyText(NPC_SAY + text.trim())}>
         <CopyIcon />
       </button>

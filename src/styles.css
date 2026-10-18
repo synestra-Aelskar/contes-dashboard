@@ -1453,6 +1453,9 @@ input[type=range]::-moz-range-thumb{ width:14px; height:14px; border-radius:50%;
 .prep-dline__copy{ margin-top:5px; opacity:.8; }
 .prep-dline__read{ flex:1; min-width:0; margin:0; padding:6px 0; font-family:var(--f-body); font-size:13.5px; line-height:1.5; color:var(--fg); white-space:pre-wrap; }
 .prep-dialogue__title{ flex:1; }
+.prep-emote.is-copyable, .prep-dline.is-copyable{ cursor:copy; }
+.prep-emote.is-copyable:hover{ border-color:var(--gilt); }
+.prep-dline.is-copyable:hover{ background:color-mix(in srgb, var(--gilt) 9%, transparent); }
 .prep-dialogue:not(.is-editing) .prep-dline{ border-bottom:1px solid var(--rule); }
 .prep-dialogue:not(.is-editing) .prep-dline:last-child{ border-bottom:none; }
 .prep-emote__title{ font-family:var(--f-display); font-weight:600; font-size:14px; }
