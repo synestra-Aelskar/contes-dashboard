@@ -5,7 +5,7 @@ import {
   makeQuete, makeSession, makeXpBlock, allBaremeOptions, resolveBlockXp, sessionTotal, BRANCH_KIND_VAR
 } from '../../lib/prepsession.js';
 
-import { AmbiancePane, EmotePane } from './PrepSessionPanes.jsx';
+import { AmbiancePane, EmotePane, DialoguePane } from './PrepSessionPanes.jsx';
 
 const LOCAL_KEY = 'ccm.prep';
 const TAB_KEY = 'ccm.prepTab';
@@ -13,6 +13,7 @@ const SESSION_TABS = [
   ['identite', 'Identité'],
   ['ambiance', 'Ambiance'],
   ['emote', 'Emote'],
+  ['dialogue', 'Dialogue'],
   ['experience', 'Expérience'],
   ['autres', 'Autres']
 ];
@@ -208,6 +209,7 @@ function SessionPane({ quete, session, mutate, xpCalibreur, onSelect }) {
 
       {tab === 'ambiance' && <AmbiancePane quete={quete} session={session} mutate={mutate} />}
       {tab === 'emote' && <EmotePane quete={quete} session={session} mutate={mutate} />}
+      {tab === 'dialogue' && <DialoguePane quete={quete} session={session} mutate={mutate} />}
 
       {tab === 'autres' && (
         <div className="prep-stack">

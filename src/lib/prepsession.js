@@ -18,10 +18,23 @@ export function makeQuete() {
 
 export function makeSession(quete) {
   const n = (quete && Array.isArray(quete.sessions) ? quete.sessions.length : 0) + 1;
-  return { id: uid(), title: 'Session ' + n, description: '', xpBlocks: [], ambiances: [], emotes: [], other: '' };
+  return { id: uid(), title: 'Session ' + n, description: '', xpBlocks: [], ambiances: [], emotes: [], dialogues: [], other: '' };
 }
 
 export const EMOTE_MAX = 255;
+
+/** Préfixe collé devant chaque réplique à la copie (espace final compris) :
+ * il compte dans les 255 caractères d'une ligne de chat. */
+export const NPC_SAY = '.npc say ';
+export const LINE_MAX = EMOTE_MAX - NPC_SAY.length;
+
+export function makeDialogue() {
+  return { id: uid(), title: '', lines: [{ id: uid(), text: '' }] };
+}
+
+export function makeDialogueLine() {
+  return { id: uid(), text: '' };
+}
 
 export function makeAmbiance() {
   return { id: uid(), name: '', url: '', notes: '' };

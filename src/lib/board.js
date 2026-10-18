@@ -96,6 +96,16 @@ function normalize(raw) {
         if (typeof a.id !== 'string' || !a.id) a.id = uid();
         ['name', 'url', 'notes', 'categoryId', 'zoneId'].forEach((k) => { if (typeof a[k] !== 'string') a[k] = ''; });
       });
+      s.dialogues = (Array.isArray(s.dialogues) ? s.dialogues : []).filter((d) => d && typeof d === 'object');
+      s.dialogues.forEach((d) => {
+        if (typeof d.id !== 'string' || !d.id) d.id = uid();
+        d.title = typeof d.title === 'string' ? d.title : '';
+        d.lines = (Array.isArray(d.lines) ? d.lines : []).filter((l) => l && typeof l === 'object');
+        d.lines.forEach((l) => {
+          if (typeof l.id !== 'string' || !l.id) l.id = uid();
+          l.text = typeof l.text === 'string' ? l.text.slice(0, 246) : '';
+        });
+      });
       s.emotes = (Array.isArray(s.emotes) ? s.emotes : []).filter((e) => e && typeof e === 'object');
       s.emotes.forEach((e) => {
         if (typeof e.id !== 'string' || !e.id) e.id = uid();
