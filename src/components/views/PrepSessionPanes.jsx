@@ -105,7 +105,8 @@ const ICON = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLin
  * édition. Un bloc neuf, encore vide, s'ouvre directement en édition. */
 function EmoteBlock({ emote, patchSession }) {
   const [text, setText, textRef] = useSyncedField(emote.text);
-  const [editing, setEditing] = useState(!emote.text);
+  const [title, setTitle, titleRef] = useSyncedField(emote.title);
+  const [editing, setEditing] = useState(!emote.text && !emote.title);
   const patch = (fn) => patchSession((s) => { const e = s.emotes.find((x) => x.id === emote.id); if (e) fn(e); });
   const fit = (el) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } };
   const setRefs = (el) => { textRef.current = el; fit(el); };
@@ -113,8 +114,16 @@ function EmoteBlock({ emote, patchSession }) {
   return (
     <div className={'prep-emote' + (editing ? ' is-editing' : '')}>
       {editing ? (
+        <input
+          ref={titleRef} className="finput prep-emote__title" type="text" placeholder="Titre (non copié)"
+          value={title}
+          onChange={(e) => { const v = e.target.value; setTitle(v); patch((x) => { x.title = v; }); }}
+          onBlur={() => patch((x) => { x.title = title.trim(); })}
+        />
+      ) : (title.trim() && <h5 className="prep-emote__heading">{title}</h5>)}
+      {editing ? (
         <textarea
-          ref={setRefs} className="finput finput--area prep-emote__text" maxLength={EMOTE_MAX} autoFocus
+          ref={setRefs} className="finput finput--area prep-emote__text" maxLength={EMOTE_MAX}
           placeholder="Texte d’emote (255 caractères max)…"
           value={text}
           onChange={(e) => { fit(e.target); const v = e.target.value.slice(0, EMOTE_MAX); setText(v); patch((x) => { x.text = v; }); }}

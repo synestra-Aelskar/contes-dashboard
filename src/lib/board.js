@@ -100,6 +100,7 @@ function normalize(raw) {
       s.emotes.forEach((e) => {
         if (typeof e.id !== 'string' || !e.id) e.id = uid();
         e.text = typeof e.text === 'string' ? e.text.slice(0, 255) : '';
+        e.title = typeof e.title === 'string' ? e.title : '';
       });
     });
   });

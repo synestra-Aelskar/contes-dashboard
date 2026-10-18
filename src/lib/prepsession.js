@@ -28,7 +28,7 @@ export function makeAmbiance() {
 }
 
 export function makeEmote() {
-  return { id: uid(), text: '' };
+  return { id: uid(), title: '', text: '' };
 }
 
 /** Identifiant vidéo d'un lien YouTube (watch?v=, youtu.be/, embed/, shorts/), sinon ''. */
