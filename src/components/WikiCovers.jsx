@@ -20,7 +20,7 @@ export function coverUrl(note, media) {
   const v = propOf(note, 'image');
   if (typeof v !== 'string') return '';
   const s = v.trim();
-  if (/^https?:\/\//i.test(s)) return s;
+  if (/^(https?:\/\/|data:image\/)/i.test(s)) return s;
   const m = /^\s*(?:!?\[\[)?([^\]|#]+?)(?:\]\])?\s*$/.exec(s);
   return m && IMG_EXT.test(m[1]) ? resolveMedia(media, m[1].trim()) || '' : '';
 }
