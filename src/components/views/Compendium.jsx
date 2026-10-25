@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { lsGet, lsSet } from '../../lib/util.js';
 import { toast } from '../../lib/toast.js';
 import { useWiki } from '../../lib/wikiStore.js';
-import { buildIndex, buildTree, countNotes, folderOf, looseKey, parseYaml, propertyStats, resolveMedia, toMarkdown } from '../../lib/wiki.js';
+import { setFmProp, buildIndex, buildTree, countNotes, folderOf, looseKey, parseYaml, propertyStats, resolveMedia, toMarkdown } from '../../lib/wiki.js';
 import { applyTemplate } from '../../lib/wikiTemplates.js';
 import { parseMarkdown, parseInline, outline, excerpt, slugHeading } from '../../lib/wikiMd.js';
 import WikiMarkdown, { Inline } from '../WikiMarkdown.jsx';
@@ -12,6 +12,7 @@ import WikiTextarea from '../WikiTextarea.jsx';
 import WikiNewNote from '../WikiNewNote.jsx';
 import WikiCollections from '../WikiCollections.jsx';
 import { CoverGrid, CategorySettings, cardOf, coverUrl } from '../WikiCovers.jsx';
+import { uploadScreenshot } from '../../lib/board.js';
 import './wiki.css';
 
 /* Compendium — le wiki de l'univers, façon Obsidian : notes en Markdown reliées
@@ -365,7 +366,8 @@ function FolderPage({ dir, go, ctx, wiki, canEdit, isAdmin, onNew, onNewCategory
 const INTRO_PATH = 'Accueil.md';
 const INTRO_SEED = '> [!quote]\n> « Écris ici la citation qui ouvre ton univers. »\n>\n> ~ Auteur, date\n';
 
-function Home({ notes, index, tree, media, ctx, go, canEdit, isAdmin, onImport, onMissing, onNewCategory, onIntro }) {
+function Home({ notes, index, tree, media, ctx, go, canEdit, isAdmin, onImport, onMissing, onNewCategory, onIntro, onImages, busyImages }) {
+  const picker = useRef(null);
   const st = index.stats;
   const empties = notes.filter((n) => !n.body.trim()).length;
   const wanted = index.unresolved().slice(0, 14);
@@ -388,7 +390,14 @@ function Home({ notes, index, tree, media, ctx, go, canEdit, isAdmin, onImport, 
       {!intro && canEdit && <p className="chr__muted"><button className="tbtn" type="button" onClick={() => onIntro(false)}>＋ Écrire une introduction (citation d’ouverture)</button></p>}
 
       <CoverGrid items={cards} />
-      {canEdit && <p><button className="tbtn" type="button" onClick={() => onNewCategory('')}>＋ Nouvelle catégorie</button></p>}
+      {canEdit && (
+        <p className="wiki-home__tools">
+          <button className="tbtn" type="button" onClick={() => onNewCategory('')}>＋ Nouvelle catégorie</button>{' '}
+          <input ref={picker} type="file" accept="image/*" multiple hidden onChange={(e) => { const fl = [...e.target.files]; e.target.value = ''; if (fl.length) onImages(fl); }} />
+          <button className="tbtn" type="button" disabled={!!busyImages} onClick={() => picker.current && picker.current.click()}
+            title="Chaque image prend la catégorie qui porte le même nom que son fichier">{busyImages || 'Déposer des images de catégories…'}</button>
+        </p>
+      )}
 
       {sections.map(({ f, c }) => (
         <section key={f.path} className="wiki-covers__group">
@@ -543,6 +552,34 @@ export default function Compendium({ userId, canEdit, role }) {
     go('folder:' + folder);
   }
 
+  const [busyImages, setBusyImages] = useState('');
+
+  /** Images déposées en bloc : le nom du fichier désigne la catégorie (« Cosmologie.jpg »). */
+  async function assignImages(files) {
+    const dirs = [];
+    const walk = (d) => d.folders.forEach((x) => { dirs.push(x); walk(x); });
+    walk(tree);
+    const lost = []; let done = 0;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const key = looseKey(file.name.replace(/\.[^.]+$/, ''));
+      const hits = dirs.filter((d) => looseKey(d.name) === key);
+      if (!hits.length) { lost.push(file.name); continue; }
+      setBusyImages('Envoi ' + (i + 1) + ' / ' + files.length + '…');
+      try {
+        const url = await uploadScreenshot(file);
+        for (const d of hits) {
+          const n = d.folderNote;
+          if (n) store.saveNote(n.path, { fm: setFmProp(n.fm, 'image', url) });
+          else store.createNote(d.path + '/' + d.name + '.md', { fm: setFmProp('type: catégorie', 'image', url), shared: !isAdmin });
+        }
+        done++;
+      } catch (err) { lost.push(file.name + ' (envoi impossible)'); }
+    }
+    setBusyImages('');
+    toast(done + ' image' + (done > 1 ? 's' : '') + ' placée' + (done > 1 ? 's' : '') + (lost.length ? ' · sans catégorie : ' + lost.join(', ') : '') + '.');
+  }
+
   function writeIntro(exists) {
     if (!exists) store.createNote(INTRO_PATH, { body: INTRO_SEED, shared: !isAdmin });
     go('note:' + INTRO_PATH);
@@ -672,7 +709,7 @@ export default function Compendium({ userId, canEdit, role }) {
                     : <NoteView note={note} wiki={wiki} ctx={ctx} canEdit={canEdit} isAdmin={isAdmin} onEdit={() => setMode('edit')} onRename={renameCurrent} onShare={() => store.setShared([note.path], !note.shared)} go={go} index={index} />
                 )
                   : dir ? <FolderPage dir={dir} go={go} ctx={ctx} wiki={wiki} onNewCategory={newCategory} canEdit={canEdit} isAdmin={isAdmin} onNew={onNew} onShareDir={shareDir} />
-                    : <Home notes={notes} index={index} tree={tree} media={wiki.media} ctx={ctx} onIntro={writeIntro} onNewCategory={newCategory} go={go} canEdit={canEdit} isAdmin={isAdmin} onImport={() => setImportOpen(true)} onMissing={onMissing} />}
+                    : <Home notes={notes} index={index} tree={tree} media={wiki.media} ctx={ctx} onIntro={writeIntro} onImages={assignImages} busyImages={busyImages} onNewCategory={newCategory} go={go} canEdit={canEdit} isAdmin={isAdmin} onImport={() => setImportOpen(true)} onMissing={onMissing} />}
           </div>
         </div>
       )}
