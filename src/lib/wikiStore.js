@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../supabase';
-import { noteFromStored, buildIndex } from './wiki.js';
+import { noteFromStored, buildIndex, planRename } from './wiki.js';
 
 /* Stockage du Compendium dans la table `board` existante, SANS migration :
  *   - une ligne par note : id « wiki:<chemin> », data { path, fm, body, mtime, deleted? }
@@ -104,7 +104,7 @@ export function useWiki(enabled, userId) {
     if (!r || !r.dirty || r.conflict) return;
     clearTimeout(r.timer); r.timer = null;
     const ver = r.ver;
-    const payload = { path, fm: r.note.fm, body: r.note.body, mtime: Date.now(), v: 1 };
+    const payload = { path, fm: r.note.fm, body: r.note.body, mtime: Date.now(), v: 1, shared: r.note.shared === true };
     if (r.deleted) payload.deleted = true;
     const now = new Date().toISOString();
     let res;
@@ -144,6 +144,7 @@ export function useWiki(enabled, userId) {
     touch(path, (r) => {
       const next = { ...r.note };
       if (typeof patch.body === 'string') next.body = patch.body;
+      if (typeof patch.shared === 'boolean') next.shared = patch.shared;
       if (typeof patch.fm === 'string') {
         next.fm = patch.fm;
         // la lecture des propriétés se refait depuis le YAML brut
@@ -153,11 +154,11 @@ export function useWiki(enabled, userId) {
     });
   }, [touch]);
 
-  const createNote = useCallback((path, { fm = '', body = '' } = {}) => {
+  const createNote = useCallback((path, { fm = '', body = '', shared = false } = {}) => {
     const map = rowsRef.current;
     const ex = map.get(path);
     if (ex && !ex.deleted) return false;
-    const note = noteFromStored(path, { fm, body });
+    const note = noteFromStored(path, { fm, body, shared });
     map.set(path, { note, rev: ex ? ex.rev : null, dirty: true, ver: 1, timer: null, conflict: false, deleted: false });
     refreshSaving(); bump();
     flush(path);
@@ -168,6 +169,32 @@ export function useWiki(enabled, userId) {
     touch(path, (r) => { r.deleted = true; });
     flush(path);
   }, [touch, flush]);
+
+  /** Renomme / déplace une note (nouveau chemin complet) et réécrit les
+   * [[liens]] des autres notes qui la visent. */
+  const renameNote = useCallback((oldPath, newPath) => {
+    const map = rowsRef.current;
+    const cur = map.get(oldPath);
+    if (!cur || cur.deleted) return { ok: false, error: 'Note introuvable.' };
+    if (newPath === oldPath) return { ok: false, error: 'Rien à changer.' };
+    const ex = map.get(newPath);
+    if (ex && !ex.deleted) return { ok: false, error: 'Une note porte déjà ce nom.' };
+    const live = [...map.values()].filter((r) => !r.deleted).map((r) => r.note);
+    const plan = planRename(live, buildIndex(live), oldPath, newPath);
+    for (const [p, patch] of plan.updates) if (p !== oldPath) saveNote(p, patch);
+    const self = plan.updates.get(oldPath) || {};
+    createNote(newPath, { fm: self.fm !== undefined ? self.fm : cur.note.fm, body: self.body !== undefined ? self.body : cur.note.body, shared: cur.note.shared });
+    deleteNote(oldPath);
+    return { ok: true, count: plan.count, notes: plan.updates.size };
+  }, [saveNote, createNote, deleteNote]);
+
+  /** Montre ou cache des notes aux joueurs. */
+  const setShared = useCallback((paths, shared) => {
+    for (const p of paths) {
+      const r = rowsRef.current.get(p);
+      if (r && !r.deleted && r.note.shared !== shared) saveNote(p, { shared });
+    }
+  }, [saveNote]);
 
   /** Conflit : « remote » reprend la version distante, « local » l'impose. */
   const resolveConflict = useCallback(async (path, choice) => {
@@ -243,6 +270,6 @@ export function useWiki(enabled, userId) {
   return {
     status, error, saving, notes, index, conflicts,
     media: mediaRef.current.files,
-    reload: load, saveNote, createNote, deleteNote, resolveConflict, importNotes, addMedia
+    reload: load, saveNote, createNote, deleteNote, renameNote, setShared, resolveConflict, importNotes, addMedia
   };
 }

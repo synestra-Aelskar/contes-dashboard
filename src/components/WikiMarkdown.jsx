@@ -53,6 +53,8 @@ function WikiLink({ n, ctx }) {
       </a>
     );
   }
+  // note qui n'existe pas (ou que le MJ garde pour lui) : rien à montrer aux joueurs
+  if (ctx.hideMissing) return <span className="wiki-link--plain">{n.label}</span>;
   // note qui n'existe pas encore : un « lien rouge », comme dans Obsidian
   return (
     <a

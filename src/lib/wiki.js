@@ -166,7 +166,7 @@ export function parseNote(path, md, mtime) {
 /** Note reconstruite depuis ce qui est stocké ({ fm, body }). */
 export function noteFromStored(path, data) {
   const fm = typeof (data && data.fm) === 'string' ? data.fm : '';
-  return { path, title: baseName(path), fm, front: parseYaml(fm), body: typeof (data && data.body) === 'string' ? data.body : '', mtime: Number(data && data.mtime) || 0 };
+  return { path, title: baseName(path), fm, front: parseYaml(fm), body: typeof (data && data.body) === 'string' ? data.body : '', mtime: Number(data && data.mtime) || 0, shared: !!(data && data.shared === true) };
 }
 
 /** Le fichier .md d'origine (export / copie vers Obsidian). */
@@ -359,4 +359,103 @@ export function buildTree(notes) {
 /** Nombre de notes sous un dossier (sous-dossiers compris). */
 export function countNotes(dir) {
   return dir.notes.length + (dir.folderNote ? 1 : 0) + dir.folders.reduce((n, f) => n + countNotes(f), 0);
+}
+
+/* ---------------- renommage avec réécriture des liens ---------------- */
+
+const CODE_SPLIT = /(```[\s\S]*?```|~~~[\s\S]*?~~~|<!--[\s\S]*?-->|`[^`\n]*`)/;
+
+/** Réécrit les [[liens]] d'un texte qui visent `oldPath`. `resolve` est celui de
+ * l'index AVANT le renommage ; `rename(cible)` rend la nouvelle cible. Le code,
+ * les commentaires et les liens vers une ancre seule sont laissés tels quels. */
+export function rewriteLinks(text, { fromPath, resolve, oldPath, oldTitle, rename }) {
+  let count = 0;
+  const out = String(text || '').split(CODE_SPLIT).map((seg, i) => {
+    if (i % 2) return seg;
+    return seg.replace(LINK_RE, (all, bang, inner) => {
+      const pipe = inner.indexOf('|');
+      const left = pipe < 0 ? inner : inner.slice(0, pipe);
+      const rest = pipe < 0 ? '' : inner.slice(pipe);
+      const m = /^(\s*)([^#^]*?)(\s*)([#^][\s\S]*)?$/.exec(left);
+      if (!m || !m[2].trim()) return all;
+      const target = m[2].replace(/\.md$/i, '');
+      if (resolve(target, fromPath) !== oldPath) return all;
+      // un lien passé par un alias garde son sens : on ne le touche pas
+      if (looseKey(target.split('/').pop()) !== looseKey(oldTitle)) return all;
+      count++;
+      return bang + '[[' + m[1] + rename(target) + m[3] + (m[4] || '') + rest + ']]';
+    });
+  });
+  return { text: out.join(''), count };
+}
+
+/** Plan d'un renommage / déplacement : quelles notes changent, et combien de
+ * liens sont réécrits. Un simple déplacement de dossier ne touche aucun lien. */
+export function planRename(notes, index, oldPath, newPath) {
+  const old = index.byPath.get(oldPath);
+  const updates = new Map();
+  let count = 0;
+  if (!old) return { updates, count };
+  const newTitle = baseName(newPath);
+  if (looseKey(old.title) === looseKey(newTitle) && nameKey(old.title) === nameKey(newTitle)) return { updates, count };
+  const clash = notes.some((n) => n.path !== oldPath && nameKey(n.title) === nameKey(newTitle));
+  const rename = (target) => (target.includes('/') || clash ? newPath.replace(/\.md$/i, '') : newTitle);
+  for (const n of notes) {
+    const o = { resolve: index.resolve, oldPath, oldTitle: old.title, rename, fromPath: n.path };
+    const b = rewriteLinks(n.body, o);
+    const f = n.fm ? rewriteLinks(n.fm, o) : { text: n.fm, count: 0 };
+    if (b.count + f.count) {
+      updates.set(n.path, { ...(b.count ? { body: b.text } : {}), ...(f.count ? { fm: f.text } : {}) });
+      count += b.count + f.count;
+    }
+  }
+  return { updates, count };
+}
+
+/* ---------------- propriétés ---------------- */
+
+function flatValues(v, acc = []) {
+  if (v == null || v === '') return acc;
+  if (Array.isArray(v)) v.forEach((x) => flatValues(x, acc));
+  else if (typeof v === 'object') return acc;
+  else acc.push(String(v).replace(/!?\[\[([^\]|#]*)(?:[#^|][^\]]*)?\]\]/g, '$1').replace(/_/g, ' ').trim());
+  return acc;
+}
+
+/** Valeurs d'une propriété d'une note, à plat et nettoyées (liens dépouillés). */
+export function propValues(note, key) {
+  const k = Object.keys(note.front || {}).find((x) => nameKey(x) === nameKey(key));
+  return k === undefined ? [] : flatValues(note.front[k]).filter(Boolean);
+}
+
+/** Inventaire des propriétés du vault : pour chaque clé (casse ignorée), ses
+ * valeurs (accents et casse ignorés), leur effectif et les graphies rencontrées
+ * — c'est ce qui permet de repérer « entite divine » / « entité divine ». */
+export function propertyStats(notes, skip = new Set()) {
+  const keys = new Map();
+  for (const n of notes) {
+    for (const rawKey of Object.keys(n.front || {})) {
+      const kk = nameKey(rawKey);
+      if (skip.has(kk)) continue;
+      const vals = flatValues(n.front[rawKey]);
+      if (!vals.length) continue;
+      if (!keys.has(kk)) keys.set(kk, { key: rawKey, count: 0, values: new Map() });
+      const e = keys.get(kk);
+      e.count++;
+      for (const v of new Set(vals)) {
+        const vk = looseKey(v);
+        if (!e.values.has(vk)) e.values.set(vk, { value: v, count: 0, paths: [], variants: new Map() });
+        const ve = e.values.get(vk);
+        ve.count++; ve.paths.push(n.path);
+        ve.variants.set(v, (ve.variants.get(v) || 0) + 1);
+      }
+    }
+  }
+  return [...keys.values()].map((e) => ({
+    key: e.key, count: e.count,
+    values: [...e.values.values()].map((ve) => {
+      const variants = [...ve.variants.entries()].sort((a, b) => b[1] - a[1]).map(([v]) => v);
+      return { value: variants[0], count: ve.count, paths: ve.paths, variants };
+    }).sort((a, b) => b.count - a.count || a.value.localeCompare(b.value, 'fr'))
+  })).sort((a, b) => b.count - a.count || a.key.localeCompare(b.key, 'fr'));
 }

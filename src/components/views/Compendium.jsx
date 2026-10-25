@@ -2,10 +2,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { lsGet, lsSet } from '../../lib/util.js';
 import { toast } from '../../lib/toast.js';
 import { useWiki } from '../../lib/wikiStore.js';
-import { buildTree, countNotes, folderOf, looseKey, resolveMedia, toMarkdown } from '../../lib/wiki.js';
+import { buildIndex, buildTree, countNotes, folderOf, looseKey, parseYaml, propertyStats, resolveMedia, toMarkdown } from '../../lib/wiki.js';
+import { applyTemplate } from '../../lib/wikiTemplates.js';
 import { parseMarkdown, parseInline, outline, excerpt, slugHeading } from '../../lib/wikiMd.js';
 import WikiMarkdown, { Inline } from '../WikiMarkdown.jsx';
 import WikiImportModal from '../WikiImportModal.jsx';
+import WikiGraph from '../WikiGraph.jsx';
+import WikiTextarea from '../WikiTextarea.jsx';
+import WikiNewNote from '../WikiNewNote.jsx';
+import WikiCollections from '../WikiCollections.jsx';
 import './wiki.css';
 
 /* Compendium — le wiki de l'univers, façon Obsidian : notes en Markdown reliées
@@ -72,7 +77,7 @@ function runSearch(items, q) {
 
 /* ---------------- arborescence ---------------- */
 
-function TreeDir({ dir, depth, openDirs, toggle, cur, go }) {
+function TreeDir({ dir, depth, openDirs, toggle, cur, go, admin }) {
   const open = openDirs.has(dir.path);
   const isCur = cur === 'folder:' + dir.path;
   return (
@@ -84,19 +89,20 @@ function TreeDir({ dir, depth, openDirs, toggle, cur, go }) {
       </div>
       {open && (
         <>
-          {dir.folders.map((f) => <TreeDir key={f.path} dir={f} depth={depth + 1} openDirs={openDirs} toggle={toggle} cur={cur} go={go} />)}
-          {dir.notes.map((n) => <TreeNote key={n.path} n={n} depth={depth + 1} cur={cur} go={go} />)}
+          {dir.folders.map((f) => <TreeDir key={f.path} dir={f} depth={depth + 1} openDirs={openDirs} toggle={toggle} cur={cur} go={go} admin={admin} />)}
+          {dir.notes.map((n) => <TreeNote key={n.path} n={n} depth={depth + 1} cur={cur} go={go} admin={admin} />)}
         </>
       )}
     </div>
   );
 }
 
-function TreeNote({ n, depth, cur, go }) {
+function TreeNote({ n, depth, cur, go, admin }) {
   const empty = !n.body.trim();
   return (
     <div className={'wiki-tree__row' + (cur === 'note:' + n.path ? ' is-cur' : '')} style={{ paddingLeft: 6 + depth * 12 + 16 }}>
       <button type="button" className={'wiki-tree__name' + (empty ? ' is-empty' : '')} onClick={() => go('note:' + n.path)} title={empty ? 'Note encore vide' : n.path}>{n.title}</button>
+      {admin && n.shared && <span className="wiki-tree__eye" title="Visible des joueurs">●</span>}
     </div>
   );
 }
@@ -123,10 +129,15 @@ function NoteEditor({ note, wiki, ctx, onDone, onDelete }) {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
+  const known = useMemo(() => propertyStats(wiki.notes, new Set(HIDDEN_PROPS)).slice(0, 12).map((s) => s.key), [wiki.notes]);
+  const have = new Set(Object.keys(parseYaml(fm)).map((k) => k.toLowerCase()));
+  const missing = known.filter((k) => !have.has(k.toLowerCase()));
+  const addProp = (k) => { const next = (fm.trim() ? fm.replace(/\s+$/, '') + '\n' : '') + k + ': '; setFm(next); queue({ fm: next }); };
+
   return (
     <div className="wiki-edit">
       <div className="wiki-edit__bar">
-        <span className="chr__muted">Édition — enregistrée automatiquement. Les liens s’écrivent <code>[[Nom de la note]]</code> ou <code>[[Note|texte]]</code>.</span>
+        <span className="chr__muted">Édition — enregistrée automatiquement. Tape <code>[[</code> pour lier une note (<code>[[Note|texte]]</code> pour changer le texte affiché).</span>
         <span className="wiki-edit__btns">
           <button className="tbtn" type="button" onClick={download}>↓ .md</button>
           <button className="tbtn" type="button" onClick={onDelete}>supprimer</button>
@@ -139,11 +150,16 @@ function NoteEditor({ note, wiki, ctx, onDone, onDelete }) {
             Propriétés (YAML)
             <textarea className="finput finput--area wiki-edit__fm" spellCheck={false} value={fm} placeholder={'type: lieu\ncategorie: ville'}
               onChange={(e) => { setFm(e.target.value); queue({ fm: e.target.value }); }} onBlur={flush} />
+            {missing.length > 0 && (
+              <span className="wiki-edit__props">
+                {missing.map((k) => <button key={k} type="button" className="wiki-chip wiki-chip--btn" onClick={() => addProp(k)} title="Ajouter cette propriété">+ {k}</button>)}
+              </span>
+            )}
           </label>
           <label className="flabel">
             Contenu (Markdown)
-            <textarea className="finput finput--area wiki-edit__body" spellCheck value={body} placeholder="# Titre&#10;Du texte, des [[liens]]…"
-              onChange={(e) => { setBody(e.target.value); queue({ body: e.target.value }); }} onBlur={flush} />
+            <WikiTextarea className="finput finput--area wiki-edit__body" value={body} index={wiki.index} placeholder={'# Titre\nDu texte, des [[liens]]…'}
+              onChange={(v) => { setBody(v); queue({ body: v }); }} onBlur={flush} />
           </label>
         </div>
         <div className="wiki-edit__col wiki-edit__preview">
@@ -157,7 +173,7 @@ function NoteEditor({ note, wiki, ctx, onDone, onDelete }) {
 
 /* ---------------- lecture d'une note ---------------- */
 
-function NoteView({ note, wiki, ctx, canEdit, onEdit, go, index }) {
+function NoteView({ note, wiki, ctx, canEdit, isAdmin, onEdit, onRename, onShare, go, index }) {
   const front = note.front || {};
   const imgName = imageNameOf(front.image);
   // l'illustration du panneau n'a de sens que si le corps ne l'intègre pas déjà
@@ -183,7 +199,16 @@ function NoteView({ note, wiki, ctx, canEdit, onEdit, go, index }) {
       </nav>
       <header className="wiki-note__head">
         <h1 className="wiki-note__title">{note.title}</h1>
-        {canEdit && <button className="tbtn" type="button" onClick={onEdit}>✎ Modifier</button>}
+        <span className="wiki-note__actions">
+          {isAdmin && (
+            <button className={'tbtn wiki-share' + (note.shared ? ' is-on' : '')} type="button" onClick={onShare}
+              title={note.shared ? 'Les joueurs voient cette note — cliquer pour la cacher' : 'Réservée au MJ — cliquer pour la montrer aux joueurs'}>
+              {note.shared ? '👁 Visible des joueurs' : '🔒 MJ seulement'}
+            </button>
+          )}
+          {canEdit && <button className="tbtn" type="button" onClick={onRename}>Renommer</button>}
+          {canEdit && <button className="tbtn" type="button" onClick={onEdit}>✎ Modifier</button>}
+        </span>
       </header>
       {summary && <p className="wiki-note__summary">{summary}</p>}
 
@@ -215,6 +240,12 @@ function NoteView({ note, wiki, ctx, canEdit, onEdit, go, index }) {
                 <div key={k} className="wiki-props__row"><dt>{propLabel(k)}</dt><dd><PropValue v={v} ctx={ctx} /></dd></div>
               ))}
             </dl>
+          )}
+          {index.stats.links > 0 && (index.outgoing(note.path).length > 0 || back.length > 0) && (
+            <div className="wiki-minigraph">
+              <span className="card__label">Voisinage <button type="button" className="wiki-link wiki-link--btn" onClick={() => go('graph:' + note.path)}>agrandir</button></span>
+              <WikiGraph index={index} center={note.path} depth={1} max={30} compact onOpen={(p) => go('note:' + p)} />
+            </div>
           )}
           {heads.length > 2 && (
             <nav className="wiki-outline" aria-label="Sommaire">
@@ -268,7 +299,7 @@ function findDir(tree, path) {
   return null;
 }
 
-function FolderPage({ dir, go, ctx, canEdit, onNew }) {
+function FolderPage({ dir, go, ctx, canEdit, isAdmin, onNew, onShareDir }) {
   const parts = dir.path.split('/').filter(Boolean);
   const note = dir.folderNote;
   return (
@@ -281,7 +312,11 @@ function FolderPage({ dir, go, ctx, canEdit, onNew }) {
       </nav>
       <header className="wiki-note__head">
         <h1 className="wiki-note__title">{dir.name}</h1>
-        {canEdit && <button className="tbtn" type="button" onClick={() => onNew(dir.path)}>＋ Nouvelle note ici</button>}
+        <span className="wiki-note__actions">
+          {isAdmin && <button className="tbtn" type="button" onClick={() => onShareDir(dir, true)}>👁 Montrer le dossier aux joueurs</button>}
+          {isAdmin && <button className="tbtn" type="button" onClick={() => onShareDir(dir, false)}>🔒 Le cacher</button>}
+          {canEdit && <button className="tbtn" type="button" onClick={() => onNew(dir.path)}>＋ Nouvelle note ici</button>}
+        </span>
       </header>
       {note && note.body.trim() && !/```dataview(js)?\b/.test(note.body) && <WikiMarkdown body={note.body} ctx={{ ...ctx, fromPath: note.path }} />}
       {dir.folders.length > 0 && (
@@ -309,8 +344,7 @@ function FolderPage({ dir, go, ctx, canEdit, onNew }) {
   );
 }
 
-function Home({ wiki, tree, go, canEdit, onImport, onMissing }) {
-  const { notes, index } = wiki;
+function Home({ notes, index, tree, go, canEdit, isAdmin, onImport, onMissing }) {
   const st = index.stats;
   const empties = notes.filter((n) => !n.body.trim()).length;
   const wanted = index.unresolved().slice(0, 14);
@@ -325,8 +359,8 @@ function Home({ wiki, tree, go, canEdit, onImport, onMissing }) {
       <div className="wiki-stats">
         <div><b>{st.notes}</b><span>notes</span></div>
         <div><b>{st.resolved}</b><span>liens tissés</span></div>
-        <div><b>{index.stats.unresolvedNames}</b><span>notes à écrire</span></div>
-        <div><b>{empties}</b><span>pages vides</span></div>
+        {isAdmin && <div><b>{index.stats.unresolvedNames}</b><span>notes à écrire</span></div>}
+        {isAdmin && <div><b>{empties}</b><span>pages vides</span></div>}
       </div>
       <section className="wiki-listing">
         <h4 className="chr__h">Parcourir</h4>
@@ -352,7 +386,7 @@ function Home({ wiki, tree, go, canEdit, onImport, onMissing }) {
             {recent.map((n) => <li key={n.path}><a href="#" className="wiki-link" onClick={(e) => { e.preventDefault(); go('note:' + n.path); }}>{n.title}</a></li>)}
           </ul>
         </section>
-        <section>
+        {isAdmin && <section>
           <h4 className="chr__h">À écrire</h4>
           <ul className="wiki-back__list">
             {wanted.map((u) => (
@@ -362,23 +396,50 @@ function Home({ wiki, tree, go, canEdit, onImport, onMissing }) {
               </li>
             ))}
           </ul>
-        </section>
+        </section>}
       </div>
-      {canEdit && <p className="chr__muted"><button className="tbtn" type="button" onClick={onImport}>Importer / mettre à jour depuis Obsidian</button></p>}
+      {isAdmin && <p className="chr__muted"><button className="tbtn" type="button" onClick={onImport}>Importer / mettre à jour depuis Obsidian</button></p>}
     </div>
+  );
+}
+
+/* ---------------- graphe ---------------- */
+
+function GraphPage({ index, center, go }) {
+  const note = center ? index.byPath.get(center) : null;
+  const [depth, setDepth] = useState(2);
+  return (
+    <article className="wiki-note wiki-graphpage">
+      <header className="wiki-note__head">
+        <h1 className="wiki-note__title">{note ? 'Voisinage de ' + note.title : 'Graphe du Compendium'}</h1>
+        <span className="wiki-note__actions">
+          {note && <button className="tbtn" type="button" onClick={() => go('graph')}>Tout le graphe</button>}
+          {note && <button className="tbtn" type="button" onClick={() => setDepth(depth === 1 ? 2 : depth === 2 ? 3 : 1)}>Profondeur {depth}</button>}
+          {note && <button className="tbtn" type="button" onClick={() => go('note:' + note.path)}>Ouvrir la note</button>}
+        </span>
+      </header>
+      <p className="chr__muted">Molette pour zoomer, glisser pour déplacer, clic sur un point pour ouvrir la note. Une couleur par grand dossier ; les plus gros points sont les mieux reliés.</p>
+      <WikiGraph index={index} center={center} depth={depth} max={note ? 160 : 220} onOpen={(p) => (center === p ? go('note:' + p) : go('graph:' + p))} />
+    </article>
   );
 }
 
 /* ---------------- vue ---------------- */
 
-export default function Compendium({ userId, canEdit }) {
-  const wiki = useWiki(true, userId);
-  const { notes, index, status } = wiki;
+export default function Compendium({ userId, canEdit, role }) {
+  const isAdmin = role === 'admin';
+  const store = useWiki(true, userId);
+  const { status } = store;
+  // un joueur ne voit que les notes que le MJ a partagées, et son index ne les contient qu'elles
+  const notes = useMemo(() => (isAdmin ? store.notes : store.notes.filter((n) => n.shared)), [isAdmin, store.notes]);
+  const index = useMemo(() => (isAdmin ? store.index : buildIndex(notes)), [isAdmin, store.index, notes]);
+  const wiki = useMemo(() => ({ ...store, notes, index }), [store, notes, index]);
   const [loc, setLocRaw] = useState(() => lsGet(LOC_KEY) || '');
   const [history, setHistory] = useState([]);
   const [mode, setMode] = useState('read');
   const [query, setQuery] = useState('');
   const [importOpen, setImportOpen] = useState(false);
+  const [newOpen, setNewOpen] = useState(null); // { folder, name } | null
   const [openDirs, setOpenDirs] = useState(() => { try { return new Set(JSON.parse(lsGet(DIRS_KEY) || '[]')); } catch (_) { return new Set(); } });
   const mainRef = useRef(null);
 
@@ -388,6 +449,12 @@ export default function Compendium({ userId, canEdit }) {
 
   const note = loc.startsWith('note:') ? index.byPath.get(loc.slice(5)) || null : null;
   const dir = loc.startsWith('folder:') ? findDir(tree, loc.slice(7)) : null;
+  const folderNames = useMemo(() => {
+    const out = [];
+    const walk = (d) => d.folders.forEach((x) => { out.push(x.path); walk(x); });
+    walk(tree);
+    return out;
+  }, [tree]);
 
   const persistDirs = (set) => { setOpenDirs(set); lsSet(DIRS_KEY, JSON.stringify([...set])); };
   const toggleDir = (p) => { const s = new Set(openDirs); if (s.has(p)) s.delete(p); else s.add(p); persistDirs(s); };
@@ -408,26 +475,49 @@ export default function Compendium({ userId, canEdit }) {
     if (heading) setTimeout(() => { const el = document.getElementById('h-' + slugHeading(heading)); if (el) el.scrollIntoView({ block: 'start' }); }, 60);
   }
 
-  function createNote(folder, name, andEdit = true) {
+  function createNote(folder, name, { template = null, andEdit = true } = {}) {
     const clean = cleanName(name);
     if (!clean) return;
     const path = (folder ? folder + '/' : '') + clean + '.md';
     const existing = index.resolve(clean, path);
     if (existing && index.byPath.get(existing).title.toLowerCase() === clean.toLowerCase()) { openNote(existing); return; }
-    if (!wiki.createNote(path)) { toast('Une note porte déjà ce nom.'); return; }
+    const start = template ? applyTemplate(template, clean) : {};
+    // un éditeur non-MJ ne verrait pas sa propre note si elle restait réservée
+    if (!store.createNote(path, { ...start, shared: !isAdmin })) { toast('Une note porte déjà ce nom.'); return; }
     go('note:' + path);
     if (andEdit) setMode('edit');
   }
 
+  function renameCurrent() {
+    if (!note) return;
+    const cur = note.path.replace(/.md$/i, '');
+    const answer = window.prompt('Nouveau nom — ou chemin complet « Dossier/Nom » pour la déplacer :', cur);
+    if (answer == null) return;
+    const parts = answer.split('/').map(cleanName).filter(Boolean);
+    if (!parts.length) return;
+    const path = parts.join('/') + '.md';
+    const res = store.renameNote(note.path, path);
+    if (!res.ok) { toast(res.error); return; }
+    go('note:' + path, { push: false });
+    toast(res.count ? res.count + ' lien' + (res.count > 1 ? 's' : '') + ' mis à jour dans ' + res.notes + ' note' + (res.notes > 1 ? 's' : '') + '.' : 'Note renommée.');
+  }
+
+  function shareDir(d, shared) {
+    const paths = [];
+    const walk = (x) => { x.notes.forEach((n) => paths.push(n.path)); if (x.folderNote) paths.push(x.folderNote.path); x.folders.forEach(walk); };
+    walk(d);
+    if (!paths.length) return;
+    if (!window.confirm((shared ? 'Montrer aux joueurs ' : 'Cacher aux joueurs ') + paths.length + ' note' + (paths.length > 1 ? 's' : '') + ' de « ' + d.name + ' » ?')) return;
+    store.setShared(paths, shared);
+  }
+
   function onMissing(name) {
     if (!canEdit) { toast('Cette note n’est pas encore écrite.'); return; }
-    if (!window.confirm('Créer la note « ' + name + ' » ?')) return;
-    createNote(note ? folderOf(note.path) : dir ? dir.path : '', name);
+    setNewOpen({ folder: note ? folderOf(note.path) : dir ? dir.path : '', name });
   }
 
   function onNew(folder) {
-    const name = window.prompt('Nom de la nouvelle note :');
-    if (name) createNote(folder == null ? (note ? folderOf(note.path) : dir ? dir.path : '') : folder, name);
+    setNewOpen({ folder: folder == null ? (note ? folderOf(note.path) : dir ? dir.path : '') : folder, name: '' });
   }
 
   // `ctx` est mémoïsé (le rendu Markdown en dépend) : il passe par une ref vers
@@ -438,8 +528,9 @@ export default function Compendium({ userId, canEdit }) {
   const ctx = useMemo(() => ({
     index, media: wiki.media, fromPath: notePath,
     onOpen: (p, h) => latest.current.openNote(p, h),
-    onMissing: (n) => latest.current.onMissing(n)
-  }), [index, wiki.media, notePath]);
+    onMissing: (n) => latest.current.onMissing(n),
+    hideMissing: !isAdmin
+  }), [index, wiki.media, notePath, isAdmin]);
 
   // si la note affichée a disparu (supprimée ailleurs), retour à l'accueil
   useEffect(() => { if (status === 'ready' && loc.startsWith('note:') && !note) setLocRaw(''); }, [status, loc, note]);
@@ -456,8 +547,10 @@ export default function Compendium({ userId, canEdit }) {
         </div>
         <div className="wiki-top__r">
           {statusLine && <span className="chr__muted">{statusLine}</span>}
+          <button className={'tbtn' + (loc.startsWith('graph') ? ' is-on' : '')} type="button" onClick={() => go('graph')}>Graphe</button>
+          <button className={'tbtn' + (loc === 'collections' ? ' is-on' : '')} type="button" onClick={() => go('collections')}>Collections</button>
           {canEdit && <button className="tbtn" type="button" onClick={() => onNew(null)}>＋ Note</button>}
-          {canEdit && <button className="tbtn" type="button" onClick={() => setImportOpen(true)}>Importer</button>}
+          {isAdmin && <button className="tbtn" type="button" onClick={() => setImportOpen(true)}>Importer</button>}
         </div>
       </div>
 
@@ -491,8 +584,8 @@ export default function Compendium({ userId, canEdit }) {
               </div>
             ) : (
               <>
-                {tree.folders.map((f) => <TreeDir key={f.path} dir={f} depth={0} openDirs={openDirs} toggle={toggleDir} cur={loc} go={go} />)}
-                {tree.notes.map((n) => <TreeNote key={n.path} n={n} depth={0} cur={loc} go={go} />)}
+                {tree.folders.map((f) => <TreeDir key={f.path} dir={f} depth={0} openDirs={openDirs} toggle={toggleDir} cur={loc} go={go} admin={isAdmin} />)}
+                {tree.notes.map((n) => <TreeNote key={n.path} n={n} depth={0} cur={loc} go={go} admin={isAdmin} />)}
               </>
             )}
           </nav>
@@ -502,22 +595,31 @@ export default function Compendium({ userId, canEdit }) {
               : !notes.length ? (
                 <div className="wiki-empty">
                   <h2>Le Compendium est vide</h2>
-                  <p className="lib__intro">{canEdit ? 'Importe ton vault Obsidian pour y retrouver tout le lore, ses liens et ses images.' : 'Rien n’a encore été écrit ici.'}</p>
-                  {canEdit && <button className="btn-primary" type="button" onClick={() => setImportOpen(true)}>Importer le vault Obsidian</button>}
+                  <p className="lib__intro">{canEdit ? 'Commence par ta première note : choisis un modèle (personnage, lieu, faction…) et relie-la aux autres avec des [[liens]].' : 'Rien n’a été partagé ici pour l’instant.'}</p>
+                  {canEdit && <button className="btn-primary" type="button" onClick={() => onNew(null)}>＋ Première note</button>}
                 </div>
               )
+                : loc === 'collections' ? <WikiCollections notes={notes} go={go} />
+                : loc.startsWith('graph') ? <GraphPage index={index} center={loc.startsWith('graph:') ? loc.slice(6) : null} go={go} />
                 : note ? (
                   mode === 'edit' && canEdit
                     ? <NoteEditor key={note.path} note={note} wiki={wiki} ctx={ctx} onDone={() => setMode('read')}
                         onDelete={() => { if (window.confirm('Supprimer « ' + note.title + ' » ?')) { wiki.deleteNote(note.path); go(''); } }} />
-                    : <NoteView note={note} wiki={wiki} ctx={ctx} canEdit={canEdit} onEdit={() => setMode('edit')} go={go} index={index} />
+                    : <NoteView note={note} wiki={wiki} ctx={ctx} canEdit={canEdit} isAdmin={isAdmin} onEdit={() => setMode('edit')} onRename={renameCurrent} onShare={() => store.setShared([note.path], !note.shared)} go={go} index={index} />
                 )
-                  : dir ? <FolderPage dir={dir} go={go} ctx={ctx} canEdit={canEdit} onNew={onNew} />
-                    : <Home wiki={wiki} tree={tree} go={go} canEdit={canEdit} onImport={() => setImportOpen(true)} onMissing={onMissing} />}
+                  : dir ? <FolderPage dir={dir} go={go} ctx={ctx} canEdit={canEdit} isAdmin={isAdmin} onNew={onNew} onShareDir={shareDir} />
+                    : <Home notes={notes} index={index} tree={tree} go={go} canEdit={canEdit} isAdmin={isAdmin} onImport={() => setImportOpen(true)} onMissing={onMissing} />}
           </div>
         </div>
       )}
 
+      {newOpen && (
+        <WikiNewNote
+          folders={folderNames} initialFolder={newOpen.folder} initialName={newOpen.name}
+          onClose={() => setNewOpen(null)}
+          onCreate={({ name, folder, template }) => { setNewOpen(null); createNote(folder, name, { template }); }}
+        />
+      )}
       {importOpen && <WikiImportModal wiki={wiki} onClose={() => setImportOpen(false)} />}
     </section>
   );
