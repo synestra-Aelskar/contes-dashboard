@@ -363,17 +363,13 @@ function FolderPage({ dir, go, ctx, wiki, canEdit, isAdmin, onNew, onNewCategory
   );
 }
 
-const INTRO_PATH = 'Accueil.md';
-const INTRO_SEED = '> [!quote]\n> « Écris ici la citation qui ouvre ton univers. »\n>\n> ~ Auteur, date\n';
-
-function Home({ notes, index, tree, media, ctx, go, canEdit, isAdmin, onImport, onMissing, onNewCategory, onIntro, onImages, busyImages }) {
+function Home({ notes, index, tree, media, ctx, go, canEdit, isAdmin, onImport, onMissing, onNewCategory, onImages, busyImages }) {
   const picker = useRef(null);
   const st = index.stats;
   const empties = notes.filter((n) => !n.body.trim()).length;
   const wanted = index.unresolved().slice(0, 14);
   const hubs = notes.map((n) => ({ n, c: index.backlinks(n.path).length })).filter((x) => x.c > 0).sort((a, b) => b.c - a.c).slice(0, 10);
   const recent = notes.slice().sort((a, b) => b.mtime - a.mtime).slice(0, 8);
-  const intro = index.byPath.get(INTRO_PATH);
   const cards = dirCards(tree.folders, media, go);
   const sections = tree.folders
     .map((f, i) => ({ f, c: cards[i] }))
@@ -381,14 +377,6 @@ function Home({ notes, index, tree, media, ctx, go, canEdit, isAdmin, onImport, 
     .sort((a, b) => a.c.ordre - b.c.ordre || a.f.name.localeCompare(b.f.name, 'fr'));
   return (
     <div className="wiki-home">
-      {intro && intro.body.trim() && (
-        <div className="wiki-home__intro">
-          <WikiMarkdown body={intro.body} ctx={{ ...ctx, fromPath: intro.path }} />
-          {canEdit && <button className="tbtn" type="button" onClick={() => onIntro(true)}>✎ Modifier l’introduction</button>}
-        </div>
-      )}
-      {!intro && canEdit && <p className="chr__muted"><button className="tbtn" type="button" onClick={() => onIntro(false)}>＋ Écrire une introduction (citation d’ouverture)</button></p>}
-
       <CoverGrid items={cards} />
       {canEdit && (
         <p className="wiki-home__tools">
@@ -580,12 +568,6 @@ export default function Compendium({ userId, canEdit, role }) {
     toast(done + ' image' + (done > 1 ? 's' : '') + ' placée' + (done > 1 ? 's' : '') + (lost.length ? ' · sans catégorie : ' + lost.join(', ') : '') + '.');
   }
 
-  function writeIntro(exists) {
-    if (!exists) store.createNote(INTRO_PATH, { body: INTRO_SEED, shared: !isAdmin });
-    go('note:' + INTRO_PATH);
-    setMode('edit');
-  }
-
   /** Structure de départ : les grandes catégories de l'univers, prêtes à recevoir leur image. */
   function seedStructure() {
     const cats = [['Trame Moderne', 0, true], ['Chronologie', 1], ['Cosmologie', 2], ['Culture & Société', 3], ['Êtres vivants', 4], ['Géographie', 5], ['Objets', 6]];
@@ -593,7 +575,6 @@ export default function Compendium({ userId, canEdit, role }) {
       const fm = ['type: catégorie', 'groupe: Univers', 'ordre: ' + ordre].concat(large ? ['taille: large'] : []).join('\n');
       store.createNote(name + '/' + name + '.md', { fm, shared: !isAdmin });
     }
-    store.createNote(INTRO_PATH, { body: INTRO_SEED, shared: !isAdmin });
     go('');
   }
 
@@ -709,7 +690,7 @@ export default function Compendium({ userId, canEdit, role }) {
                     : <NoteView note={note} wiki={wiki} ctx={ctx} canEdit={canEdit} isAdmin={isAdmin} onEdit={() => setMode('edit')} onRename={renameCurrent} onShare={() => store.setShared([note.path], !note.shared)} go={go} index={index} />
                 )
                   : dir ? <FolderPage dir={dir} go={go} ctx={ctx} wiki={wiki} onNewCategory={newCategory} canEdit={canEdit} isAdmin={isAdmin} onNew={onNew} onShareDir={shareDir} />
-                    : <Home notes={notes} index={index} tree={tree} media={wiki.media} ctx={ctx} onIntro={writeIntro} onImages={assignImages} busyImages={busyImages} onNewCategory={newCategory} go={go} canEdit={canEdit} isAdmin={isAdmin} onImport={() => setImportOpen(true)} onMissing={onMissing} />}
+                    : <Home notes={notes} index={index} tree={tree} media={wiki.media} ctx={ctx} onImages={assignImages} busyImages={busyImages} onNewCategory={newCategory} go={go} canEdit={canEdit} isAdmin={isAdmin} onImport={() => setImportOpen(true)} onMissing={onMissing} />}
           </div>
         </div>
       )}
