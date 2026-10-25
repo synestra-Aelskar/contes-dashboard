@@ -414,6 +414,27 @@ export function planRename(notes, index, oldPath, newPath) {
 
 /* ---------------- propriétés ---------------- */
 
+/** Pose (ou retire, si `value` est vide) une propriété simple de premier niveau
+ * dans le YAML brut, sans toucher aux autres lignes. */
+export function setFmProp(fm, key, value) {
+  const lines = String(fm || '').split('\n');
+  const want = nameKey(key);
+  const out = [];
+  let skipping = false;
+  for (const line of lines) {
+    const top = line.length > 0 && !/^\s/.test(line) && !line.startsWith('-') && line.includes(':');
+    if (top) skipping = false;
+    if (top && nameKey(line.slice(0, line.indexOf(':'))) === want) { skipping = true; continue; }
+    if (skipping && (/^\s/.test(line) || line.startsWith('-'))) continue;
+    skipping = false;
+    out.push(line);
+  }
+  while (out.length && !out[out.length - 1].trim()) out.pop();
+  const v = value == null ? '' : String(value).trim();
+  if (v) out.push(key + ': ' + (/^[\w À-ÿ.,'’()/-]+$/.test(v) && !/^[-?]/.test(v) ? v : JSON.stringify(v)));
+  return out.join('\n');
+}
+
 function flatValues(v, acc = []) {
   if (v == null || v === '') return acc;
   if (Array.isArray(v)) v.forEach((x) => flatValues(x, acc));

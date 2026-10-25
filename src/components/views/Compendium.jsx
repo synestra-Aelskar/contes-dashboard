@@ -11,6 +11,7 @@ import WikiGraph from '../WikiGraph.jsx';
 import WikiTextarea from '../WikiTextarea.jsx';
 import WikiNewNote from '../WikiNewNote.jsx';
 import WikiCollections from '../WikiCollections.jsx';
+import { CoverGrid, CategorySettings, cardOf, coverUrl } from '../WikiCovers.jsx';
 import './wiki.css';
 
 /* Compendium — le wiki de l'univers, façon Obsidian : notes en Markdown reliées
@@ -20,7 +21,7 @@ import './wiki.css';
 const LOC_KEY = 'ccm.wiki.loc';
 const DIRS_KEY = 'ccm.wiki.dirs';
 /* Propriétés techniques du vault, sans intérêt à l'écran. */
-const HIDDEN_PROPS = new Set(['image', 'banner', 'banner-y', 'banner_y', 'cssclasses', 'cssclass', 'weaveevents', 'narrativeweave', 'entitytype', 'title', 'aliases', 'alias']);
+const HIDDEN_PROPS = new Set(['groupe', 'ordre', 'taille', 'image', 'banner', 'banner-y', 'banner_y', 'cssclasses', 'cssclass', 'weaveevents', 'narrativeweave', 'entitytype', 'title', 'aliases', 'alias']);
 const SUMMARY_KEYS = ['resume', 'résumé', 'summary'];
 
 const isEmptyVal = (v) => v == null || v === '' || (Array.isArray(v) && !v.length) || (v && typeof v === 'object' && !Array.isArray(v) && !Object.values(v).some((x) => !isEmptyVal(x)));
@@ -277,6 +278,28 @@ function FolderListing({ note, index, go, show }) {
   );
 }
 
+/** Première illustration trouvée dans un dossier (repli quand il n'a pas d'image à lui). */
+function firstCover(dir, media) {
+  const own = dir.notes.find((n) => coverUrl(n, media));
+  if (own) return own;
+  for (const f of dir.folders) { const r = (f.folderNote && coverUrl(f.folderNote, media) ? f.folderNote : null) || firstCover(f, media); if (r) return r; }
+  return null;
+}
+
+function dirCards(dirs, media, go) {
+  return dirs.map((f) => cardOf({
+    key: 'd:' + f.path, title: f.name, sub: countNotes(f) + ' note' + (countNotes(f) > 1 ? 's' : ''),
+    note: f.folderNote, fallbackNote: firstCover(f, media), media, onClick: () => go('folder:' + f.path)
+  }));
+}
+
+function noteCards(notes, media, go) {
+  return notes.map((n) => cardOf({
+    key: 'n:' + n.path, title: n.title, sub: n.body.trim() ? '' : 'Note à écrire', note: n, media,
+    ex: n.body.trim() ? excerpt(n.body, 140) : 'Note à écrire', dim: !n.body.trim(), onClick: () => go('note:' + n.path)
+  }));
+}
+
 function NoteCards({ notes, go }) {
   return (
     <div className="wiki-cards">
@@ -299,7 +322,7 @@ function findDir(tree, path) {
   return null;
 }
 
-function FolderPage({ dir, go, ctx, canEdit, isAdmin, onNew, onShareDir }) {
+function FolderPage({ dir, go, ctx, wiki, canEdit, isAdmin, onNew, onNewCategory, onShareDir }) {
   const parts = dir.path.split('/').filter(Boolean);
   const note = dir.folderNote;
   return (
@@ -315,27 +338,22 @@ function FolderPage({ dir, go, ctx, canEdit, isAdmin, onNew, onShareDir }) {
         <span className="wiki-note__actions">
           {isAdmin && <button className="tbtn" type="button" onClick={() => onShareDir(dir, true)}>👁 Montrer le dossier aux joueurs</button>}
           {isAdmin && <button className="tbtn" type="button" onClick={() => onShareDir(dir, false)}>🔒 Le cacher</button>}
+          {canEdit && <button className="tbtn" type="button" onClick={() => onNewCategory(dir.path)}>＋ Sous-catégorie</button>}
           {canEdit && <button className="tbtn" type="button" onClick={() => onNew(dir.path)}>＋ Nouvelle note ici</button>}
         </span>
       </header>
+      {canEdit && <CategorySettings key={dir.path} dir={dir} wiki={wiki} />}
       {note && note.body.trim() && !/```dataview(js)?\b/.test(note.body) && <WikiMarkdown body={note.body} ctx={{ ...ctx, fromPath: note.path }} />}
       {dir.folders.length > 0 && (
         <section className="wiki-listing">
           <h4 className="chr__h">Dossiers<span className="count"> ({dir.folders.length})</span></h4>
-          <div className="wiki-cards">
-            {dir.folders.map((f) => (
-              <button key={f.path} type="button" className="wiki-card wiki-card--dir" onClick={() => go('folder:' + f.path)}>
-                <span className="wiki-card__title">{f.name}</span>
-                <span className="wiki-card__path">{countNotes(f)} note{countNotes(f) > 1 ? 's' : ''}</span>
-              </button>
-            ))}
-          </div>
+          <CoverGrid items={dirCards(dir.folders, ctx.media, go)} />
         </section>
       )}
       {dir.notes.length > 0 && (
         <section className="wiki-listing">
           <h4 className="chr__h">Notes<span className="count"> ({dir.notes.length})</span></h4>
-          <NoteCards notes={dir.notes} go={go} />
+          <CoverGrid items={noteCards(dir.notes, ctx.media, go)} />
         </section>
       )}
       {!dir.folders.length && !dir.notes.length && !note && <p className="empty">Ce dossier est vide.</p>}
@@ -344,7 +362,7 @@ function FolderPage({ dir, go, ctx, canEdit, isAdmin, onNew, onShareDir }) {
   );
 }
 
-function Home({ notes, index, tree, go, canEdit, isAdmin, onImport, onMissing }) {
+function Home({ notes, index, tree, media, go, canEdit, isAdmin, onImport, onMissing, onNewCategory }) {
   const st = index.stats;
   const empties = notes.filter((n) => !n.body.trim()).length;
   const wanted = index.unresolved().slice(0, 14);
@@ -364,14 +382,8 @@ function Home({ notes, index, tree, go, canEdit, isAdmin, onImport, onMissing })
       </div>
       <section className="wiki-listing">
         <h4 className="chr__h">Parcourir</h4>
-        <div className="wiki-cards">
-          {tree.folders.map((f) => (
-            <button key={f.path} type="button" className="wiki-card wiki-card--dir" onClick={() => go('folder:' + f.path)}>
-              <span className="wiki-card__title">{f.name}</span>
-              <span className="wiki-card__path">{countNotes(f)} note{countNotes(f) > 1 ? 's' : ''}</span>
-            </button>
-          ))}
-        </div>
+        <CoverGrid items={dirCards(tree.folders, media, go)} />
+        {canEdit && <p><button className="tbtn" type="button" onClick={() => onNewCategory('')}>＋ Nouvelle catégorie</button></p>}
       </section>
       <div className="wiki-home__cols">
         <section>
@@ -502,6 +514,14 @@ export default function Compendium({ userId, canEdit, role }) {
     toast(res.count ? res.count + ' lien' + (res.count > 1 ? 's' : '') + ' mis à jour dans ' + res.notes + ' note' + (res.notes > 1 ? 's' : '') + '.' : 'Note renommée.');
   }
 
+  function newCategory(parent) {
+    const name = cleanName(window.prompt('Nom de la nouvelle catégorie :') || '');
+    if (!name) return;
+    const folder = (parent ? parent + '/' : '') + name;
+    if (!store.createNote(folder + '/' + name + '.md', { fm: 'type: catégorie', shared: !isAdmin })) { toast('Cette catégorie existe déjà.'); return; }
+    go('folder:' + folder);
+  }
+
   function shareDir(d, shared) {
     const paths = [];
     const walk = (x) => { x.notes.forEach((n) => paths.push(n.path)); if (x.folderNote) paths.push(x.folderNote.path); x.folders.forEach(walk); };
@@ -607,8 +627,8 @@ export default function Compendium({ userId, canEdit, role }) {
                         onDelete={() => { if (window.confirm('Supprimer « ' + note.title + ' » ?')) { wiki.deleteNote(note.path); go(''); } }} />
                     : <NoteView note={note} wiki={wiki} ctx={ctx} canEdit={canEdit} isAdmin={isAdmin} onEdit={() => setMode('edit')} onRename={renameCurrent} onShare={() => store.setShared([note.path], !note.shared)} go={go} index={index} />
                 )
-                  : dir ? <FolderPage dir={dir} go={go} ctx={ctx} canEdit={canEdit} isAdmin={isAdmin} onNew={onNew} onShareDir={shareDir} />
-                    : <Home notes={notes} index={index} tree={tree} go={go} canEdit={canEdit} isAdmin={isAdmin} onImport={() => setImportOpen(true)} onMissing={onMissing} />}
+                  : dir ? <FolderPage dir={dir} go={go} ctx={ctx} wiki={wiki} onNewCategory={newCategory} canEdit={canEdit} isAdmin={isAdmin} onNew={onNew} onShareDir={shareDir} />
+                    : <Home notes={notes} index={index} tree={tree} media={wiki.media} onNewCategory={newCategory} go={go} canEdit={canEdit} isAdmin={isAdmin} onImport={() => setImportOpen(true)} onMissing={onMissing} />}
           </div>
         </div>
       )}
