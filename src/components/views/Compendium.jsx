@@ -615,8 +615,13 @@ export default function Compendium({ userId, canEdit, role }) {
               : !notes.length ? (
                 <div className="wiki-empty">
                   <h2>Le Compendium est vide</h2>
-                  <p className="lib__intro">{canEdit ? 'Commence par ta première note : choisis un modèle (personnage, lieu, faction…) et relie-la aux autres avec des [[liens]].' : 'Rien n’a été partagé ici pour l’instant.'}</p>
-                  {canEdit && <button className="btn-primary" type="button" onClick={() => onNew(null)}>＋ Première note</button>}
+                  <p className="lib__intro">{canEdit ? 'Commence par créer tes catégories (Cosmologie, Géographie, Chronologie…) : chacune devient une carte illustrée que tu pourras ensuite remplir de notes.' : 'Rien n’a été partagé ici pour l’instant.'}</p>
+                  {canEdit && (
+                    <p className="wiki-empty__btns">
+                      <button className="btn-primary" type="button" onClick={() => newCategory('')}>＋ Première catégorie</button>{' '}
+                      <button className="tbtn" type="button" onClick={() => onNew(null)}>＋ Note seule</button>
+                    </p>
+                  )}
                 </div>
               )
                 : loc === 'collections' ? <WikiCollections notes={notes} go={go} />
