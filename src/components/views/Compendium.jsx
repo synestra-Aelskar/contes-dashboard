@@ -113,6 +113,24 @@ function TreeNote({ n, depth, cur, go, admin }) {
 
 const EDIT_VIEW_KEY = 'ccm.wiki.editview';
 
+/* Catégories de départ, d'après l'organisation du vault (dossiers seulement). */
+const kids = (...names) => names.map((n) => [n]);
+const SEED_TREE = [
+  ['Trame Moderne', { groupe: 'Univers', large: true }],
+  ['Chronologie', { groupe: 'Univers', children: [
+    ...['Ère des temps perdus', 'Ère des premiers hommes', 'Ère des temps d’échanges', 'Ère de la grande guerre', 'Ère moderne', 'Ère future'].map((n) => [n, { groupe: 'Ères' }]),
+    ...kids('Récits historiques', 'Trames')] }],
+  ['Cosmologie', { groupe: 'Univers', children: kids('Éléments', 'Écoles de magies', 'Malédictions', 'Pactes', 'Rituels') }],
+  ['Culture & Société', { groupe: 'Univers', children: [
+    ['Divinités', { children: kids('Konsepts', 'Seigneurs Fantômes', 'Septs', 'Sorcières des vérités') }],
+    ...kids('Clans', 'Distinctions', 'Guildes', 'Matrice', 'Religions')] }],
+  ['Êtres vivants', { groupe: 'Univers', children: kids('Personnages', 'Personnages non joueurs', 'Champions', 'Races', 'Faune', 'Flores', 'Titans') }],
+  ['Géographie', { groupe: 'Univers', children: [
+    ['Continents', { children: kids('Aelskar', 'Insgard', 'Vaelys', "Val'Razkah") }],
+    ...kids('Régions', 'Villes', 'Lieux', 'Domaines', 'Autres plans')] }],
+  ['Objets', { groupe: 'Univers', children: kids('Armes', 'Armures', 'Artefacts', 'Reliques', 'Minerais', 'Ressources', 'Monnaies', 'Objets du quotidien', 'Ouvrages', 'Technologies', 'Véhicules') }]
+];
+
 function NoteEditor({ note, wiki, ctx, tags, onImage, onDone, onDelete }) {
   const [view, setViewRaw] = useState(() => lsGet(EDIT_VIEW_KEY) || 'split'); // split | write | read
   const setView = (v) => { setViewRaw(v); lsSet(EDIT_VIEW_KEY, v); };
@@ -372,7 +390,7 @@ function FolderPage({ dir, go, ctx, wiki, canEdit, isAdmin, onNew, onNewCategory
   );
 }
 
-function Home({ notes, index, tree, media, ctx, go, canEdit, isAdmin, onImport, onMissing, onNewCategory, onImages, busyImages }) {
+function Home({ notes, index, tree, media, ctx, go, canEdit, isAdmin, onImport, onMissing, onNewCategory, onSeed, onImages, busyImages }) {
   const picker = useRef(null);
   const st = index.stats;
   const empties = notes.filter((n) => !n.body.trim()).length;
@@ -390,6 +408,7 @@ function Home({ notes, index, tree, media, ctx, go, canEdit, isAdmin, onImport, 
       {canEdit && (
         <p className="wiki-home__tools">
           <button className="tbtn" type="button" onClick={() => onNewCategory('')}>＋ Nouvelle catégorie</button>{' '}
+          <button className="tbtn" type="button" onClick={onSeed} title="Crée les catégories du vault qui n’existent pas encore (n’écrase rien)">Compléter les catégories</button>{' '}
           <input ref={picker} type="file" accept="image/*" multiple hidden onChange={(e) => { const fl = [...e.target.files]; e.target.value = ''; if (fl.length) onImages(fl); }} />
           <button className="tbtn" type="button" disabled={!!busyImages} onClick={() => picker.current && picker.current.click()}
             title="Chaque image prend la catégorie qui porte le même nom que son fichier">{busyImages || 'Déposer des images de catégories…'}</button>
@@ -612,13 +631,17 @@ export default function Compendium({ userId, canEdit, role }) {
     toast(done + ' image' + (done > 1 ? 's' : '') + ' placée' + (done > 1 ? 's' : '') + (lost.length ? ' · sans catégorie : ' + lost.join(', ') : '') + '.');
   }
 
-  /** Structure de départ : les grandes catégories de l'univers, prêtes à recevoir leur image. */
+  /** Structure de départ : les catégories de l'univers (noms seulement, aucun contenu).
+   * Ne touche jamais à une catégorie qui existe déjà : on peut la relancer pour compléter. */
   function seedStructure() {
-    const cats = [['Trame Moderne', 0, true], ['Chronologie', 1], ['Cosmologie', 2], ['Culture & Société', 3], ['Êtres vivants', 4], ['Géographie', 5], ['Objets', 6]];
-    for (const [name, ordre, large] of cats) {
-      const fm = ['type: catégorie', 'groupe: Univers', 'ordre: ' + ordre].concat(large ? ['taille: large'] : []).join('\n');
-      store.createNote(name + '/' + name + '.md', { fm, shared: !isAdmin });
-    }
+    let made = 0;
+    const make = (path, name, ordre, extra) => {
+      const fm = ['type: catégorie'].concat(extra.groupe ? ['groupe: ' + extra.groupe] : [], ['ordre: ' + ordre], extra.large ? ['taille: large'] : []).join('\n');
+      if (store.createNote(path + '/' + name + '.md', { fm, shared: !isAdmin })) made++;
+      (extra.children || []).forEach((c, i) => make(path + '/' + c[0], c[0], i, c[1] || {}));
+    };
+    SEED_TREE.forEach((c, i) => make(c[0], c[0], i, c[1] || {}));
+    toast(made ? made + ' catégorie' + (made > 1 ? 's' : '') + ' créée' + (made > 1 ? 's' : '') + '.' : 'Toutes les catégories existent déjà.');
     go('');
   }
 
@@ -736,7 +759,7 @@ export default function Compendium({ userId, canEdit, role }) {
                     : <NoteView note={note} wiki={wiki} ctx={ctx} canEdit={canEdit} isAdmin={isAdmin} onEdit={() => setMode('edit')} onRename={renameCurrent} onShare={() => store.setShared([note.path], !note.shared)} go={go} index={index} />
                 )
                   : dir ? <FolderPage dir={dir} go={go} ctx={ctx} wiki={wiki} onNewCategory={newCategory} canEdit={canEdit} isAdmin={isAdmin} onNew={onNew} onShareDir={shareDir} />
-                    : <Home notes={notes} index={index} tree={tree} media={wiki.media} ctx={ctx} onImages={assignImages} busyImages={busyImages} onNewCategory={newCategory} go={go} canEdit={canEdit} isAdmin={isAdmin} onImport={() => setImportOpen(true)} onMissing={onMissing} />}
+                    : <Home notes={notes} index={index} tree={tree} media={wiki.media} ctx={ctx} onImages={assignImages} busyImages={busyImages} onNewCategory={newCategory} onSeed={seedStructure} go={go} canEdit={canEdit} isAdmin={isAdmin} onImport={() => setImportOpen(true)} onMissing={onMissing} />}
           </div>
         </div>
       )}
