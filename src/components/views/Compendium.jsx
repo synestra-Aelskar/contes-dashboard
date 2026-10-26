@@ -4,11 +4,11 @@ import { toast } from '../../lib/toast.js';
 import { useWiki } from '../../lib/wikiStore.js';
 import { setFmProp, buildIndex, buildTree, countNotes, folderOf, looseKey, parseYaml, propertyStats, resolveMedia, toMarkdown } from '../../lib/wiki.js';
 import { applyTemplate } from '../../lib/wikiTemplates.js';
-import { parseMarkdown, parseInline, outline, excerpt, slugHeading } from '../../lib/wikiMd.js';
+import { parseMarkdown, parseInline, outline, excerpt, slugHeading, noteTags } from '../../lib/wikiMd.js';
 import WikiMarkdown, { Inline } from '../WikiMarkdown.jsx';
 import WikiImportModal from '../WikiImportModal.jsx';
 import WikiGraph from '../WikiGraph.jsx';
-import WikiTextarea from '../WikiTextarea.jsx';
+import WikiEditor from '../WikiEditor.jsx';
 import WikiNewNote from '../WikiNewNote.jsx';
 import WikiCollections from '../WikiCollections.jsx';
 import { CoverGrid, CategorySettings, cardOf, coverUrl } from '../WikiCovers.jsx';
@@ -111,7 +111,11 @@ function TreeNote({ n, depth, cur, go, admin }) {
 
 /* ---------------- édition ---------------- */
 
-function NoteEditor({ note, wiki, ctx, onDone, onDelete }) {
+const EDIT_VIEW_KEY = 'ccm.wiki.editview';
+
+function NoteEditor({ note, wiki, ctx, tags, onImage, onDone, onDelete }) {
+  const [view, setViewRaw] = useState(() => lsGet(EDIT_VIEW_KEY) || 'split'); // split | write | read
+  const setView = (v) => { setViewRaw(v); lsSet(EDIT_VIEW_KEY, v); };
   const [fm, setFm] = useState(note.fm);
   const [body, setBody] = useState(note.body);
   const timer = useRef(null);
@@ -131,16 +135,20 @@ function NoteEditor({ note, wiki, ctx, onDone, onDelete }) {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
+  const previewCtx = useMemo(() => ({ ...ctx, onToggleTask: null }), [ctx]);
   const known = useMemo(() => propertyStats(wiki.notes, new Set(HIDDEN_PROPS)).slice(0, 12).map((s) => s.key), [wiki.notes]);
   const have = new Set(Object.keys(parseYaml(fm)).map((k) => k.toLowerCase()));
   const missing = known.filter((k) => !have.has(k.toLowerCase()));
   const addProp = (k) => { const next = (fm.trim() ? fm.replace(/\s+$/, '') + '\n' : '') + k + ': '; setFm(next); queue({ fm: next }); };
 
   return (
-    <div className="wiki-edit">
+    <div className={'wiki-edit wiki-edit--' + view}>
       <div className="wiki-edit__bar">
-        <span className="chr__muted">Édition — enregistrée automatiquement. Tape <code>[[</code> pour lier une note (<code>[[Note|texte]]</code> pour changer le texte affiché).</span>
+        <span className="chr__muted">Édition — enregistrée automatiquement.</span>
         <span className="wiki-edit__btns">
+          <span className="wiki-edit__views" role="group" aria-label="Affichage">
+            {[['split', 'Côte à côte'], ['write', 'Écriture'], ['read', 'Lecture']].map(([k, l]) => <button key={k} type="button" className={view === k ? 'is-on' : ''} onClick={() => setView(k)}>{l}</button>)}
+          </span>
           <button className="tbtn" type="button" onClick={download}>↓ .md</button>
           <button className="tbtn" type="button" onClick={onDelete}>supprimer</button>
           <button className="btn-primary" type="button" onClick={() => { flush(); onDone(); }}>Terminer</button>
@@ -158,15 +166,16 @@ function NoteEditor({ note, wiki, ctx, onDone, onDelete }) {
               </span>
             )}
           </label>
-          <label className="flabel">
+          <div className="flabel">
             Contenu (Markdown)
-            <WikiTextarea className="finput finput--area wiki-edit__body" value={body} index={wiki.index} placeholder={'# Titre\nDu texte, des [[liens]]…'}
-              onChange={(v) => { setBody(v); queue({ body: v }); }} onBlur={flush} />
-          </label>
+            <WikiEditor value={body} index={wiki.index} media={wiki.media} fromPath={note.path} tags={tags} onImage={onImage}
+              placeholder={'# Titre\nDu texte, des [[liens]]… Tape / pour insérer un élément.'}
+              onChange={(v) => { setBody(v); queue({ body: v }); }} onBlur={flush} onSave={flush} />
+          </div>
         </div>
         <div className="wiki-edit__col wiki-edit__preview">
           <span className="card__label">Aperçu</span>
-          <WikiMarkdown body={body} ctx={ctx} />
+          <WikiMarkdown body={body} ctx={previewCtx} />
         </div>
       </div>
     </div>
@@ -502,7 +511,42 @@ export default function Compendium({ userId, canEdit, role }) {
 
   function openNote(path, heading) {
     go('note:' + path);
-    if (heading) setTimeout(() => { const el = document.getElementById('h-' + slugHeading(heading)); if (el) el.scrollIntoView({ block: 'start' }); }, 60);
+    if (heading) setTimeout(() => { const el = document.getElementById(heading.startsWith('^') ? 'b-' + heading.slice(1) : 'h-' + slugHeading(heading)); if (el) el.scrollIntoView({ block: 'start' }); }, 60);
+  }
+
+  /** Tags utilisés dans les notes visibles (propriété `tags` ou #tag), pour la complétion. */
+  const tagList = useMemo(() => {
+    const count = new Map();
+    for (const n of notes) for (const t of noteTags(n)) count.set(t, (count.get(t) || 0) + 1);
+    return [...count.entries()].map(([tag, c]) => ({ tag, count: c })).sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, 'fr'));
+  }, [notes]);
+
+  /** Image collée ou déposée dans l'éditeur : envoyée, puis enregistrée dans la table des médias. */
+  async function saveImage(file) {
+    const url = await uploadScreenshot(file);
+    const d = new Date(); const p = (x) => String(x).padStart(2, '0');
+    const name = 'Image ' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + '-' + Math.random().toString(36).slice(2, 5) + '.jpg';
+    await store.addMedia({ [name.toLowerCase()]: url });
+    return name;
+  }
+
+  /** Coche / décoche la n-ième tâche du corps de la note affichée (lecture seule → éditable d'un clic). */
+  function toggleTask(n) {
+    if (!note || n == null) return;
+    const lines = note.body.split('\n');
+    const re = /^(\s*(?:>\s?)*(?:[-*+]|\d+[.)])\s+\[)(.)(\]\s)/;
+    let fence = false; let k = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (/^\s*(```|~~~)/.test(lines[i])) { fence = !fence; continue; }
+      if (fence) continue;
+      const m = re.exec(lines[i]);
+      if (!m) continue;
+      if (k++ === n) {
+        lines[i] = m[1] + (m[2] === ' ' ? 'x' : ' ') + lines[i].slice(m[1].length + 1);
+        store.saveNote(note.path, { body: lines.join('\n') });
+        return;
+      }
+    }
   }
 
   function createNote(folder, name, { template = null, andEdit = true } = {}) {
@@ -599,14 +643,16 @@ export default function Compendium({ userId, canEdit, role }) {
   // `ctx` est mémoïsé (le rendu Markdown en dépend) : il passe par une ref vers
   // les dernières fonctions, sinon `go` garderait un historique périmé.
   const latest = useRef({});
-  latest.current = { openNote, onMissing };
+  latest.current = { openNote, onMissing, toggleTask, setQuery };
   const notePath = note ? note.path : '';
   const ctx = useMemo(() => ({
     index, media: wiki.media, fromPath: notePath,
     onOpen: (p, h) => latest.current.openNote(p, h),
     onMissing: (n) => latest.current.onMissing(n),
+    onTag: (t) => latest.current.setQuery('#' + t),
+    onToggleTask: canEdit ? (n) => latest.current.toggleTask(n) : null,
     hideMissing: !isAdmin
-  }), [index, wiki.media, notePath, isAdmin]);
+  }), [index, wiki.media, notePath, isAdmin, canEdit]);
 
   // si la note affichée a disparu (supprimée ailleurs), retour à l'accueil
   useEffect(() => { if (status === 'ready' && loc.startsWith('note:') && !note) setLocRaw(''); }, [status, loc, note]);
@@ -685,7 +731,7 @@ export default function Compendium({ userId, canEdit, role }) {
                 : loc.startsWith('graph') ? <GraphPage index={index} center={loc.startsWith('graph:') ? loc.slice(6) : null} go={go} />
                 : note ? (
                   mode === 'edit' && canEdit
-                    ? <NoteEditor key={note.path} note={note} wiki={wiki} ctx={ctx} onDone={() => setMode('read')}
+                    ? <NoteEditor key={note.path} note={note} wiki={wiki} ctx={ctx} tags={tagList} onImage={saveImage} onDone={() => setMode('read')}
                         onDelete={() => { if (window.confirm('Supprimer « ' + note.title + ' » ?')) { wiki.deleteNote(note.path); go(''); } }} />
                     : <NoteView note={note} wiki={wiki} ctx={ctx} canEdit={canEdit} isAdmin={isAdmin} onEdit={() => setMode('edit')} onRename={renameCurrent} onShare={() => store.setShared([note.path], !note.shared)} go={go} index={index} />
                 )

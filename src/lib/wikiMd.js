@@ -33,7 +33,16 @@ const RE = {
   italicU: sticky(/_(?=\S)([^_\n]*\S)_(?![\w])/),
   strike: sticky(/~~(?=\S)([\s\S]+?)(?<=\S)~~/),
   mark: sticky(/==(?=\S)([\s\S]+?)(?<=\S)==/),
-  escape: sticky(/\\([\\`*_{}[\]()#+\-.!|~=<>])/)
+  escape: sticky(/\\([\\`*_{}[\]()#+\-.!|~=<>$^%@])/),
+  boldU: sticky(/__(?=\S)([\s\S]+?)(?<=\S)__/),
+  hashtag: sticky(/#([\p{L}\p{N}_/-]*[\p{L}_/-][\p{L}\p{N}_/-]*)/u),
+  fnref: sticky(/\[\^([^\]\s]+)\]/),
+  fninline: sticky(/\^\[([^\]\n]+)\]/),
+  math: sticky(/\$(?=[^\s$])([^$\n]*?[^\s$\\])\$(?!\d)/),
+  mathDisplay: sticky(/\$\$([^$\n]+?)\$\$/),
+  htmlWrap: sticky(/<(sub|sup|u|kbd|small|mark)>([\s\S]*?)<\/\1>/i),
+  autolink: sticky(/<(https?:\/\/[^>\s]+)>/),
+  url: sticky(/https?:\/\/[^\s<>\])]*[^\s<>\]).,;:!?'"]/)
 };
 
 function match(re, src, i) { re.lastIndex = i; return re.exec(src); }
@@ -69,20 +78,33 @@ export function parseInline(src) {
       flush();
       const [targetPart, ...optParts] = m[1].split('|');
       const link = parseLinkInner(targetPart);
-      out.push({ t: 'embed', target: link.target, heading: link.heading, opts: parseEmbedOptions(optParts.join('|')) });
+      out.push({ t: 'embed', target: link.target, heading: link.heading, block: link.block, opts: parseEmbedOptions(optParts.join('|')) });
       i += m[0].length; continue;
     }
     if (c === '!' && (m = match(RE.mdImage, text, i))) { flush(); out.push({ t: 'image', alt: m[1], url: m[2] }); i += m[0].length; continue; }
     if (c === '[' && (m = match(RE.link, text, i))) {
       flush();
       const l = parseLinkInner(m[1]);
-      out.push({ t: 'link', target: l.target, heading: l.heading, label: l.alias || (l.target + (l.heading ? ' › ' + l.heading : '')) || l.heading });
+      out.push({ t: 'link', target: l.target, heading: l.heading, block: l.block, label: l.alias || (l.target + (l.heading ? ' › ' + l.heading : '')) || l.heading || l.block });
       i += m[0].length; continue;
     }
+    if (c === '[' && (m = match(RE.fnref, text, i))) { flush(); out.push({ t: 'fnref', id: m[1] }); i += m[0].length; continue; }
+    if (c === '^' && (m = match(RE.fninline, text, i))) { flush(); out.push({ t: 'fnref', id: '', content: parseInline(m[1]) }); i += m[0].length; continue; }
     if (c === '[' && (m = match(RE.mdLink, text, i))) { flush(); out.push({ t: 'ext', url: m[2], children: parseInline(m[1]) }); i += m[0].length; continue; }
+    if (c === '$' && (m = match(RE.mathDisplay, text, i))) { flush(); out.push({ t: 'math', v: m[1].trim(), display: true }); i += m[0].length; continue; }
+    if (c === '$' && (m = match(RE.math, text, i))) { flush(); out.push({ t: 'math', v: m[1], display: false }); i += m[0].length; continue; }
+    if (c === '#' && (i === 0 || /[\s(]/.test(text[i - 1])) && (m = match(RE.hashtag, text, i))) { flush(); out.push({ t: 'tag', v: m[1] }); i += m[0].length; continue; }
+    if (c === 'h' && (i === 0 || !/[\w/]/.test(text[i - 1])) && (m = match(RE.url, text, i))) { flush(); out.push({ t: 'ext', url: m[0], children: [{ t: 'text', v: m[0] }] }); i += m[0].length; continue; }
     if (c === '<') {
       if ((m = match(RE.comment, text, i))) { i += m[0].length; continue; }
       if ((m = match(RE.br, text, i))) { flush(); out.push({ t: 'br' }); i += m[0].length; continue; }
+      if ((m = match(RE.htmlWrap, text, i))) {
+        flush();
+        const tag = m[1].toLowerCase();
+        out.push(tag === 'mark' ? { t: 'mark', children: parseInline(m[2]) } : { t: 'html', tag, children: parseInline(m[2]) });
+        i += m[0].length; continue;
+      }
+      if ((m = match(RE.autolink, text, i))) { flush(); out.push({ t: 'ext', url: m[1], children: [{ t: 'text', v: m[1] }] }); i += m[0].length; continue; }
       if ((m = match(RE.tag, text, i))) { i += m[0].length; continue; } // balise HTML : ignorée, son texte reste
     }
     if (c === '*') {
@@ -90,6 +112,7 @@ export function parseInline(src) {
       if ((m = match(RE.bold, text, i))) { flush(); out.push({ t: 'b', children: parseInline(m[1]) }); i += m[0].length; continue; }
       if ((m = match(RE.italic, text, i))) { flush(); out.push({ t: 'i', children: parseInline(m[1]) }); i += m[0].length; continue; }
     }
+    if (c === '_' && (i === 0 || !/\w/.test(text[i - 1])) && (m = match(RE.boldU, text, i))) { flush(); out.push({ t: 'b', children: parseInline(m[1]) }); i += m[0].length; continue; }
     if (c === '_' && (i === 0 || !/\w/.test(text[i - 1])) && (m = match(RE.italicU, text, i))) { flush(); out.push({ t: 'i', children: parseInline(m[1]) }); i += m[0].length; continue; }
     if (c === '~' && (m = match(RE.strike, text, i))) { flush(); out.push({ t: 's', children: parseInline(m[1]) }); i += m[0].length; continue; }
     if (c === '=' && (m = match(RE.mark, text, i))) { flush(); out.push({ t: 'mark', children: parseInline(m[1]) }); i += m[0].length; continue; }
@@ -103,7 +126,9 @@ export function parseInline(src) {
 /** Texte brut d'un arbre inline (titres, extraits, ancres). */
 export function inlineText(nodes) {
   return (nodes || []).map((n) => {
-    if (n.t === 'text' || n.t === 'code') return n.v;
+    if (n.t === 'text' || n.t === 'code' || n.t === 'math') return n.v;
+    if (n.t === 'tag') return '#' + n.v;
+    if (n.t === 'fnref') return '';
     if (n.t === 'link') return n.label;
     if (n.t === 'br') return ' ';
     if (n.children) return inlineText(n.children);
@@ -166,6 +191,7 @@ function parseList(lines, start) {
     }
     const indent = m[1].replace(/\t/g, '    ').length;
     if (indent < baseIndent) break;
+    if (indent === baseIndent && /\d/.test(m[2]) !== ordered) break; // puces ↔ numéros : deux listes
     if (indent > baseIndent) {
       const [sub, next] = parseList(lines, i);
       if (items.length) items[items.length - 1].children.push(sub);
@@ -173,13 +199,19 @@ function parseList(lines, start) {
       i = next; continue;
     }
     let body = m[3];
-    let checked = null;
-    const task = /^\[([ xX])\]\s+(.*)$/.exec(body);
-    if (task) { checked = task[1] !== ' '; body = task[2]; }
-    items.push({ inline: body, checked, children: [] });
+    let checked = null; let status = '';
+    const task = /^\[(.)\]\s+(.*)$/.exec(body);
+    if (task) { checked = task[1] !== ' '; status = task[1]; body = task[2]; }
+    items.push({ inline: body, checked, status, children: [] });
     i++;
   }
-  return [{ t: 'list', ordered, items: items.map((it) => ({ checked: it.checked, content: parseInline(it.inline), children: it.children })) }, i];
+  return [{
+    t: 'list', ordered, start: ordered ? parseInt(first[2], 10) || 1 : 1,
+    items: items.map((it) => {
+      const idm = /(?:^|\s)\^([A-Za-z0-9-]+)\s*$/.exec(it.inline);
+      return { checked: it.checked, status: it.status, id: idm ? idm[1] : '', content: parseInline(idm ? it.inline.slice(0, idm.index) : it.inline), children: it.children };
+    })
+  }, i];
 }
 
 export function parseBlocks(lines) {
@@ -189,6 +221,28 @@ export function parseBlocks(lines) {
     const line = lines[i];
     if (!line.trim()) { i++; continue; }
     if (MULTICOL.test(line)) { i++; continue; }
+
+    // une ligne « $$x$$ suite » est un paragraphe (formule en ligne) ; sinon bloc de formule
+    if (/^\s*\$\$/.test(line) && (line.trim().indexOf('$$', 2) < 0 || line.trim().indexOf('$$', 2) === line.trim().length - 2)) {
+      const first = line.trim();
+      if (first.length > 4 && first.endsWith('$$')) { out.push({ t: 'math', v: first.slice(2, -2).trim(), display: true }); i++; continue; }
+      const mathLines = []; const head = first.slice(2);
+      if (head.trim()) mathLines.push(head);
+      i++;
+      while (i < lines.length && !lines[i].includes('$$')) { mathLines.push(lines[i]); i++; }
+      if (i < lines.length) { const tail = lines[i].slice(0, lines[i].indexOf('$$')); if (tail.trim()) mathLines.push(tail); i++; }
+      out.push({ t: 'math', v: mathLines.join('\n').trim(), display: true });
+      continue;
+    }
+    const fn = /^\[\^([^\]\s]+)\]:\s*(.*)$/.exec(line);
+    if (fn) {
+      const parts = [fn[2]]; i++;
+      while (i < lines.length && lines[i].trim() && /^(\t|\s{2,})/.test(lines[i])) { parts.push(lines[i].trim()); i++; }
+      out.push({ t: 'fndef', id: fn[1], content: parseInline(parts.join('\n')) });
+      continue;
+    }
+    const bid = /^\^([A-Za-z0-9-]+)\s*$/.exec(line.trim());
+    if (bid && out.length) { out[out.length - 1].id = bid[1]; i++; continue; }
 
     let m = FENCE.exec(line);
     if (m) {
@@ -226,15 +280,106 @@ export function parseBlocks(lines) {
     // paragraphe : lignes consécutives qui n'ouvrent pas un autre bloc
     const para = [line.trim()]; i++;
     while (i < lines.length && lines[i].trim() && !startsBlock(lines[i], lines[i + 1])) { para.push(lines[i].trim()); i++; }
-    const joined = para.join('\n');
+    let joined = para.join('\n');
     if (/^(<br\s*\/?>\s*)+$/i.test(joined)) continue; // ligne de <br> seule = espacement, déjà fourni par les marges
-    out.push({ t: 'paragraph', content: parseInline(joined) });
+    const idm = /(?:^|\s)\^([A-Za-z0-9-]+)$/.exec(joined);
+    if (idm) joined = joined.slice(0, idm.index);
+    out.push({ t: 'paragraph', id: idm ? idm[1] : '', content: parseInline(joined) });
   }
   return out;
 }
 
+/** Retire les commentaires `%%…%%` (sauf dans un bloc de code). */
+export function stripComments(text) {
+  return String(text || '').replace(/(```[\s\S]*?```)|%%[\s\S]*?%%/g, (m, code) => (code ? m : ''));
+}
+
+function walk(x, fn) {
+  if (Array.isArray(x)) x.forEach((v) => walk(v, fn));
+  else if (x && typeof x === 'object') {
+    fn(x);
+    for (const k in x) { const v = x[k]; if (v && typeof v === 'object') walk(v, fn); }
+  }
+}
+
+/** Numérote les notes de bas de page et les tâches (dans l'ordre du document),
+ * puis range les définitions de notes en fin de page. */
+function finalize(blocks) {
+  const defs = new Map(); const rest = [];
+  for (const b of blocks) { if (b.t === 'fndef') defs.set(b.id, b); else rest.push(b); }
+  const items = []; const seen = new Map();
+  let task = 0;
+  walk(rest, (o) => {
+    if (o.t === 'fnref') {
+      if (o.content) { o.num = items.length + 1; items.push({ num: o.num, content: o.content }); }
+      else if (defs.has(o.id)) {
+        if (!seen.has(o.id)) { seen.set(o.id, items.length + 1); items.push({ num: items.length + 1, content: defs.get(o.id).content }); }
+        o.num = seen.get(o.id);
+      }
+    } else if (o.checked !== undefined && o.checked !== null && o.content) o.task = task++;
+  });
+  if (items.length) rest.push({ t: 'footnotes', items });
+  return rest;
+}
+
 export function parseMarkdown(body) {
-  return parseBlocks(String(body || '').replace(/\r/g, '').split('\n'));
+  return finalize(parseBlocks(stripComments(body).replace(/\r/g, '').split('\n')));
+}
+
+/** Extrait d'une note pour une insertion `![[Note#Titre]]` / `![[Note^bloc]]`. */
+export function sliceNote(body, { heading = '', block = '' } = {}) {
+  const lines = String(body || '').replace(/\r/g, '').split('\n');
+  if (block) {
+    const end = lines.findIndex((l) => new RegExp('(^|\\s)\\^' + block.replace(/[^\w-]/g, '') + '\\s*$').test(l));
+    if (end < 0) return '';
+    let start = end;
+    if (lines[end].trim().startsWith('^')) start = end - 1; // « ^id » seul : le bloc est celui qui précède
+    while (start > 0 && lines[start - 1].trim()) start--;
+    return lines.slice(Math.max(0, start), end + 1).join('\n');
+  }
+  if (heading) {
+    const want = slugHeading(heading);
+    let fence = false; let from = -1; let level = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (/^\s*(```|~~~)/.test(lines[i])) { fence = !fence; continue; }
+      if (fence) continue;
+      const h = HEADING.exec(lines[i]);
+      if (!h) continue;
+      if (from < 0) { if (slugHeading(inlineText(parseInline(h[2]))) === want) { from = i; level = h[1].length; } }
+      else if (h[1].length <= level) return lines.slice(from, i).join('\n');
+    }
+    return from < 0 ? '' : lines.slice(from).join('\n');
+  }
+  return lines.join('\n');
+}
+
+/** Identifiants de bloc `^id` d'une note, avec un aperçu de la ligne. */
+export function blockIds(body) {
+  const out = [];
+  for (const l of String(body || '').split('\n')) {
+    const m = /(?:^|\s)\^([A-Za-z0-9-]+)\s*$/.exec(l);
+    if (m) out.push({ id: m[1], preview: l.slice(0, m.index).trim().slice(0, 60) });
+  }
+  return out;
+}
+
+const TAG_SCAN = /(?:^|[\s(])#([\p{L}\p{N}_/-]*[\p{L}_/-][\p{L}\p{N}_/-]*)/gu;
+
+/** Tags d'une note : propriété `tags` + `#tags` écrits dans le corps. */
+export function noteTags(note) {
+  const out = new Set();
+  const fm = note.front || {};
+  const key = Object.keys(fm).find((k) => k.toLowerCase() === 'tags' || k.toLowerCase() === 'tag');
+  if (key) {
+    const v = fm[key];
+    (Array.isArray(v) ? v : String(v == null ? '' : v).split(/[,\s]+/)).forEach((t) => {
+      const c = String(t).trim().replace(/^#/, '');
+      if (c) out.add(c);
+    });
+  }
+  const text = stripComments(note.body).replace(/(```|~~~)[\s\S]*?\1/g, ' ').replace(/`[^`\n]*`/g, ' ');
+  for (const m of text.matchAll(TAG_SCAN)) out.add(m[1]);
+  return [...out];
 }
 
 /** Titres du document (sommaire / ancres). */
